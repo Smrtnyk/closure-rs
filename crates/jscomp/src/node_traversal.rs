@@ -339,6 +339,10 @@ impl<C: AbstractPostOrderCallbackInterface> ScopedCallback for AbstractScopedCal
 enum CfgObject {
     Root(NodeId),
     Graph(Box<ControlFlowGraph<NodeId>>),
+    /// Rust-only (performance divergence): a root whose graph the callback knows every node of
+    /// to be reachable without building it (`mark_front_fully_reachable`); built like `Root`
+    /// if asked for.
+    FullyReachable(NodeId),
 }
 type CfgScopeHook<'a> = Box<dyn FnMut(&mut AbstractCfgCallback<'a>, &mut NodeTraversal<'_>) + 'a>;
 type CfgShouldTraverseHook<'a> = Box<
@@ -408,7 +412,9 @@ impl<'a> AbstractCfgCallback<'a> {
         compiler: &mut AbstractCompiler,
     ) -> &ControlFlowGraph<NodeId> {
         check_state!(!self.cfgs.is_empty());
-        if let Some(CfgObject::Root(cfg_root)) = self.cfgs.front() {
+        if let Some(CfgObject::Root(cfg_root) | CfgObject::FullyReachable(cfg_root)) =
+            self.cfgs.front()
+        {
             let result = ControlFlowAnalysis::builder()
                 .set_compiler(compiler)
                 .set_cfg_root(*cfg_root)
@@ -419,8 +425,21 @@ impl<'a> AbstractCfgCallback<'a> {
         }
         match self.cfgs.front().unwrap() {
             CfgObject::Graph(result) => result,
-            CfgObject::Root(_) => unreachable!(),
+            CfgObject::Root(_) | CfgObject::FullyReachable(_) => unreachable!(),
         }
+    }
+
+    /// Rust-only (performance divergence): notes that every node of the graph of the current
+    /// (not yet built) root is reachable; see `CfgObject::FullyReachable`.
+    pub(crate) fn mark_front_fully_reachable(&mut self) {
+        if let Some(&CfgObject::Root(root)) = self.cfgs.front() {
+            self.cfgs[0] = CfgObject::FullyReachable(root);
+        }
+    }
+
+    /// Rust-only: whether the current graph was noted fully reachable and not built.
+    pub(crate) fn front_is_fully_reachable(&self) -> bool {
+        matches!(self.cfgs.front(), Some(CfgObject::FullyReachable(_)))
     }
 
     // Rust-only: Java's getControlFlowGraph result is mutable (GraphReachability annotates its
@@ -432,7 +451,7 @@ impl<'a> AbstractCfgCallback<'a> {
         self.get_control_flow_graph(compiler);
         match self.cfgs.front_mut().unwrap() {
             CfgObject::Graph(result) => result,
-            CfgObject::Root(_) => unreachable!(),
+            CfgObject::Root(_) | CfgObject::FullyReachable(_) => unreachable!(),
         }
     }
 }

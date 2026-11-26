@@ -49,14 +49,14 @@ use crate::node_util::NodeUtil;
 use crate::process_closure_provides_and_requires::{
     ProcessClosureProvidesAndRequires, ProvidedName,
 };
-use crate::scope::with_static_scope;
+use crate::scope::{ScopeId, with_static_scope};
 use crate::scope_creator::ASSERT_NO_SCOPES_CREATED;
 use crate::scoped_name::{ScopedName, Simple};
 use crate::source_file::declarations::{self, Declaration, DocSite};
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::type_check::{MULTIPLE_VAR_DEF, TypeCheck};
 use crate::type_validator::TypeValidator;
-use crate::typed_scope::TypedScope;
+use crate::typed_scope::{ReservedNames, TypedScope};
 use crate::typed_var::TypedVar;
 use closure_jstype::{
     JSTypeNative, TypeId,
@@ -594,7 +594,7 @@ impl TypedScopeCreator {
                 compiler,
                 typed_parent.unwrap(),
                 root,
-                reserved_names,
+                ReservedNames::new(reserved_names),
                 module.clone(),
             );
             // Rust-only (performance divergence): an empty non-synthetic BLOCK outside a module
@@ -792,21 +792,26 @@ impl TypedScopeCreator {
 
         let externs = root.get_first_child(compiler).unwrap();
         let js = root.get_last_child(compiler).unwrap();
-        let mut first_order_function_analyzer = FirstOrderFunctionAnalyzer::new(self, externs);
+        let mut first_order_function_analyzer = FirstOrderFunctionAnalyzer::new(self, externs, js);
         NodeTraversal::builder()
             .set_compiler(compiler)
             .set_callback(&mut first_order_function_analyzer)
             .set_scope_creator(&mut scope_creator)
             .traverse_roots(externs, js);
 
+        let js_statements = std::mem::take(&mut first_order_function_analyzer.js_enum_statements);
         let mut identify_enums_and_typedefs = IdentifyEnumsAndTypedefsAsNonNullable {
             bundled_statements: first_order_function_analyzer.enum_statements,
+            js: Some(js),
         };
         NodeTraversal::builder()
             .set_compiler(compiler)
             .set_callback(&mut identify_enums_and_typedefs)
             .set_scope_creator(&mut scope_creator)
             .traverse(root);
+        // The sources come after the externs in the traversal; their ROOT and the main ROOT,
+        // visited after them, are no statements.
+        identify_enums_and_typedefs.replay(compiler, &js_statements);
 
         let s = TypedScope::create_global_scope(compiler, root);
         self.declare_native_function_type(compiler, s, JSTypeNative::ARRAY_FUNCTION_TYPE);
@@ -6043,15 +6048,24 @@ struct FirstOrderFunctionAnalyzer<'a> {
     externs: NodeId,
     /// Current statements requiring the immediately following enum/typedef traversal, in order.
     enum_statements: IndexMap<NodeId, Vec<NodeId>>,
+    /// Rust-only (performance divergence): the sources root, and the statements of the sources
+    /// that `IdentifyEnumsAndTypedefsAsNonNullable` visits, with their scopes, in traversal order
+    /// (its `replay`).
+    js: NodeId,
+    in_js: bool,
+    js_enum_statements: Vec<(NodeId, ScopeId)>,
 }
 
 impl<'a> FirstOrderFunctionAnalyzer<'a> {
     // Rust-only: Java's inner class reads the enclosing TypedScopeCreator's fields.
-    fn new(creator: &'a mut TypedScopeCreator, externs: NodeId) -> Self {
+    fn new(creator: &'a mut TypedScopeCreator, externs: NodeId, js: NodeId) -> Self {
         Self {
             creator,
             externs,
             enum_statements: IndexMap::default(),
+            js,
+            in_js: false,
+            js_enum_statements: Vec::new(),
         }
     }
 
@@ -6178,9 +6192,12 @@ impl Callback for FirstOrderFunctionAnalyzer<'_> {
     fn should_traverse(
         &mut self,
         _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
+        n: NodeId,
         _parent: Option<NodeId>,
     ) -> bool {
+        if n == self.js {
+            self.in_js = true;
+        }
         true
     }
 
@@ -6195,6 +6212,12 @@ impl Callback for FirstOrderFunctionAnalyzer<'_> {
 
     // port: TypedScopeCreator.FirstOrderFunctionAnalyzer#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
+        // Rust-only (performance divergence): see `js_enum_statements`. Every scope on the stack
+        // exists (`enter_scope` asked for the current one), so asking for it has no effect.
+        if self.in_js && IdentifyEnumsAndTypedefsAsNonNullable::visits(n.get_token(t)) {
+            let scope = t.get_scope();
+            self.js_enum_statements.push((n, scope));
+        }
         if t.in_global_scope() {
             // The first-order function analyzer looks at two types of variables:
             //
@@ -6208,7 +6231,11 @@ impl Callback for FirstOrderFunctionAnalyzer<'_> {
         }
 
         // (Scope) t.getClosestContainerScope()
-        let container_scope = match t.get_closest_container_scope() {
+        // Rust-only (performance divergence): Java looks the container scope up for every node
+        // it visits outside the global scope; here only for the nodes that use it. The lookup
+        // has no effect: `enter_scope` asked for the current scope, which made every scope on
+        // the traversal's stack, so it only reads the stack.
+        let container_scope = |t: &mut NodeTraversal<'_>| match t.get_closest_container_scope() {
             Some(AbstractScopeHandle::Untyped(scope)) => scope,
             Some(AbstractScopeHandle::Typed(_)) => {
                 panic!("ClassCastException: TypedScope cannot be cast to Scope")
@@ -6220,7 +6247,7 @@ impl Callback for FirstOrderFunctionAnalyzer<'_> {
         if (n.is_return(t) && n.has_children(t))
             || NodeUtil::is_blockless_arrow_function_result(t, n)
         {
-            let root = container_scope.get_root_node(t.get_compiler());
+            let root = container_scope(t).get_root_node(t.get_compiler());
             self.creator.functions_with_non_empty_returns.insert(root);
         }
 
@@ -6246,6 +6273,8 @@ impl Callback for FirstOrderFunctionAnalyzer<'_> {
                         .assigned_var_names
                         .entry(scoped_name.clone())
                         .or_insert(0) += 1;
+                    let container_scope = container_scope(t);
+                    let compiler = t.get_compiler();
                     if !container_scope.has_same_container_scope(compiler, owner_scope) {
                         self.creator.escaped_var_names.insert(scoped_name);
                     }
@@ -6259,9 +6288,11 @@ impl Callback for FirstOrderFunctionAnalyzer<'_> {
             let var = scope.get_var(compiler, name);
             if let Some(var) = var {
                 let owner_scope = var.get_scope(compiler);
-                if owner_scope.is_local(compiler)
-                    && !container_scope.has_same_container_scope(compiler, owner_scope)
-                {
+                if owner_scope.is_local(compiler) && {
+                    let container_scope = container_scope(t);
+                    !container_scope.has_same_container_scope(t.get_compiler(), owner_scope)
+                } {
+                    let compiler = t.get_compiler();
                     self.creator.escaped_var_names.insert(<dyn ScopedName>::of(
                         n.get_qualified_name(compiler)
                             .expect("NullPointerException"),
@@ -6304,52 +6335,154 @@ const WELL_KNOWN_SYMBOLS: [&str; 12] = [
 /// Adds all enums and typedefs to the registry's list of non-nullable types.
 ///
 /// The Java `registry` field is reached through the compiler (DESIGN.md section 6).
+///
+/// Rust-only (performance divergence): the statements of the sources it looks at (declarations
+/// and expression statements) are recorded with their scope during the first-order analysis,
+/// which walks the same tree with the same scopes just before, and visited from that list in
+/// the same order instead of walking the sources again (`replay`); the externs are walked.
 // port: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable
 struct IdentifyEnumsAndTypedefsAsNonNullable {
     bundled_statements: IndexMap<NodeId, Vec<NodeId>>,
+    /// The sources root, which the traversal leaves to `replay`.
+    js: Option<NodeId>,
+}
+
+/// Rust-only: how `IdentifyEnumsAndTypedefsAsNonNullable` reads the tree and gets the scope of
+/// the node it visits: from its traversal (`NodeTraversal#getScope`), or as recorded.
+trait EnumScopeAccess {
+    fn ast(&self) -> &closure_rhino::node::Ast;
+    fn scope_and_compiler(&mut self) -> (ScopeId, &mut AbstractCompiler);
+}
+
+impl EnumScopeAccess for NodeTraversal<'_> {
+    fn ast(&self) -> &closure_rhino::node::Ast {
+        self
+    }
+    fn scope_and_compiler(&mut self) -> (ScopeId, &mut AbstractCompiler) {
+        let scope = self.get_scope();
+        (scope, self.get_compiler())
+    }
+}
+
+/// A statement recorded with its scope (see `IdentifyEnumsAndTypedefsAsNonNullable`).
+struct RecordedEnumScope<'a> {
+    compiler: &'a mut AbstractCompiler,
+    scope: ScopeId,
+}
+
+impl EnumScopeAccess for RecordedEnumScope<'_> {
+    fn ast(&self) -> &closure_rhino::node::Ast {
+        self.compiler
+    }
+    fn scope_and_compiler(&mut self) -> (ScopeId, &mut AbstractCompiler) {
+        (self.scope, self.compiler)
+    }
 }
 
 impl IdentifyEnumsAndTypedefsAsNonNullable {
+    /// Whether `visit` looks at a node with this token (the statements `replay` needs).
+    fn visits(token: closure_rhino::token::Token) -> bool {
+        use closure_rhino::token::Token;
+        matches!(
+            token,
+            Token::LET | Token::CONST | Token::VAR | Token::EXPR_RESULT
+        )
+    }
+
+    /// Visits the recorded statements of the sources, in their traversal order, each with the
+    /// scope it was recorded with.
+    fn replay(&mut self, compiler: &mut AbstractCompiler, statements: &[(NodeId, ScopeId)]) {
+        for &(node, scope) in statements {
+            let mut access = RecordedEnumScope { compiler, scope };
+            self.visit_statement(&mut access, node);
+        }
+    }
+
+    // port: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable#visit
+    fn visit_statement(&mut self, a: &mut impl EnumScopeAccess, node: NodeId) {
+        use closure_rhino::token::Token;
+        match node.get_token(a.ast()) {
+            Token::LET | Token::CONST | Token::VAR => {
+                let mut child = node.get_first_child(a.ast());
+                while let Some(c) = child {
+                    // TODO(b/116853368): make this work for destructuring aliases as well.
+                    let rvalue = c.get_first_child(a.ast());
+                    let info = NodeUtil::get_best_jsdoc_info(a.ast(), c);
+                    self.identify_enum_or_typedef_declaration(a, c, rvalue, info.as_deref());
+                    child = c.get_next(a.ast());
+                }
+            }
+            Token::EXPR_RESULT => {
+                let first_child = node.get_first_child(a.ast()).unwrap();
+                if first_child.is_assign(a.ast()) {
+                    let assign = first_child;
+                    let lhs = assign.get_first_child(a.ast()).unwrap();
+                    let rhs = assign.get_second_child(a.ast());
+                    let info = assign.get_jsdoc_info(a.ast());
+                    self.identify_enum_or_typedef_declaration(a, lhs, rhs, info.as_deref());
+                } else if first_child.is_get_prop(a.ast()) {
+                    let info = first_child.get_jsdoc_info(a.ast());
+                    self.identify_enum_or_typedef_declaration(
+                        a,
+                        first_child,
+                        /* rvalue= */ None,
+                        info.as_deref(),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
     // port: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable#identifyEnumOrTypedefDeclaration
     fn identify_enum_or_typedef_declaration(
         &mut self,
-        t: &mut NodeTraversal<'_>,
+        a: &mut impl EnumScopeAccess,
         name_node: NodeId,
         rvalue: Option<NodeId>,
         info: Option<&JSDocInfo>,
     ) {
-        if !name_node.is_qualified_name(t) {
+        if !name_node.is_qualified_name(a.ast()) {
             return;
         }
         if info.is_some() && info.unwrap().has_enum_parameter_type() {
-            let scope = t.get_scope();
-            let qualified_name = name_node.get_qualified_name(t).unwrap();
-            let compiler = t.get_compiler();
+            let qualified_name = name_node.get_qualified_name(a.ast()).unwrap();
+            let (scope, compiler) = a.scope_and_compiler();
             with_static_scope(compiler, scope, |reg, ast, scope| {
                 reg.identify_non_nullable_name(ast, Some(scope), qualified_name);
             });
         } else if info.is_some() && info.unwrap().has_typedef_type() {
-            let scope = t.get_scope();
-            let qualified_name = name_node.get_qualified_name(t).unwrap();
-            let compiler = t.get_compiler();
+            let qualified_name = name_node.get_qualified_name(a.ast()).unwrap();
+            let (scope, compiler) = a.scope_and_compiler();
             with_static_scope(compiler, scope, |reg, ast, scope| {
                 reg.identify_non_nullable_name(ast, Some(scope), qualified_name);
             });
         } else if rvalue.is_some()
-            && rvalue.unwrap().is_qualified_name(t)
+            && rvalue.unwrap().is_qualified_name(a.ast())
             && {
-                let scope = t.get_scope();
-                let rvalue_name = rvalue.unwrap().get_qualified_name(t).unwrap();
-                let compiler = t.get_compiler();
-                with_static_scope(compiler, scope, |reg, ast, scope| {
-                    reg.is_non_nullable_name(ast, Some(scope), rvalue_name)
-                })
+                let rvalue_name = rvalue.unwrap().get_qualified_name(a.ast()).unwrap();
+                let (scope, compiler) = a.scope_and_compiler();
+                // Rust-only (performance divergence): the lookup scope of a name whose root is
+                // no implicit var is found without effect, so it is not looked for when no scope
+                // has the name.
+                let dot = rvalue_name.index_of_char(u16::from(b'.'));
+                let root = if dot < 0 {
+                    rvalue_name.clone()
+                } else {
+                    rvalue_name.substring(0, dot as usize)
+                };
+                (compiler
+                    .get_type_registry()
+                    .may_be_non_nullable_name(&rvalue_name)
+                    || ImplicitVar::of(&root).is_some())
+                    && with_static_scope(compiler, scope, |reg, ast, scope| {
+                        reg.is_non_nullable_name(ast, Some(scope), rvalue_name)
+                    })
             }
-            && NodeUtil::is_constant_declaration(t, info, name_node)
+            && NodeUtil::is_constant_declaration(a.ast(), info, name_node)
         {
-            let scope = t.get_scope();
-            let qualified_name = name_node.get_qualified_name(t).unwrap();
-            let compiler = t.get_compiler();
+            let qualified_name = name_node.get_qualified_name(a.ast()).unwrap();
+            let (scope, compiler) = a.scope_and_compiler();
             with_static_scope(compiler, scope, |reg, ast, scope| {
                 reg.identify_non_nullable_name(ast, Some(scope), qualified_name);
             });
@@ -6362,10 +6495,11 @@ impl Callback for IdentifyEnumsAndTypedefsAsNonNullable {
     fn should_traverse(
         &mut self,
         _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
+        n: NodeId,
         _parent: Option<NodeId>,
     ) -> bool {
-        true
+        // Rust-only: the sources are visited by `replay`.
+        Some(n) != self.js
     }
 
     fn should_traverse_script(
@@ -6387,38 +6521,7 @@ impl Callback for IdentifyEnumsAndTypedefsAsNonNullable {
 
     // port: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, node: NodeId, _parent: Option<NodeId>) {
-        use closure_rhino::token::Token;
-        match node.get_token(t) {
-            Token::LET | Token::CONST | Token::VAR => {
-                let mut child = node.get_first_child(t);
-                while let Some(c) = child {
-                    // TODO(b/116853368): make this work for destructuring aliases as well.
-                    let rvalue = c.get_first_child(t);
-                    let info = NodeUtil::get_best_jsdoc_info(t, c);
-                    self.identify_enum_or_typedef_declaration(t, c, rvalue, info.as_deref());
-                    child = c.get_next(t);
-                }
-            }
-            Token::EXPR_RESULT => {
-                let first_child = node.get_first_child(t).unwrap();
-                if first_child.is_assign(t) {
-                    let assign = first_child;
-                    let lhs = assign.get_first_child(t).unwrap();
-                    let rhs = assign.get_second_child(t);
-                    let info = assign.get_jsdoc_info(t);
-                    self.identify_enum_or_typedef_declaration(t, lhs, rhs, info.as_deref());
-                } else if first_child.is_get_prop(t) {
-                    let info = first_child.get_jsdoc_info(t);
-                    self.identify_enum_or_typedef_declaration(
-                        t,
-                        first_child,
-                        /* rvalue= */ None,
-                        info.as_deref(),
-                    );
-                }
-            }
-            _ => {}
-        }
+        self.visit_statement(t, node);
     }
 }
 

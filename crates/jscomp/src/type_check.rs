@@ -5501,27 +5501,36 @@ impl TypeCheck {
     /// number>`.
     ///
     /// Returns non-stringifiable type which is used as key or null if all there are no such
-    /// types. Java's `Set<JSType>` membership uses `JSType#equals`; Rust keeps the insertion
-    /// ordered list and tests membership with `equals`.
+    /// types. Java's `alreadyCheckedTypes` is a `LinkedHashSet<JSType>`, whose membership test
+    /// compares `JSType#hashCode` and then `JSType#equals`; Rust keeps the insertion ordered
+    /// list of the types with their hash codes and tests membership the same way.
+    ///
+    /// Rust-only (performance divergence): the port used to call `equals` on every element; the
+    /// hash code is now compared first, as the Java set does, which skips the structural
+    /// comparisons of the types with other hash codes.
     // port: TypeCheck#findObjectWithNonStringifiableKey
     fn find_object_with_non_stringifiable_key(
         &self,
         compiler: &mut AbstractCompiler,
         type_: TypeId,
-        already_checked_types: &mut Vec<TypeId>,
+        already_checked_types: &mut Vec<(TypeId, i32)>,
     ) -> Option<TypeId> {
-        let already_checked = {
+        let (already_checked, hash) = {
             let (reg, ast) = compiler.get_type_registry_and_ast();
-            already_checked_types
+            let hash = type_.hash_code(reg);
+            let already_checked = already_checked_types
                 .iter()
-                .any(|&checked| checked.equals(reg, ast, type_))
+                .any(|&(checked, checked_hash)| {
+                    checked_hash == hash && checked.equals(reg, ast, type_)
+                });
+            (already_checked, hash)
         };
         if already_checked {
             // This can happen in recursive types. Current type already being checked earlier in
             // stacktrace so now we just skip it.
             return None;
         } else {
-            already_checked_types.push(type_);
+            already_checked_types.push((type_, hash));
         }
         if self.is_object_type_with_non_stringifiable_key(compiler, type_) {
             return Some(type_);

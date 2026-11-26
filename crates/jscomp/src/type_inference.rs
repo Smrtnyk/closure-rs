@@ -202,6 +202,16 @@ static MODULE_IMPORT_CACHE: LazyLock<SkipMode> =
         },
     );
 
+/// Rust-only: `CLOSURE_RS_INFERENCE_MODULE_MEMO` (`InferenceTransfer::last_module_root`).
+static INFERENCE_MODULE_MEMO: LazyLock<SkipMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_INFERENCE_MODULE_MEMO").as_deref() {
+            Ok("off") => SkipMode::Off,
+            Ok("verify") => SkipMode::Verify,
+            _ => SkipMode::On,
+        },
+    );
+
 /// Rust-only: tests set the mode of `declare_module_imports` and count its skips.
 #[cfg(test)]
 pub(crate) mod module_import_cache_for_test {
@@ -253,6 +263,11 @@ struct InferenceTransfer<'a> {
     /// single-entry caches for `flow_through` scope lookup and unbound-var tracking.
     container_scope_is_global: bool,
     last_scope_root: Option<(NodeId, TypedScope)>,
+    /// Rust-only (performance divergence): the module of the last scope root `flow_through` asked
+    /// for (the module map and the tree above a module body do not change during inference).
+    /// `CLOSURE_RS_INFERENCE_MODULE_MEMO=off` finds it every time, `=verify` finds it on a hit
+    /// too and compares.
+    last_module_root: Option<(NodeId, Option<Arc<Module>>)>,
     last_inferred_unbound_scope: Option<TypedScope>,
     /// Rust-only (performance divergence): per ES module scope, the imports last declared in it
     /// and the `VarWatch` epoch after that (`declare_module_imports`).
@@ -434,6 +449,7 @@ impl<'a> InferenceTransfer<'a> {
             inferred_unbound_vars: IndexSet::<_>::default(),
             container_scope_is_global,
             last_scope_root: None,
+            last_module_root: None,
             last_inferred_unbound_scope: None,
             module_imports: IndexMap::default(),
             unknown_type,
@@ -466,14 +482,44 @@ impl<'a> InferenceTransfer<'a> {
         // Inferred types of ES module imports/exports aren't knowable until after TypeInference
         // runs. First update the type of all imports in the scope, then do flow-sensitive
         // inference, then update the implicit '*exports*' object.
-        let module = if root.is_module_body(compiler)
-            || (root.is_block(compiler)
-                && NodeUtil::is_bundled_goog_module_scope_root(compiler, root))
-        {
-            let module_map = compiler.get_module_map().cloned();
-            ModuleImportResolver::get_module_from_scope_root(module_map.as_deref(), compiler, root)
-        } else {
-            None
+        let module_memo = *INFERENCE_MODULE_MEMO;
+        let module = match &self.last_module_root {
+            Some((cached_root, module)) if *cached_root == root && module_memo != SkipMode::Off => {
+                if module_memo == SkipMode::Verify {
+                    let module_map = compiler.get_module_map().cloned();
+                    let found = ModuleImportResolver::get_module_from_scope_root(
+                        module_map.as_deref(),
+                        compiler,
+                        root,
+                    );
+                    assert!(
+                        match (module, &found) {
+                            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                            (None, None) => true,
+                            _ => false,
+                        },
+                        "CLOSURE_RS_INFERENCE_MODULE_MEMO=verify"
+                    );
+                }
+                module.clone()
+            }
+            _ => {
+                let module = if root.is_module_body(compiler)
+                    || (root.is_block(compiler)
+                        && NodeUtil::is_bundled_goog_module_scope_root(compiler, root))
+                {
+                    let module_map = compiler.get_module_map().cloned();
+                    ModuleImportResolver::get_module_from_scope_root(
+                        module_map.as_deref(),
+                        compiler,
+                        root,
+                    )
+                } else {
+                    None
+                };
+                self.last_module_root = Some((root, module.clone()));
+                module
+            }
         };
         let syntactic_block_scope = match self.last_scope_root {
             Some((cached_root, cached_scope)) if cached_root == root => cached_scope,
@@ -1780,15 +1826,43 @@ impl<'a> InferenceTransfer<'a> {
             name_node.to_string(compiler)
         );
         let var_name = name_node.get_string(compiler);
+        let declared = Self::get_declared_var(compiler, &scope, &var_name);
+        self.redeclare_simple_var_declared(compiler, scope, &var_name, var_type, declared)
+    }
+
+    /// `redeclareSimpleVar` after `getDeclaredVar(scope, varName)` returned `declared`.
+    ///
+    /// Rust-only (performance divergence): the declaration is looked up once and handed on;
+    /// Java looks it up here, and `inferSlotType` looks the same name up in the same scope
+    /// again (see `FlowScope::infer_simple_slot_type`).
+    fn redeclare_simple_var_declared(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        scope: FS,
+        var_name: &JsString,
+        var_type: Option<TypeId>,
+        declared: Option<TypedVar>,
+    ) -> FS {
         let var_type = match var_type {
             Some(t) => t,
             None => self.get_native_type(compiler, JSTypeNative::UNKNOWN_TYPE),
         };
-        let declared = Self::get_declared_var(compiler, &scope, &var_name);
         if self.is_unflowable_opt(compiler, declared) {
             return scope;
         }
-        scope.infer_slot_type(compiler, &var_name, Some(var_type))
+        scope.infer_simple_slot_type(compiler, var_name, declared, Some(var_type))
+    }
+
+    /// Rust-only: whether `scope` is the container scope or a scope nested in it.
+    fn declared_within_container(&self, compiler: &AbstractCompiler, scope: TypedScope) -> bool {
+        let container_depth = self.container_scope.get_depth(compiler);
+        let mut scope = Some(scope);
+        while let Some(s) = scope
+            && s.get_depth(compiler) > container_depth
+        {
+            scope = s.get_parent(compiler);
+        }
+        scope == Some(self.container_scope)
     }
 
     // port: TypeInference#isUnflowable
@@ -2126,7 +2200,7 @@ impl InferenceTransfer<'_> {
         match target.get_token(compiler) {
             Token::NAME => {
                 let var_name = target.get_string(compiler);
-                let var = Self::get_declared_var(compiler, &scope, var_name);
+                let var = Self::get_declared_var(compiler, &scope, &var_name);
                 let var_type = var.and_then(|var| var.get_type(compiler));
                 let is_var_declaration = type_ == AssignmentType::DECLARATION
                     && var.is_some_and(|var| {
@@ -2196,10 +2270,19 @@ impl InferenceTransfer<'_> {
                 //    (varType.restrictByNotNullOrUndefined().isSubtype(resultType)
                 //     || !resultType.isSubtype(varType));
 
+                // redeclareSimpleVar looks the name up in the same scope again (Rust-only
+                // (performance divergence): the declaration found above is handed on).
                 if is_var_type_better {
-                    scope = self.redeclare_simple_var(compiler, scope, target, var_type);
+                    scope = self
+                        .redeclare_simple_var_declared(compiler, scope, &var_name, var_type, var);
                 } else {
-                    scope = self.redeclare_simple_var(compiler, scope, target, Some(result_type));
+                    scope = self.redeclare_simple_var_declared(
+                        compiler,
+                        scope,
+                        &var_name,
+                        Some(result_type),
+                        var,
+                    );
                 }
 
                 if let Some(update_node) = update_node {
@@ -2710,12 +2793,23 @@ impl InferenceTransfer<'_> {
                 //
                 // In this case, we would infer the first reference to t as
                 // type {number}, even though it's undefined.
-                let maybe_outer_var = if is_inferred && self.container_scope.is_local(compiler) {
-                    let parent_scope = self.container_scope.get_parent(compiler).unwrap();
-                    parent_scope.get_var(compiler, var_name.clone())
-                } else {
-                    None
-                };
+                // Rust-only (performance divergence): the lookup below only matters when `var` is
+                // a TypedVar declared outside the container scope (the outer var is declared in
+                // the container's parent or above, so it can only equal such a var). Otherwise it
+                // is skipped, unless it could make an implicit var.
+                let outer_may_equal = match &var {
+                    FlowSlot::Var(v) => {
+                        !self.declared_within_container(compiler, v.get_scope(compiler))
+                    }
+                    FlowSlot::Overlay(_) => false,
+                } || ImplicitVar::of(&var_name).is_some();
+                let maybe_outer_var =
+                    if is_inferred && outer_may_equal && self.container_scope.is_local(compiler) {
+                        let parent_scope = self.container_scope.get_parent(compiler).unwrap();
+                        parent_scope.get_var(compiler, var_name.clone())
+                    } else {
+                        None
+                    };
                 // Java's `var.equals(maybeOuterVar)`: a TypedVar compares as a ScopedName, an
                 // overlay slot by identity.
                 let non_local_inferred_slot = match (&var, maybe_outer_var) {

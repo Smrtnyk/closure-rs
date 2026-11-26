@@ -172,9 +172,62 @@ impl MessageFormat {
     }
     // port: MessageFormat#format(String,Object...)
     pub fn format(pattern: &str, arguments: &[&str]) -> String {
+        if let Some(result) = Self::format_plain(pattern, arguments) {
+            debug_assert_eq!(result, Self::format_parsed(pattern, arguments));
+            return result;
+        }
+        Self::format_parsed(pattern, arguments)
+    }
+
+    fn format_parsed(pattern: &str, arguments: &[&str]) -> String {
         let args: Vec<_> = arguments.iter().map(|s| JsString::from(*s)).collect();
         // Both the pattern and arguments are Rust &str, so the result has no lone surrogates.
         String::from_utf16(Self::format_js_strings(pattern, &args).as_units()).unwrap()
+    }
+
+    /// Rust-only (performance divergence): `format` of a pattern without quotes, whose format
+    /// elements are all `{n}` with one to four decimal digits and whose braces all belong to
+    /// them (every diagnostic message), formatted in place: the text between the elements is
+    /// copied and each element replaced by its argument, or by `{n}` when there is none, as
+    /// `applyPattern` and `subformat` do. Any other pattern returns `None` and is parsed.
+    fn format_plain(pattern: &str, arguments: &[&str]) -> Option<String> {
+        let bytes = pattern.as_bytes();
+        if bytes.contains(&b'\'') {
+            return None;
+        }
+        let mut result =
+            String::with_capacity(pattern.len() + arguments.iter().map(|a| a.len()).sum::<usize>());
+        let (mut i, mut last) = (0, 0);
+        while i < bytes.len() {
+            match bytes[i] {
+                b'{' => {
+                    let start = i + 1;
+                    let mut end = start;
+                    while end < bytes.len() && bytes[end].is_ascii_digit() {
+                        end += 1;
+                    }
+                    if end == start || end - start > 4 || bytes.get(end) != Some(&b'}') {
+                        return None;
+                    }
+                    let number: usize = pattern[start..end].parse().ok()?;
+                    result.push_str(&pattern[last..i]);
+                    match arguments.get(number) {
+                        Some(argument) => result.push_str(argument),
+                        None => {
+                            result.push('{');
+                            result.push_str(&number.to_string());
+                            result.push('}');
+                        }
+                    }
+                    i = end + 1;
+                    last = i;
+                }
+                b'}' => return None,
+                _ => i += 1,
+            }
+        }
+        result.push_str(&pattern[last..]);
+        Some(result)
     }
     // port: MessageFormat#format(String,Object...)
     pub fn format_js_strings(pattern: &str, arguments: &[JsString]) -> JsString {
@@ -234,4 +287,49 @@ fn parse_argument_number(units: &[u16]) -> Result<i32, ()> {
     } else {
         result as i32
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MessageFormat;
+
+    #[test]
+    fn plain_patterns_format_as_parsed() {
+        let arguments = ["x", "{1}", "it's", "\u{1F600}"];
+        for pattern in [
+            "",
+            "plain text",
+            "{0}",
+            "{0}{1}{2}{3}",
+            "a {0} b {1} c",
+            "{3} before {0}",
+            "missing {4} and {12} and {0012}",
+            "leading zeros {00} {0001}",
+            "unicode \u{00e9} {3} \u{1F600}",
+            "repeated {0} {0}",
+            "{9999}",
+        ] {
+            assert_eq!(
+                MessageFormat::format_plain(pattern, &arguments).as_deref(),
+                Some(MessageFormat::format_parsed(pattern, &arguments).as_str()),
+                "{pattern}"
+            );
+        }
+        for pattern in [
+            "it''s {0}",
+            "'{0}'",
+            "{0,number}",
+            "{ 0}",
+            "{00000}",
+            "a } b",
+            "{0",
+            "{}",
+        ] {
+            assert_eq!(
+                MessageFormat::format_plain(pattern, &arguments),
+                None,
+                "{pattern}"
+            );
+        }
+    }
 }

@@ -155,6 +155,34 @@ impl LinkedFlowScope {
         overlay
     }
 
+    /// The rest of `inferSlotType` once the overlay scope of `symbol` is known.
+    fn infer_slot_type_in(
+        self: Arc<Self>,
+        scope: OverlayScopeRef,
+        symbol: &JsString,
+        type_: Option<TypeId>,
+    ) -> Arc<dyn FlowScope> {
+        let new_scope = scope.infer(symbol, type_);
+        // Aggressively remove empty scopes to maintain a reasonable equivalence.
+        let new_scopes = if !new_scope.0.slots.is_empty() {
+            self.scopes.plus(scope.0.scope, new_scope)
+        } else {
+            self.scopes.minus(&scope.0.scope)
+        };
+        if !new_scopes.ptr_eq(&self.scopes) {
+            let has_qualified =
+                self.has_qualified_overlay || symbol.as_units().contains(&u16::from(b'.'));
+            Arc::new(LinkedFlowScope::new(
+                new_scopes,
+                self.syntactic_scope,
+                self.function_scope,
+                has_qualified,
+            ))
+        } else {
+            self
+        }
+    }
+
     // port: LinkedFlowScope#getCommonParentDeclarationScope
     pub fn get_common_parent_declaration_scope(
         compiler: &AbstractCompiler,
@@ -358,27 +386,24 @@ impl FlowScope for LinkedFlowScope {
         type_: Option<TypeId>,
     ) -> Arc<dyn FlowScope> {
         let scope = check_not_null!(self.get_overlay_scope_for_name(compiler, symbol, true));
-        let new_scope = scope.infer(symbol, type_);
-        // Aggressively remove empty scopes to maintain a reasonable equivalence.
-        let new_scopes = if !new_scope.0.slots.is_empty() {
-            self.scopes.plus(scope.0.scope, new_scope)
-        } else {
-            self.scopes.minus(&scope.0.scope)
-        };
-        if !new_scopes.ptr_eq(&self.scopes) {
-            let has_qualified =
-                self.has_qualified_overlay || symbol.as_units().contains(&u16::from(b'.'));
-            Arc::new(LinkedFlowScope::new(
-                new_scopes,
-                self.syntactic_scope,
-                self.function_scope,
-                has_qualified,
-            ))
-        } else {
-            self
-        }
+        self.infer_slot_type_in(scope, symbol, type_)
     }
 
+    fn infer_simple_slot_type(
+        self: Arc<Self>,
+        compiler: &mut AbstractCompiler,
+        symbol: &JsString,
+        declared: Option<TypedVar>,
+        type_: Option<TypeId>,
+    ) -> Arc<dyn FlowScope> {
+        // Rust-only (performance divergence): getOverlayScopeForName looks up the root of the
+        // name in the syntactic scope, which is the declaration scope the caller looked the
+        // (simple) name up in.
+        debug_assert!(!symbol.as_units().contains(&u16::from(b'.')));
+        let scope = declared.map_or(self.function_scope, |var| var.get_scope(compiler));
+        let scope = check_not_null!(self.get_overlay_scope_for_scope(scope, true));
+        self.infer_slot_type_in(scope, symbol, type_)
+    }
     // port: LinkedFlowScope#inferQualifiedSlot
     fn infer_qualified_slot(
         self: Arc<Self>,

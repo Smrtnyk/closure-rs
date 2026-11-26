@@ -66,7 +66,7 @@ pub(crate) struct TypedScopeData {
     /// Whether this is a bottom scope for the purposes of type inference.
     pub(crate) is_bottom: bool,
     // Will shrink over time. Java swaps in ImmutableSet.of() once empty.
-    pub(crate) reserved_names: IndexSet<JsString>,
+    pub(crate) reserved_names: ReservedNames,
     /// Rust-only (performance divergence): root prefixes (before first `.`) of qualified variable
     /// names declared in `abstract_scope.vars`, allowing `TypeInference::get_property_type` to
     /// skip allocating `get_qualified_name` and probing scopes when no qualified var exists.
@@ -77,6 +77,69 @@ pub(crate) struct TypedScopeData {
     /// Rust-only: the canonical closure-jstype view (Java: this object as a StaticTypedScope),
     /// created on first use and never freed (PORT_NOTES, "TypedScope and TypedVar views").
     pub(crate) view: OnceLock<&'static Arc<TypedScopeView>>,
+}
+
+/// Java's `LinkedHashSet<String> reservedNames` of a TypedScope: filled when the scope is made,
+/// afterwards only shrinks (`declare`) and answers `contains`.
+///
+/// Rust-only (performance divergence): Java unlinks a removed name; here the name keeps its slot
+/// and is marked removed, because removing from the middle of an `IndexSet` in order moves every
+/// later entry (a module scope reserves thousands of names and declares them one by one, which
+/// made each declaration linear). Names are never added after construction, so the live names
+/// keep Java's insertion order: membership, emptiness and the order of the names listed by
+/// `validateCompletelyBuilt` are Java's.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ReservedNames {
+    names: IndexSet<JsString>,
+    removed: Vec<bool>,
+    live: usize,
+}
+
+impl ReservedNames {
+    pub(crate) fn new(names: IndexSet<JsString>) -> Self {
+        Self {
+            live: names.len(),
+            removed: vec![false; names.len()],
+            names,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.live == 0
+    }
+
+    pub(crate) fn contains(&self, name: &JsString) -> bool {
+        self.live != 0
+            && self
+                .names
+                .get_index_of(name)
+                .is_some_and(|index| !self.removed[index])
+    }
+
+    pub(crate) fn remove(&mut self, name: &JsString) {
+        if let Some(index) = self.names.get_index_of(name)
+            && !self.removed[index]
+        {
+            self.removed[index] = true;
+            self.live -= 1;
+            if self.live == 0 {
+                *self = Self::default();
+            }
+        }
+    }
+
+    /// The names not removed, in insertion order.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &JsString> {
+        self.names
+            .iter()
+            .zip(&self.removed)
+            .filter_map(|(name, &removed)| (!removed).then_some(name))
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.live
+    }
 }
 
 /// Rust-only (performance divergence): lock-free copies of a typed scope's fields that never change
@@ -194,7 +257,7 @@ impl TypedScope {
 
     // port: TypedScope#TypedScope(TypedScope, Node)
     pub fn new(compiler: &mut AbstractCompiler, parent: TypedScope, root_node: NodeId) -> Self {
-        Self::new_child(compiler, parent, root_node, IndexSet::default(), None)
+        Self::new_child(compiler, parent, root_node, ReservedNames::default(), None)
     }
 
     // port: TypedScope#TypedScope(TypedScope, Node, Set, Module)
@@ -205,14 +268,20 @@ impl TypedScope {
         reserved_names: &IndexSet<JsString>,
         module: Option<Arc<Module>>,
     ) -> Self {
-        Self::new_child(compiler, parent, root_node, reserved_names.clone(), module)
+        Self::new_child(
+            compiler,
+            parent,
+            root_node,
+            ReservedNames::new(reserved_names.clone()),
+            module,
+        )
     }
 
     pub(crate) fn new_child(
         compiler: &mut AbstractCompiler,
         parent: TypedScope,
         root_node: NodeId,
-        reserved_names: IndexSet<JsString>,
+        reserved_names: ReservedNames,
         module: Option<Arc<Module>>,
     ) -> Self {
         let scope = Self::allocate(
@@ -233,7 +302,7 @@ impl TypedScope {
             compiler,
             root_node,
             None,
-            IndexSet::default(),
+            ReservedNames::default(),
             None,
             is_bottom,
         );
@@ -245,7 +314,7 @@ impl TypedScope {
         compiler: &mut AbstractCompiler,
         root_node: NodeId,
         parent: Option<TypedScope>,
-        reserved_names: IndexSet<JsString>,
+        reserved_names: ReservedNames,
         module: Option<Arc<Module>>,
         is_bottom: bool,
     ) -> Self {
@@ -290,7 +359,7 @@ impl TypedScope {
     pub fn validate_completely_built(self, compiler: &mut AbstractCompiler) {
         let scope = self.data_mut(compiler);
         if scope.reserved_names.is_empty() {
-            scope.reserved_names = IndexSet::default();
+            scope.reserved_names = ReservedNames::default();
             return;
         }
         let remaining = scope
@@ -385,7 +454,7 @@ impl TypedScope {
         if !self.data(compiler).reserved_names.is_empty() {
             // (reservedNames only contains simple, non-qualified names; so it's completely normal to
             // declare qualified names that were not 'reserved')
-            self.data_mut(compiler).reserved_names.shift_remove(&name);
+            self.data_mut(compiler).reserved_names.remove(&name);
         }
         let index = self.get_var_count(compiler);
         let var = TypedVar::new(

@@ -18,6 +18,7 @@
 
 use crate::{
     abstract_compiler::AbstractCompiler,
+    control_flow_analysis::ControlFlowAnalysis,
     control_flow_graph::{Branch, ControlFlowGraph},
     diagnostic_type::DiagnosticType,
     graph::{
@@ -105,6 +106,37 @@ impl CheckMissingReturn<'_> {
         }
 
         let compiler = t.get_compiler();
+        // Rust-only (performance divergence): the graph of a function whose body runs its
+        // statements once, in order (`ControlFlowAnalysis::linear_function`), is one path of
+        // unconditional edges from the entry through the body and the statements to the implicit
+        // return, whose only predecessor is the last statement (or the body when it has none). A
+        // return can only be that last statement, so `fastAllPathsReturnCheck` of that node
+        // decides, and when it fails the path check fails too: the graph is not built.
+        if let Some((body, statements)) = ControlFlowAnalysis::linear_function(compiler, n) {
+            let last = statements.last().copied().unwrap_or(body);
+            let (convention, registry, ast) =
+                compiler.get_coding_convention_type_registry_and_ast();
+            let returns = last.is_return(ast)
+                || convention.is_function_call_that_always_throws(ast, registry, last);
+            #[cfg(debug_assertions)]
+            {
+                let cfg = ControlFlowAnalysis::builder()
+                    .set_cfg_root(n)
+                    .set_include_edge_annotations(true)
+                    .compute_cfg(compiler);
+                let sources: Vec<_> = cfg
+                    .get_implicit_return()
+                    .get_in_edges(&cfg)
+                    .iter()
+                    .map(|e| e.get_source(&cfg).get_value(&cfg).unwrap())
+                    .collect();
+                debug_assert_eq!(sources, [last]);
+            }
+            if !returns {
+                Self::report_missing_return(compiler, n, return_type);
+            }
+            return;
+        }
         let cfg = this.get_control_flow_graph_mut(compiler);
         if Self::fast_all_paths_return_check(compiler, cfg) {
             return;
@@ -124,16 +156,20 @@ impl CheckMissingReturn<'_> {
         };
 
         if !all_paths_satisfy_predicate {
-            let (registry, ast) = compiler.get_type_registry_and_ast();
-            let return_type_string = return_type.to_string(registry, ast);
-            let error = JSError::make(
-                compiler,
-                n,
-                &MISSING_RETURN_STATEMENT,
-                &[return_type_string.as_str()],
-            );
-            compiler.report(error);
+            Self::report_missing_return(compiler, n, return_type);
         }
+    }
+
+    fn report_missing_return(compiler: &mut AbstractCompiler, n: NodeId, return_type: TypeId) {
+        let (registry, ast) = compiler.get_type_registry_and_ast();
+        let return_type_string = return_type.to_string(registry, ast);
+        let error = JSError::make(
+            compiler,
+            n,
+            &MISSING_RETURN_STATEMENT,
+            &[return_type_string.as_str()],
+        );
+        compiler.report(error);
     }
 
     // port: CheckMissingReturn#fastAllPathsReturnCheck

@@ -17,6 +17,7 @@
 //   src/com/google/javascript/jscomp/CheckUnreachableCode.java.
 
 use crate::{
+    control_flow_analysis::ControlFlowAnalysis,
     control_flow_graph::{Branch, ControlFlowGraph},
     diagnostic_type::DiagnosticType,
     graph::{
@@ -56,6 +57,24 @@ impl CheckUnreachableCode<'_> {
     fn enter_scope_with_cfg(this: &mut AbstractCfgCallback<'_>, t: &mut NodeTraversal<'_>) {
         let scope_root = t.get_scope_root().unwrap();
         if NodeUtil::is_valid_cfg_root(t, scope_root) {
+            // Rust-only (performance divergence): the graph of a function whose body runs its
+            // statements once, in order (`ControlFlowAnalysis::linear_function`), joins its nodes
+            // by unconditional edges from the entry, so every node is reachable and none is
+            // reported: the graph is neither built nor walked.
+            if ControlFlowAnalysis::linear_function(t, scope_root).is_some() {
+                #[cfg(debug_assertions)]
+                {
+                    let compiler = t.get_compiler();
+                    let mut cfg = ControlFlowAnalysis::builder()
+                        .set_cfg_root(scope_root)
+                        .set_include_edge_annotations(true)
+                        .compute_cfg(compiler);
+                    Self::init_scope(compiler, &mut cfg);
+                    debug_assert!(cfg.all_valued_nodes_reachable);
+                }
+                this.mark_front_fully_reachable();
+                return;
+            }
             let compiler = t.get_compiler();
             let cfg = this.get_control_flow_graph_mut(compiler);
             Self::init_scope(compiler, cfg);
@@ -69,8 +88,16 @@ impl CheckUnreachableCode<'_> {
         n: NodeId,
         _parent: Option<NodeId>,
     ) -> bool {
+        if this.front_is_fully_reachable() {
+            return true;
+        }
         let compiler = t.get_compiler();
         let cfg = this.get_control_flow_graph_mut(compiler);
+        // Rust-only (performance divergence): with every node of the graph reachable, no node is
+        // reported; the lookup of `n` among the graph's nodes is skipped.
+        if cfg.all_valued_nodes_reachable {
+            return true;
+        }
         let g_node = cfg.get_node(&Some(n));
         if let Some(g_node) = g_node
             && !g_node
@@ -106,6 +133,13 @@ impl CheckUnreachableCode<'_> {
             Self::is_reachable(ast, input)
         })))
         .compute(control_flow_graph, entry);
+        control_flow_graph.all_valued_nodes_reachable =
+            control_flow_graph.get_nodes().into_iter().all(|node| {
+                node.get_value(control_flow_graph).is_none()
+                    || node
+                        .get_annotation(control_flow_graph)
+                        .is_some_and(|a| a.as_any().is::<Reachable>())
+            });
     }
 
     // port: CheckUnreachableCode#isReachable

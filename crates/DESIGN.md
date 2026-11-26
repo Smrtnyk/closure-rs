@@ -1275,3 +1275,66 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   rewrites it after a change to the type system, to typed scope creation or to the bundled externs
   (that test and `typed_externs_verify_on_bundled_externs` fail while it is stale; data made from
   other extern snapshots is ignored).
+- `jscomp/typed_scope.rs` `ReservedNames`: a typed scope's reserved names (Java: a
+  `LinkedHashSet` that only shrinks after construction) mark a declared name removed instead of
+  unlinking it, so declaring each of a module scope's thousands of names no longer moves the rest
+  of the set; the live names keep Java's order.
+- `jscomp/typed_scope_creator.rs` `FirstOrderFunctionAnalyzer::visit`: the closest container
+  scope is looked up only for the returns and assignments that use it (Java: for every node
+  outside the global scope); every scope on the traversal's stack already exists, so the lookup
+  has no effect.
+- `jscomp/control_flow_analysis.rs` `ast_position`: the AST positions are logged during the
+  traversal and replayed once, in order, into a table indexed by CFG node, which the priority
+  queue's comparator reads (Java: a `LinkedIdentityHashMap` filled for every traversed node and
+  read twice per comparison). Only CFG nodes are looked up, after every position is recorded.
+- `jscomp/type_inference.rs` `redeclare_simple_var_declared`, `flow_scope.rs` /
+  `linked_flow_scope.rs` `infer_simple_slot_type`: a simple name's declaration is looked up once
+  per assignment and handed to the flow scope (Java: `updateScopeForAssignment`,
+  `redeclareSimpleVar` and `getOverlayScopeForName` each look the same name up in the same
+  scope).
+- `jscomp/control_flow_analysis.rs` `connect_to_possible_exception_handler`: outside a `try`
+  (the innermost exception handler is the function, or there is none) the pure
+  `mayThrowException` walk is skipped, since connecting would stop at once.
+- `jscomp/control_flow_graph.rs` `new_ast`, `graph/linked_directed_graph.rs` `reserve`: an AST
+  control-flow graph starts with room for 16 nodes and 16 edges.
+- `rhino/java_lang/message_format.rs` `format_plain`: a message pattern without quotes whose
+  format elements are all `{n}` is formatted in place (Java parses the pattern into a
+  `MessageFormat` each time `Platform.formatMessage` runs); other patterns are parsed as before,
+  and debug builds compare both results.
+- `jscomp/type_check.rs` `find_object_with_non_stringifiable_key`: the already-checked types
+  keep their `hashCode` and membership compares it before `equals`, as Java's `LinkedHashSet`
+  does (the port called `equals` on every element).
+- `jscomp/type_inference.rs` `traverse_name`: the outer-scope lookup for an inferred name is
+  skipped when the slot found is an overlay slot or a var declared in the container scope or a
+  scope nested in it, which the outer var can never equal (unless the name is an implicit one).
+- `jscomp/typed_scope_creator.rs` `IdentifyEnumsAndTypedefsAsNonNullable`,
+  `jstype/js_type_registry.rs` `may_be_non_nullable_name`: `isNonNullableName` of an
+  initializer's qualified name is not asked when no scope root has that name (and no lookup log
+  is kept); its lookup scope is found without effect unless the name's root is an implicit var.
+- `jscomp/serialization/convert_types_to_colors.rs` `RemoveTypesAndApplyColors`,
+  `rhino/node.rs` `color_slot_of` / `set_color_slot`: the node color slot of a type's color is
+  found once per type and stored directly on later nodes of that type, instead of being found
+  by the color's address for every node. `CLOSURE_RS_COLOR_SLOT_MEMO=off|verify`.
+- `jscomp/check_unreachable_code.rs`, `control_flow_graph.rs` `all_valued_nodes_reachable`: when
+  every node of a function's graph is reachable after `initScope`, `shouldTraverse` reports
+  nothing and skips looking each visited node up among the graph's nodes.
+- `jscomp/typed_scope_creator.rs` `IdentifyEnumsAndTypedefsAsNonNullable::replay`: the source
+  statements this callback looks at (declarations and expression statements) are recorded with
+  their scope by `FirstOrderFunctionAnalyzer`, which walks the same tree with the same scopes just
+  before, and visited from that list in the same order; only the externs are walked again.
+- `jscomp/check_unreachable_code.rs`, `node_traversal.rs` `CfgObject::FullyReachable`: for a
+  function whose body runs its statements once, in order (`ControlFlowAnalysis::linear_function`),
+  every node of the graph is reachable, so `CheckUnreachableCode` neither builds nor walks it
+  (`AbstractCfgCallback` still builds it if asked for).
+- `jscomp/rhino_error_reporter.rs` `map_error`: each thread keeps the diagnostic type it matched
+  for each message (bounded); the result depends on the message only.
+  `CLOSURE_RS_RHINO_ERROR_MAP_MEMO=off|verify`.
+- `jscomp/type_inference.rs` `last_module_root`: `flowThrough` finds the module of a scope
+  root once per run of nodes with that root. `CLOSURE_RS_INFERENCE_MODULE_MEMO=off|verify`.
+- `jscomp/typed_scope_creator/typed_externs.rs` `after_visit`: the stage test that every node the
+  scope builder visits passes is inlined; the work of a watched segment is a separate function.
+- `jscomp/check_missing_return.rs`: for a function whose body runs its statements once, in
+  order (`ControlFlowAnalysis::linear_function`), the implicit return's only predecessor is the
+  last statement (or the body), so `fastAllPathsReturnCheck` of that node decides without the
+  graph. Debug builds build the graph and compare; `check_unreachable_code.rs` does the same for
+  its fully reachable shortcut.

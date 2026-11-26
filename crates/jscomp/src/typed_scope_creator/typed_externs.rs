@@ -57,7 +57,7 @@ use crate::compiler_input::CompilerInput;
 use crate::function_type_builder::ValidatorDescriptor;
 use crate::node_traversal::NodeTraversal;
 use crate::source_file::bundled_script::BundledScript;
-use crate::typed_scope::{TypedScope, TypedScopeArena, TypedScopeData};
+use crate::typed_scope::{ReservedNames, TypedScope, TypedScopeArena, TypedScopeData};
 use crate::typed_var::{TypedVar, TypedVarData};
 use closure_jstype::{
     JSTypeRegistry, TypeId,
@@ -1068,7 +1068,10 @@ fn write_arena(w: &mut Writer, env: &mut Env<'_>, arena: &TypedScopeArena) -> Sn
             return Err(SnapshotError("a module scope".into()));
         }
         w.b(*is_bottom);
-        write_string_set(w, reserved_names);
+        w.u(reserved_names.len() as u64);
+        for name in reserved_names.iter() {
+            w.js(name);
+        }
         write_string_set(w, qualified_roots);
         w.b(*has_this_qualified);
     }
@@ -1174,7 +1177,7 @@ fn read_arena(r: &mut Reader<'_>, env: &mut Env<'_>, arena: &mut TypedScopeArena
         scope.parent = parent;
         scope.module = None;
         scope.is_bottom = r.b();
-        scope.reserved_names = read_string_set(r);
+        scope.reserved_names = ReservedNames::new(read_string_set(r));
         scope.qualified_roots = read_string_set(r);
         scope.has_this_qualified = r.b();
     }
@@ -2019,7 +2022,19 @@ fn encode_post(
 }
 
 /// Called at the end of `visit`: finishes a watched segment after its last script.
+#[inline]
 pub(super) fn after_visit(
+    builder: &mut AbstractScopeBuilder<'_>,
+    t: &mut NodeTraversal<'_>,
+    n: NodeId,
+) {
+    // Rust-only (performance divergence): the check every visited node passes is inlined.
+    if matches!(builder.typed_externs.stage, SegmentStage::Watching(_)) {
+        after_visit_watching(builder, t, n);
+    }
+}
+
+fn after_visit_watching(
     builder: &mut AbstractScopeBuilder<'_>,
     t: &mut NodeTraversal<'_>,
     n: NodeId,

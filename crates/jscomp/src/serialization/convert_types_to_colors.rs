@@ -155,11 +155,33 @@ impl RemoveTypes {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MemoMode {
+    On,
+    Off,
+    Verify,
+}
+
+/// Rust-only: `CLOSURE_RS_COLOR_SLOT_MEMO` (`RemoveTypesAndApplyColors::slots`).
+static COLOR_SLOT_MEMO: std::sync::LazyLock<MemoMode> =
+    std::sync::LazyLock::new(
+        || match std::env::var("CLOSURE_RS_COLOR_SLOT_MEMO").as_deref() {
+            Ok("off") => MemoMode::Off,
+            Ok("verify") => MemoMode::Verify,
+            _ => MemoMode::On,
+        },
+    );
+
 /// port: ConvertTypesToColors.RemoveTypesAndApplyColors
 struct RemoveTypesAndApplyColors {
     // TypeId is an index in this compiler's type registry. Resolve the immutable shard
     // once per observed type, including colors shared by many nodes.
     colors: Vec<Option<closure_rhino::jscomp_colors::color::Color>>,
+    /// Rust-only (performance divergence): the node color slot of each type's color once a node
+    /// got it (`Ast::color_slot_of`), so later nodes of the type skip finding the slot by the
+    /// color's address. `CLOSURE_RS_COLOR_SLOT_MEMO=off` finds it every time, `=verify` finds it
+    /// on a hit too and compares.
+    slots: Vec<Option<u32>>,
     jsdoc_cache: IndexMap<u32, Arc<JSDocInfo>>,
 }
 
@@ -175,6 +197,7 @@ impl RemoveTypesAndApplyColors {
             colors[id.0 as usize] = Some(shard.get_color(pointer));
         }
         Self {
+            slots: vec![None; colors.len()],
             colors,
             jsdoc_cache: IndexMap::default(),
         }
@@ -195,12 +218,30 @@ impl RemoveTypesAndApplyColors {
 
         RemoveTypes::visit_node(ast, n, &mut self.jsdoc_cache);
 
-        if let Some(color) = old_type
-            .and_then(|id| self.colors.get(id.0 as usize))
-            .and_then(Option::as_ref)
+        if let Some(id) = old_type.map(|id| id.0 as usize)
+            && let Some(color) = self.colors.get(id).and_then(Option::as_ref)
         {
             // Rust-only (performance divergence): the color is lent (see `NodeId::set_color_ref`).
-            n.set_color_ref(ast, Some(color));
+            match (*COLOR_SLOT_MEMO, self.slots[id]) {
+                (MemoMode::Off, _) => {
+                    n.set_color_ref(ast, Some(color));
+                }
+                (mode, Some(slot)) => {
+                    if mode == MemoMode::Verify {
+                        assert_eq!(
+                            slot,
+                            ast.color_slot_of(color),
+                            "CLOSURE_RS_COLOR_SLOT_MEMO=verify"
+                        );
+                    }
+                    n.set_color_slot(ast, slot);
+                }
+                (_, None) => {
+                    let slot = ast.color_slot_of(color);
+                    self.slots[id] = Some(slot);
+                    n.set_color_slot(ast, slot);
+                }
+            }
         }
 
         if old_type_before_cast.is_some() {

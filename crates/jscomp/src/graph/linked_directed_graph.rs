@@ -183,6 +183,13 @@ impl<N: Clone + Eq + Hash, E: Clone + PartialEq> LinkedDirectedGraph<N, E> {
             annotation_stacks: GraphAnnotationStacks::default(),
         }
     }
+    /// Rust-only (performance divergence): reserves room for `nodes` more nodes and `edges` more
+    /// edges, so that a graph of about that size grows its tables once.
+    pub(crate) fn reserve(&mut self, nodes: usize, edges: usize) {
+        self.nodes.reserve(nodes);
+        self.node_arena.reserve(nodes);
+        self.edge_arena.reserve(edges);
+    }
     // port: LinkedDirectedGraph#createWithoutAnnotations
     pub fn create_without_annotations() -> Self
     where
