@@ -48,6 +48,11 @@ use std::sync::LazyLock;
 static REUSE_REFERENCE_SITES: LazyLock<bool> =
     LazyLock::new(|| std::env::var("CLOSURE_RS_REFERENCE_SITES").as_deref() != Ok("off"));
 
+/// `CLOSURE_RS_REPLAY_JUMPS=off`: a function body whose names include a pending hoisted function is
+/// collected by the ordinary visitor instead of `replay_body_sites_with_jumps`.
+static REPLAY_JUMPS: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_REPLAY_JUMPS").as_deref() != Ok("off"));
+
 /// A helper class for passes that want to access all information about where a variable is
 /// referenced and declared at once and then make a decision as to how it should be handled,
 /// possibly inlining, reordering, or generating warnings. Callers do this by providing
@@ -140,6 +145,8 @@ pub struct CollectorCallback<'a, B: Behavior> {
     externs_refer_only_to_externs: Option<bool>,
     /// Rust-only (performance divergence): see `skip_bundled_extern_prefixes`.
     bundled_prefixes: BundledPrefixes,
+    /// Rust-only (performance divergence): see `order_free_global_functions`.
+    order_free_global_functions: bool,
 }
 
 /// Rust-only: whether the traversal leaves out the original statements of the bundled externs
@@ -244,6 +251,7 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
                 skipped_externs: None,
                 externs_refer_only_to_externs: None,
                 bundled_prefixes: BundledPrefixes::Traverse,
+                order_free_global_functions: false,
             },
             scope_creator: creator,
         }
@@ -307,6 +315,24 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
     /// externs alone, that their references report nothing.
     pub(crate) fn skip_bundled_extern_prefixes(&mut self) {
         self.callback.bundled_prefixes = BundledPrefixes::Undecided;
+    }
+
+    /// Rust-only (performance divergence): for a traversal whose behavior ignores global variables
+    /// and whose scope exits change nothing (a dry run, see `InlineObjectLiterals`), so that only
+    /// the references of local variables count and the order in which global functions are
+    /// traversed does not matter. A reference to a hoisted global function does not jump to it
+    /// (it is traversed at its declaration, as without `collectHoistedFunctionsInReferenceOrder`),
+    /// and a global function the behavior can skip is skipped whatever it references
+    /// (`Behavior::can_skip_global_function_if_no_pending_hoist`). The references of a variable
+    /// declared in a function come from that function's subtree in the same order: jumps to the
+    /// hoisted functions declared inside it are kept.
+    pub(crate) fn order_free_global_functions(&mut self) {
+        self.callback.order_free_global_functions = true;
+    }
+
+    /// Rust-only: the behavior, for a caller that wants it back after `process`.
+    pub(crate) fn into_behavior(self) -> B {
+        self.callback.behavior
     }
 
     /// Opt in for an internal traversal whose behavior only observes scope exits and whose
@@ -565,9 +591,10 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             return None;
         }
         let scope = var.get_scope(compiler);
-        if self
-            .narrow_scope
-            .is_some_and(|narrow| narrow.get_depth(compiler) > scope.get_depth(compiler))
+        if (self.order_free_global_functions && scope.is_global(compiler))
+            || self
+                .narrow_scope
+                .is_some_and(|narrow| narrow.get_depth(compiler) > scope.get_depth(compiler))
             || self
                 .skipped_externs
                 .is_some_and(|externs| is_inside(compiler, function, externs))
@@ -630,9 +657,12 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         self.block_stack = old_block_stack;
     }
 
-    /// Rebind every spelling against this traversal's actual scope. A pending jump can invoke a
-    /// mutating scope-exit callback in the middle of this body. In that case collect the whole
-    /// body normally, before adding any reference or changing the block stack.
+    /// Rebind every spelling against this traversal's actual scope. A name of a pending hoisted
+    /// function makes the replay jump to it at its first site, as the traversal does
+    /// (`replay_body_sites_with_jumps`), for a behavior whose scope exits change only their own
+    /// scopes. Otherwise a pending jump can invoke a mutating scope-exit callback in the middle of
+    /// this body, and the whole body is collected normally, before adding any reference or
+    /// changing the block stack (also with `CLOSURE_RS_REPLAY_JUMPS=off`).
     fn collect_body_from_sites(&mut self, t: &mut NodeTraversal<'_>, body: NodeId) -> bool {
         let Some(body) = FunctionReferenceCache::sites(t.get_compiler(), body) else {
             return false;
@@ -648,6 +678,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             return false;
         }
         let mut scope = None;
+        let mut pending_jump = false;
         self.body_bindings.clear();
         for &name in &body.first_names {
             t.position_at_node(name);
@@ -660,12 +691,20 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             if self.collect_hoisted_functions_in_reference_order
                 && var.is_some_and(|v| self.pending_hoisted_function(t.get_compiler(), v).is_some())
             {
-                return false;
+                if !*REPLAY_JUMPS || !self.behavior.scope_exits_change_only_their_scopes() {
+                    return false;
+                }
+                pending_jump = true;
             }
             self.body_bindings.push((var, None));
         }
         if body.declares_in_nested_scopes {
-            self.replay_scoped_body_sites(t, &body);
+            self.replay_scoped_body_sites(t, &body, pending_jump);
+            return true;
+        }
+        if pending_jump {
+            let root_scope = scope.expect("a pending hoisted function was resolved");
+            self.replay_body_sites_with_jumps(t, &body.sites, root_scope);
             return true;
         }
 
@@ -701,10 +740,13 @@ impl<B: Behavior> CollectorCallback<'_, B> {
     /// a nested scope (or nowhere) and is resolved at its first site, from the scope there.
     /// Entries of the reference map are made at the first site of a spelling, as the traversal
     /// makes them.
+    /// With `jumps`, a site that names a pending hoisted function jumps to it after adding the
+    /// reference, as in `replay_body_sites_with_jumps`.
     fn replay_scoped_body_sites(
         &mut self,
         t: &mut NodeTraversal<'_>,
         body: &function_body::FunctionBodySites,
+        jumps: bool,
     ) {
         self.replay_block_stack.clear();
         self.body_names_seen.clear();
@@ -748,6 +790,21 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                             let reference = references.references.last().expect("just added");
                             self.behavior.after_replayed_reference(t, reference);
                         }
+                    }
+                    if jumps
+                        && let Some(var) = self.body_bindings[slot].0
+                        && self
+                            .pending_hoisted_function(t.get_compiler(), var)
+                            .is_some()
+                    {
+                        let ref_scope = t.get_scope();
+                        let bindings = std::mem::take(&mut self.body_bindings);
+                        let seen = std::mem::take(&mut self.body_names_seen);
+                        let blocks = std::mem::take(&mut self.replay_block_stack);
+                        self.maybe_jump_to_hoisted_function(var, t, ref_scope);
+                        self.body_bindings = bindings;
+                        self.body_names_seen = seen;
+                        self.replay_block_stack = blocks;
                     }
                 }
                 SiteKind::EnterBlock(n) => self.replay_block_stack.push((n, None)),
@@ -827,6 +884,92 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         }
     }
 
+    /// Rust-only (performance divergence): `replay_body_sites` for a body (with one scope) in which
+    /// a name resolves to a hoisted function the traversal has not collected yet. At each site
+    /// that names a still pending one, after adding the reference, it jumps to the function as
+    /// `visit` does (`maybe_jump_to_hoisted_function`), with its own state put aside, since the
+    /// jump may replay other bodies. The jumped-to function is not in this body, which declares
+    /// no function, and what its scope exits change lies inside it (for a behavior that opts in,
+    /// `Behavior::scope_exits_change_only_their_scopes`), so the sites of this body stay
+    /// valid. Entries of the reference map are made at the first site of a spelling, as the
+    /// traversal makes them, so that the entries the jump makes keep their place among them.
+    fn replay_body_sites_with_jumps(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        sites: &[Site],
+        root_scope: ScopeId,
+    ) {
+        self.replay_scope_stack.clear();
+        self.replay_block_stack.clear();
+        self.body_names_seen.clear();
+        self.body_names_seen.resize(self.body_bindings.len(), false);
+        let observe = self.behavior.observes_replayed_references();
+        for site in sites {
+            match site.decode() {
+                SiteKind::Reference(name, slot) => {
+                    let slot = slot as usize;
+                    let Some(var) = self.body_bindings[slot].0 else {
+                        continue;
+                    };
+                    t.position_at_node(name);
+                    if !self.body_names_seen[slot] {
+                        self.body_names_seen[slot] = true;
+                        if (self.var_filter)(t.get_compiler(), var)
+                            && self.behavior.needs_variable(t.get_compiler(), var)
+                        {
+                            let entry = self.reference_map.entry(var);
+                            self.body_bindings[slot].1 = Some(entry.index());
+                            entry.or_default();
+                        }
+                    }
+                    let ref_scope = if self.replay_scope_stack.is_empty() {
+                        root_scope
+                    } else {
+                        Self::materialize_replay_scope(t, root_scope, &mut self.replay_scope_stack)
+                    };
+                    if let Some(index) = self.body_bindings[slot].1 {
+                        let block = Self::materialize_replay_block(
+                            t,
+                            &self.block_stack,
+                            &mut self.replay_block_stack,
+                        );
+                        let references = Rc::make_mut(&mut self.reference_map[index]);
+                        references.add(Reference::in_scope(name, t, block, ref_scope));
+                        if observe {
+                            let reference = references.references.last().expect("just added");
+                            self.behavior.after_replayed_reference(t, reference);
+                        }
+                    }
+                    if self
+                        .pending_hoisted_function(t.get_compiler(), var)
+                        .is_some()
+                    {
+                        let bindings = std::mem::take(&mut self.body_bindings);
+                        let seen = std::mem::take(&mut self.body_names_seen);
+                        let scopes = std::mem::take(&mut self.replay_scope_stack);
+                        let blocks = std::mem::take(&mut self.replay_block_stack);
+                        self.maybe_jump_to_hoisted_function(var, t, ref_scope);
+                        self.body_bindings = bindings;
+                        self.body_names_seen = seen;
+                        self.replay_scope_stack = scopes;
+                        self.replay_block_stack = blocks;
+                    }
+                }
+                SiteKind::EnterBlock(n) => self.replay_block_stack.push((n, None)),
+                SiteKind::ExitBlock(n) => {
+                    let (root, _) = self.replay_block_stack.pop().expect("removeLast");
+                    check_state!(root == n, &n.to_string(t));
+                }
+                SiteKind::EnterEmptyScope(n) | SiteKind::EnterScope(n) => {
+                    self.replay_scope_stack.push((n, None));
+                }
+                SiteKind::ExitEmptyScope | SiteKind::ExitScope => {
+                    self.replay_scope_stack.pop();
+                }
+            }
+        }
+    }
+
     fn materialize_replay_block(
         ast: &Ast,
         base_stack: &VecDeque<Rc<BasicBlock>>,
@@ -889,19 +1032,31 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         };
         let enclosing_scope = t.get_scope();
         self.free_vars_scratch.clear();
+        // Rust-only (performance divergence): with a free name of a pending hoisted function, the
+        // free sites are replayed with jumps (`replay_body_sites_with_jumps`); `jump_bindings`
+        // holds the binding of every needed free name.
+        let mut pending_jump = false;
+        let mut jump_bindings = std::mem::take(&mut self.body_bindings);
+        jump_bindings.clear();
         if let Some(free) = &free {
             for (slot, &name) in free.first_names.iter().enumerate() {
                 t.position_at_node(name);
                 if !self.needs_name(t, name) {
+                    jump_bindings.push((None, None));
                     continue;
                 }
                 let var = enclosing_scope.get_var_of_node(t.get_compiler(), name);
+                jump_bindings.push((var, None));
                 if self.collect_hoisted_functions_in_reference_order
                     && var.is_some_and(|v| {
                         self.pending_hoisted_function(t.get_compiler(), v).is_some()
                     })
                 {
-                    return false;
+                    if !*REPLAY_JUMPS || !self.behavior.scope_exits_change_only_their_scopes() {
+                        self.body_bindings = jump_bindings;
+                        return false;
+                    }
+                    pending_jump = true;
                 }
                 if let Some(v) = var
                     && (self.var_filter)(t.get_compiler(), v)
@@ -911,10 +1066,11 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                 }
             }
         }
+        self.body_bindings = jump_bindings;
 
         let is_fn_decl = parent.is_some() && NodeUtil::is_function_declaration(t, fn_node);
         let boundary = BasicBlock::is_block_boundary(t, fn_node, parent);
-        let has_free_refs = !self.free_vars_scratch.is_empty();
+        let has_free_refs = !self.free_vars_scratch.is_empty() || pending_jump;
         if boundary && (is_fn_decl || has_free_refs) {
             self.push_new_block(t, fn_node);
         }
@@ -927,7 +1083,16 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                 self.add_reference(v, fn_name, t, enclosing_scope);
             }
         }
-        if has_free_refs {
+        if pending_jump {
+            let free = free.as_ref().expect("a pending jump implies free sites");
+            let body = fn_node.get_last_child(t).expect("function body");
+            let (compiler, scope_creator) = t.get_compiler_and_scope_creator();
+            let fn_scope = scope_creator.create_scope(compiler, fn_node, Some(enclosing_scope));
+            let body_scope = scope_creator.create_scope(compiler, body, Some(fn_scope));
+            self.push_new_block(t, fn_node);
+            self.replay_body_sites_with_jumps(t, &free.sites, body_scope);
+            self.pop_last_block(t, fn_node);
+        } else if has_free_refs {
             let free = free.as_ref().expect("free refs imply free sites");
             let body = fn_node.get_last_child(t).expect("function body");
             self.body_bindings.clear();
@@ -1321,7 +1486,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         fn_node: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
-        if !self.collect_hoisted_functions_in_reference_order {
+        if !self.collect_hoisted_functions_in_reference_order || self.order_free_global_functions {
             return true;
         }
         let enclosing_scope = t.get_scope();
@@ -1731,13 +1896,14 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
             }
         }
 
-        // Rust-only (performance divergence): a traversal that starts at a function (the jump to
-        // a hoisted function, `maybe_jump_to_hoisted_function`) has not looked up its input yet,
-        // and the shortcuts below are taken only with a known input. The lookup has no other
-        // effect; without an input the ordinary visitor reports it at the first name, as before.
-        if parent.is_none()
-            && n.is_function(node_traversal)
-            && node_traversal.get_scope_root().is_some()
+        // Rust-only (performance divergence): the shortcuts below are taken only with a known
+        // input. A traversal that starts at a function (the jump to a hoisted function,
+        // `maybe_jump_to_hoisted_function`) has not looked up its input yet, nor has a script
+        // whose names the behavior did not need so far (`Behavior::needs_name`). The lookup has
+        // no other effect; without an input the ordinary visitor reports it at the first name,
+        // as before.
+        if n.is_function(node_traversal)
+            && (parent.is_some() || node_traversal.get_scope_root().is_some())
         {
             let _ = node_traversal.get_input();
         }
@@ -1919,6 +2085,14 @@ pub trait Behavior {
         false
     }
 
+    /// Rust-only (performance divergence): opt in when `after_exit_scope` changes the tree only
+    /// inside the subtree of the scope's root, so that a replayed function body may jump to a
+    /// pending hoisted function (`replay_body_sites_with_jumps`): the scope exits in that
+    /// function then leave the rest of the body, whose sites were read before the jump, as it was.
+    fn scope_exits_change_only_their_scopes(&self) -> bool {
+        false
+    }
+
     /// Rust-only (performance divergence): whether `after_replayed_reference` must be called for
     /// the references added from the cached sites of a function body. A behavior that reads
     /// `added_reference` in `after_visit_node` and opts into `can_reuse_function_reference_sites`
@@ -2005,6 +2179,9 @@ impl<T: Behavior + ?Sized> Behavior for &mut T {
     }
     fn can_reuse_function_reference_sites(&self) -> bool {
         (**self).can_reuse_function_reference_sites()
+    }
+    fn scope_exits_change_only_their_scopes(&self) -> bool {
+        (**self).scope_exits_change_only_their_scopes()
     }
     fn observes_replayed_references(&self) -> bool {
         (**self).observes_replayed_references()

@@ -1137,6 +1137,19 @@ impl Ast {
         }
     }
 
+    /// Rust-only (performance divergence): whether `take_changes_since(cursor, ..)` would drain
+    /// nothing and return true, and `take_changed_flag_nodes` would drain nothing: no edit was
+    /// recorded since, and `cursor` saw every drain of this arena.
+    #[inline]
+    pub fn no_changes_since(&self, cursor: &AstChangeCursor) -> bool {
+        self.changed_nodes.is_empty()
+            && self.changed_flag_nodes.is_empty()
+            && cursor.drain == self.change_log_drain
+            && matches!(
+                (&cursor.arena, &self.change_log_id),
+                (Some(seen), Some(id)) if Arc::ptr_eq(seen, id)
+            )
+    }
     /// Drains recorded edits and returns whether `cursor` had seen every preceding drain in
     /// this arena. A consumer must discard its old analyses when this returns false.
     pub fn take_changes_since(

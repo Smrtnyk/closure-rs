@@ -187,6 +187,16 @@ impl LocalVarMotion {
         motion
     }
 
+    /// Rust-only: the last node the underlying traversal reached (the furthest node read).
+    pub(crate) fn furthest_node(&self) -> NodeId {
+        self.iterator.current()
+    }
+
+    /// Rust-only: whether the underlying traversal has no node left.
+    pub(crate) fn traversal_exhausted(&self, ast: &Ast) -> bool {
+        !self.iterator.has_next(ast)
+    }
+
     // port: NodeIterators.LocalVarMotion#hasNext
     pub fn has_next(&self) -> bool {
         self.look_ahead.is_some()

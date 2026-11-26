@@ -1068,3 +1068,67 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   (nodes of other files interleave, and a bundle's map names many original files in turn), and
   converts the file name itself instead of going through the provider's shared
   `last_mapping_name`.
+- `jscomp/remove_unused_code.rs` `record_function_name_non_local`: a function declaration directly
+  in a script marks its name's (outer) var as having a non-local value when it is traversed
+  (`isExpressionResultUsed` is true under a SCRIPT). That no longer ends the function's
+  `LeafFunctionSummary` recording: the summary notes it (`name_non_local`, with the name as its
+  first outer var) and a hit sets the flag right after replaying that var, so the top-level
+  functions of a bundle are summarized too. A hit also requires the same
+  `isExpressionResultUsed` answer for a named function (`name_value_used`), which depends on
+  ancestors outside the function's change scope (`CLOSURE_RS_RUC_CACHE=off` disables all summaries).
+- `jscomp/reference_collector.rs` `CollectorCallback::should_traverse`: the input of the current
+  script is looked up at every function, not only where a traversal starts at one, so that the
+  function shortcuts above (which need a known input) apply from the first function of a script
+  on, also in a script none of whose names a behavior with a narrow `needs_name`
+  (`InlineObjectLiterals`) has resolved yet. The lookup reads a map and changes nothing else.
+- `jscomp/inline_object_literals.rs` `process`, `reference_collector.rs`
+  `order_free_global_functions`: the pass first makes a dry run that splits nothing. It splits
+  only local variables, each decided by the references inside the function declaring it, so
+  while nothing is split the order in which functions are looked at does not matter: the dry run
+  jumps to no hoisted global function (it meets them at their declarations), resolves only the
+  spellings assigned an object and the names of hoisted functions not declared in a script, and
+  skips every global function that is cached clean whatever it references. When it finds nothing
+  to split, the pass is done (the pass would make its first split in a function the dry run looks
+  at the same way, or knows clean); otherwise the pass runs as before. The dry run changes no
+  scope, so the full traversal may receive the kept scopes again
+  (`Compiler::start_scope_handout_round`). `CLOSURE_RS_IOL_DRY_RUN=off` disables the dry run,
+  `=verify` runs the pass after every dry run and checks that it splits nothing when the dry run
+  found nothing.
+- `jscomp/inline_variables.rs` `MotionMemo`, `node_iterators.rs`: a failed `canMoveModerately`
+  walk (`LocalVarMotion`) from an initialization directly in a script is kept in
+  `InlineVarsCleanCache` by initialization and reference NAME nodes, with the
+  `subtree_stamp_with_flags` of the statements it depends on (the walk does not enter functions,
+  and the stamps cover the side-effect flags of calls). One that stopped at a blocker fails again
+  while the initialization's and the blocker's statements are unchanged, the blocker's statement
+  still follows and the reference is not in a statement between them (a change between them can
+  only stop the walk earlier); any other one while the same statements follow each other
+  unchanged. Such walks are long (hundreds of nodes for a global var) and repeated by every run.
+  `CLOSURE_RS_IV_MOTION_MEMO=off` disables it, `=verify` walks on every hit and checks that the
+  walk fails.
+- `jscomp/node_util.rs` `getBooleanValue`, `getNumberValue`, `peephole_replace_known_methods.rs`
+  `tryFoldKnownMethods`, `tryFoldKnownStringMethods`: names are compared with the special values
+  (`undefined`, `NaN`, `Infinity`; `Array`, `Math`, `Number`) in place instead of being converted
+  to a Rust string (or a qualified name built) first, and a method name is converted only for a
+  call that can be folded. A lone surrogate matches none of these values either way.
+- `jscomp/reference_collector.rs` `replay_body_sites_with_jumps`, `replay_scoped_body_sites`: a
+  function body whose cached sites name a hoisted function the collector has not collected yet
+  is replayed too (it was collected by the ordinary visitor): at the site where the visitor would
+  jump to the function (`maybe_jump_to_hoisted_function`, after adding the reference), the replay
+  jumps, with its own state put aside. Such a body declares no function, the jumped-to function
+  lies outside it, and for a behavior whose scope exits change only their own scopes
+  (`Behavior::scope_exits_change_only_their_scopes`: InlineVariables, InlineObjectLiterals,
+  InferConsts, VariableReferenceCheck, Denormalize) what the jump changes lies inside that
+  function, so the body's sites stay valid; map entries are made at the first site of each
+  spelling, so the jump's entries keep their place. In a bundle most module functions are referenced before their declarations.
+  `CLOSURE_RS_REPLAY_JUMPS=off` restores the ordinary visitor for those bodies.
+  `try_skip_clean_leaf_function` (`InlineVarsCleanCache`) skips such a clean leaf function too,
+  replaying its free sites with the same jumps.
+- `jscomp/remove_unused_code.rs` `trailing_parameter_is_empty_pattern`: a function with default
+  value, rest or destructuring parameters can have a `LeafFunctionSummary` too (it needed plain
+  or unused-marked parameters). A hit skips `removeUnreferencedFunctionArgs`, which changes
+  nothing for a function whose parameter vars are all stable (the summary's condition) unless its
+  last parameter is an empty destructuring pattern, which it deletes whatever the vars.
+- `jscomp/syntactic_scope_cache.rs` `record_changes`, `rhino/node.rs` `Ast::no_changes_since`:
+  `record_changes` (run by every scope request and every change stamp read) returns at once when
+  the arena recorded no edit since the cache's cursor and no other reader drained the log, which
+  is what it would find after draining nothing.
