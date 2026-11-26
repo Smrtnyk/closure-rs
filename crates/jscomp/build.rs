@@ -226,6 +226,15 @@ fn main() {
     let mut sizes = String::from("match name {\n");
     let mut all_template_names: closure_rhino::fast_hash::IndexSet<JsString> =
         closure_rhino::fast_hash::IndexSet::default();
+    // The typed externs data (src/typed_scope_creator/typed_externs.bin) was made from these
+    // snapshots; it applies only while they are the same (FNV-1a over every name and byte).
+    let mut fingerprint: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut feed = |bytes: &[u8]| {
+        for &byte in bytes {
+            fingerprint ^= u64::from(byte);
+            fingerprint = fingerprint.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    };
     type PendingDeclarationRecord = (String, Vec<u8>, Vec<(usize, Vec<JsString>)>);
     let mut pending_records: Vec<PendingDeclarationRecord> = Vec::new();
     for (i, file) in AbstractCommandLineRunner::get_builtin_externs(Environment::BROWSER)
@@ -267,6 +276,9 @@ fn main() {
                 writeln!(summaries, "{:?} => Some(&{summary}),", file.path).unwrap();
             }
             let filename = format!("extern-{i}.bin");
+            feed(file.path.as_bytes());
+            feed(&(bytes.len() as u64).to_le_bytes());
+            feed(&bytes);
             fs::write(out.join(&filename), bytes).unwrap();
             if records.iter().any(|&record| record != declarations::OTHER) {
                 writeln!(
@@ -291,8 +303,16 @@ fn main() {
                 records[stmt_idx] &= !declarations::PLAIN_STUB_NO_SCOPE;
             }
         }
+        feed(declaration_file.as_bytes());
+        feed(&(records.len() as u64).to_le_bytes());
+        feed(&records);
         fs::write(out.join(&declaration_file), &records).unwrap();
     }
+    fs::write(
+        out.join("bundled_externs_fingerprint.rs"),
+        format!("const BUNDLED_EXTERNS_FINGERPRINT: u64 = {fingerprint:#x};\n"),
+    )
+    .unwrap();
     summaries.push_str("_ => None,\n}\n");
     fs::write(out.join("bundled_script_summaries.rs"), summaries).unwrap();
     lookup.push_str("_ => None,\n}\n");

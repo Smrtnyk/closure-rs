@@ -55,10 +55,10 @@ use crate::{
 use closure_rhino::{check_state, fast_hash::IndexMap, js_string::JsString, node::Ast};
 
 #[derive(Debug, Default)]
-struct KeyCache {
-    counter: i32,
-    string_keys: Option<Arc<BTreeSet<JsString>>>,
-    symbol_keys: Option<Arc<Vec<TypeId>>>,
+pub(crate) struct KeyCache {
+    pub(crate) counter: i32,
+    pub(crate) string_keys: Option<Arc<BTreeSet<JsString>>>,
+    pub(crate) symbol_keys: Option<Arc<Vec<TypeId>>>,
 }
 
 /// Rust-only (performance divergence): Java's `TreeMap<String, Property>` of a property map, kept
@@ -66,7 +66,7 @@ struct KeyCache {
 /// walks in key order. It offers no walk in any other order: `sorted_values` and `key_set` give
 /// Java's.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct PropertyTable(Option<Arc<IndexMap<JsString, PropertyId>>>);
+pub(crate) struct PropertyTable(pub(crate) Option<Arc<IndexMap<JsString, PropertyId>>>);
 
 impl PropertyTable {
     pub(crate) fn get(&self, name: &JsString) -> Option<PropertyId> {
@@ -81,7 +81,7 @@ impl PropertyTable {
     fn insert(&mut self, name: JsString, prop: PropertyId) {
         Arc::make_mut(self.0.get_or_insert_with(Arc::default)).insert(name, prop);
     }
-    fn entries(&self) -> &indexmap::map::Slice<JsString, PropertyId> {
+    pub(crate) fn entries(&self) -> &indexmap::map::Slice<JsString, PropertyId> {
         self.0
             .as_deref()
             .map(IndexMap::as_slice)
@@ -114,8 +114,8 @@ pub struct PropertyMap {
     // is O(1) instead of a deep copy; the snapshot semantics are unchanged.
     pub(crate) properties: PropertyTable,
     pub(crate) known_symbols: Option<Arc<Vec<(TypeId, PropertyId)>>>,
-    cache: Arc<Mutex<KeyCache>>,
-    immutable_empty: bool,
+    pub(crate) cache: Arc<Mutex<KeyCache>>,
+    pub(crate) immutable_empty: bool,
 }
 impl Default for PropertyMap {
     fn default() -> Self {

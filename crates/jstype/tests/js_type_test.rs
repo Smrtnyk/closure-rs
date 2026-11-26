@@ -61,6 +61,7 @@ use closure_rhino::{
     js_string::JsString,
     jscomp_base::Tri,
     jsdoc_info::{JSDocInfo, Visibility},
+    node::Ast,
     outcome::Outcome,
 };
 use std::sync::Arc;
@@ -15561,13 +15562,15 @@ fn test_template_type_validator() {
     let _expr2 = t.set_validator(
         &mut f.base.reg,
         &f.base.ast,
-        Arc::new(|type_, reg, _ast| type_.is_template_type(reg)),
+        Arc::new(|type_: TypeId, reg: &mut JSTypeRegistry, _ast: &Ast| type_.is_template_type(reg)),
     );
     assert!(_expr2);
     let _expr3 = t.set_validator(
         &mut f.base.reg,
         &f.base.ast,
-        Arc::new(|type_, reg, _ast| !type_.is_template_type(reg)),
+        Arc::new(|type_: TypeId, reg: &mut JSTypeRegistry, _ast: &Ast| {
+            !type_.is_template_type(reg)
+        }),
     );
     assert!(!_expr3);
 }

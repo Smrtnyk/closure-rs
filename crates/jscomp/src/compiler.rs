@@ -157,6 +157,10 @@ pub struct Compiler {
     index_providers_by_type:
         IndexMap<std::any::TypeId, Box<dyn crate::index_provider::ErasedIndexProvider>>,
     type_registry: Option<closure_jstype::JSTypeRegistry>,
+    /// Rust-only: the number of `report` calls (see `reports_made`).
+    reports_made: u64,
+    /// Rust-only: the control of the typed externs restore (`typed_scope_creator::typed_externs`).
+    pub(crate) typed_externs: crate::typed_scope_creator::TypedExternsControl,
     /// Rust-only: errors the type registry's reporter queued for `Compiler#report` (see
     /// `QueueingOldRhinoErrorReporter`).
     queued_type_registry_errors: Arc<crate::rhino_error_reporter::JSErrorQueue>,
@@ -298,6 +302,8 @@ impl Compiler {
             cross_chunk_id_generator: crate::id_generator::IdGenerator::default(),
             index_providers_by_type: IndexMap::<_, _>::default(),
             type_registry: None,
+            reports_made: 0,
+            typed_externs: Default::default(),
             queued_type_registry_errors: Arc::default(),
             forward_declared_types: Arc::new(
                 std::sync::Mutex::new(ForwardDeclaredTypes::default()),
@@ -661,6 +667,7 @@ impl Compiler {
     }
     /// Rust-only: the body of `Compiler#report`.
     fn report_now(&mut self, error: JSError) {
+        self.reports_made += 1;
         let level = self.get_error_level(&error);
         if level.is_on() {
             self.init_compiler_options_if_testing();
@@ -4311,6 +4318,16 @@ impl Compiler {
         // exists, so that its scope views read it through the registry (see `TypedScopeArena`).
         registry.set_scope_storage(Some(Box::new(std::mem::take(&mut self.typed_scope_arena))));
         self.type_registry = Some(registry);
+    }
+
+    /// Rust-only: the type registry if it was made (no report of queued errors, no creation).
+    pub(crate) fn type_registry_if_present(&self) -> Option<&closure_jstype::JSTypeRegistry> {
+        self.type_registry.as_ref()
+    }
+
+    /// Rust-only: how many errors were reported (at any level) so far.
+    pub(crate) fn reports_made(&self) -> u64 {
+        self.reports_made
     }
 
     /// Rust-only: the typed scope arena, in the type registry's scope storage while the registry

@@ -47,16 +47,16 @@ use closure_rhino::{check_state, node::Ast};
 use std::collections::VecDeque;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum State {
+pub(crate) enum State {
     CLOSED,
     OPEN,
     CLOSING,
 }
 
 pub struct JSTypeResolver {
-    capture_stack: VecDeque<TypeId>,
-    resolution_queue: VecDeque<TypeId>,
-    state: State,
+    pub(crate) capture_stack: VecDeque<TypeId>,
+    pub(crate) resolution_queue: VecDeque<TypeId>,
+    pub(crate) state: State,
 }
 pub struct Closer {
     has_run: bool,

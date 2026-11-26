@@ -89,6 +89,8 @@ pub const OBJECT_ELEMENT_TEMPLATE: &str = "IOBJECT_VALUE";
 
 /// Rust-only: the `Set<String> forwardDeclaredTypes` Java's registry shares with its creator; the
 /// registry only asks `contains`.
+pub mod snapshot;
+
 pub trait ForwardDeclaredTypeSet: Send + Sync {
     fn contains(&self, name: &JsString) -> bool;
 }
@@ -140,6 +142,8 @@ pub struct JSTypeRegistry {
     /// inserted into `non_ref_types_indexed_by_property` or `each_ref_type_indexed_by_property`,
     /// allowing `TypeCheck` to safely cache `can_property_be_defined(UNKNOWN_TYPE, name)`.
     property_registration_epoch: u64,
+    /// Rust-only: the lookups of compile inputs recorded for a snapshot (see `snapshot`).
+    snapshot_lookups: Option<Box<Mutex<snapshot::LookupLog>>>,
     i_object_index_template_key: Option<TypeId>,
     i_object_element_template_key: Option<TypeId>,
     iterable_value_template: Option<TypeId>,
@@ -685,6 +689,9 @@ impl SyntheticTemplateScope {
     }
 }
 impl StaticTypedScope for SyntheticTemplateScope {
+    fn snapshot_template_scope(&self) -> Option<crate::static_typed_scope::TemplateScopeParts<'_>> {
+        Some((&self.delegate, &self.types))
+    }
     // port: JSTypeRegistry.SyntheticTemplateScope#getRootNode
     fn get_root_node(&self) -> Option<NodeId> {
         self.delegate.get_root_node()
@@ -1115,6 +1122,7 @@ impl JSTypeRegistry {
             dropped_properties_of_unions: IndexSet::<_>::default(),
             each_ref_type_indexed_by_property: IndexMap::<_, _>::default(),
             property_registration_epoch: 0,
+            snapshot_lookups: None,
             i_object_index_template_key: None,
             i_object_element_template_key: None,
             iterable_value_template: None,
@@ -1245,7 +1253,11 @@ impl JSTypeRegistry {
     }
     // port: JSTypeRegistry#isForwardDeclaredType
     pub fn is_forward_declared_type(&self, name: impl Into<JsString>) -> bool {
-        self.forward_declared_types.contains(&name.into())
+        let name = name.into();
+        self.note_lookup(|log| {
+            log.forward_declared.insert(name.clone());
+        });
+        self.forward_declared_types.contains(&name)
     }
     // port: JSTypeRegistry#checkTypeName
     fn check_type_name(type_name: &JsString) {
@@ -1454,8 +1466,12 @@ impl JSTypeRegistry {
     ) -> bool {
         let name = name.into();
         let scope = self.get_lookup_scope(ast, scope, &name);
+        let root = self.get_root_node_for_scope(ast, scope);
+        self.note_lookup(|log| {
+            log.non_nullable.insert((root, name.clone()));
+        });
         self.non_nullable_type_names
-            .get(&self.get_root_node_for_scope(ast, scope))
+            .get(&root)
             .is_some_and(|names| names.contains(&name))
     }
     // port: JSTypeRegistry#getGlobalType
@@ -1535,6 +1551,9 @@ impl JSTypeRegistry {
         if self.closure_namespaces.is_empty() {
             return None;
         }
+        self.note_lookup(|log| {
+            log.closure_namespace.insert(reference.clone());
+        });
         let mut prefix = reference.clone();
         loop {
             if let Some(namespace) = self.closure_namespaces.get(&prefix).cloned() {

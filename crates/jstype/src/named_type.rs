@@ -75,15 +75,15 @@ pub enum ResolutionKind {
 pub struct NamedTypeData {
     pub(crate) proxy: ProxyObjectTypeData,
     pub(crate) reference: JsString,
-    source_name: String,
-    lineno: i32,
-    charno: i32,
-    resolution_kind: ResolutionKind,
-    resolution_scope: Option<Arc<dyn StaticTypedScope>>,
-    validator: Option<TypeValidator>,
-    property_continuations: Option<Vec<PropertyContinuation>>,
-    template_types: Vec<TypeId>,
-    restrict_by_null: bool,
+    pub(crate) source_name: String,
+    pub(crate) lineno: i32,
+    pub(crate) charno: i32,
+    pub(crate) resolution_kind: ResolutionKind,
+    pub(crate) resolution_scope: Option<Arc<dyn StaticTypedScope>>,
+    pub(crate) validator: Option<TypeValidator>,
+    pub(crate) property_continuations: Option<Vec<PropertyContinuation>>,
+    pub(crate) template_types: Vec<TypeId>,
+    pub(crate) restrict_by_null: bool,
 }
 pub(crate) fn named_data(id: TypeId, reg: &JSTypeRegistry) -> &NamedTypeData {
     match &reg.data(id).kind {
@@ -330,7 +330,7 @@ fn resolve_typeof(
             let no_resolved = NoResolvedType::new(reg, ast, reference, Some(templates));
             id.set_referenced_type(reg, no_resolved);
             if let Some(validator) = named_data(id, reg).validator.clone() {
-                validator(get_referenced_type(id, reg), reg, ast);
+                validator.validate(get_referenced_type(id, reg), reg, ast);
             }
         } else {
             warning(
@@ -371,7 +371,7 @@ fn set_referenced_and_resolved_type(
         type_ = type_.restrict_by_not_null_or_undefined(reg, ast);
     }
     if let Some(validator) = named_data(id, reg).validator.clone() {
-        validator(type_, reg, ast);
+        validator.validate(type_, reg, ast);
     }
     id.set_referenced_type(reg, type_);
     check_enum_element_cycle(id, reg, reporter);
@@ -444,7 +444,7 @@ fn handle_unresolved_type(
         let no_resolved = NoResolvedType::new(reg, ast, reference, Some(templates));
         id.set_referenced_type(reg, no_resolved);
         if let Some(validator) = named_data(id, reg).validator.clone() {
-            validator(get_referenced_type(id, reg), reg, ast);
+            validator.validate(get_referenced_type(id, reg), reg, ast);
         }
     }
 }
@@ -492,11 +492,11 @@ pub(crate) fn warning(
 }
 
 #[derive(Clone)]
-struct PropertyContinuation {
-    property_name: PropertyKey,
-    type_: TypeId,
-    inferred: bool,
-    property_node: Option<NodeId>,
+pub(crate) struct PropertyContinuation {
+    pub(crate) property_name: PropertyKey,
+    pub(crate) type_: TypeId,
+    pub(crate) inferred: bool,
+    pub(crate) property_node: Option<NodeId>,
 }
 impl PropertyContinuation {
     // port: NamedType.PropertyContinuation#PropertyContinuation

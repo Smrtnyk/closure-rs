@@ -184,7 +184,7 @@ pub(crate) fn set_validator(
     ast: &Ast,
     validator: TypeValidator,
 ) -> bool {
-    validator(id, reg, ast)
+    validator.validate(id, reg, ast)
 }
 // port: TemplateType#recursionUnsafeHashCode
 pub(crate) fn recursion_unsafe_hash_code(id: TypeId, _reg: &JSTypeRegistry) -> i32 {

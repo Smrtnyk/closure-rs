@@ -41,10 +41,10 @@ pub enum SnapshotUse {
 }
 
 #[derive(Debug)]
-struct Range {
-    start: u32,
-    end: u32,
-    root: NodeId,
+pub(super) struct Range {
+    pub(super) start: u32,
+    pub(super) end: u32,
+    pub(super) root: NodeId,
     last_statement: Option<NodeId>,
     data: &'static (dyn Any + Send + Sync),
     changes: u8,
@@ -52,7 +52,7 @@ struct Range {
 
 #[derive(Default, Debug)]
 pub(super) struct Watches {
-    ranges: Vec<Range>,
+    pub(super) ranges: Vec<Range>,
     end: u32,
 }
 
