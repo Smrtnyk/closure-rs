@@ -1045,7 +1045,7 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   inspect it (`AstAnalyzer#isTypedAsString`, `NodeUtil#mayBeString`, `PeepholeFoldConstants`,
   `PeepholeReplaceKnownMethods`, `ClosureCodeRemoval`, and the color presence checks).
 - `jscomp/compiler.rs`, `source_map.rs`, `source_file_mapping.rs`,
-  `compiler_source_excerpt_provider.rs`, `parallel_parse.rs`, `sourcemap/source_map_generator.rs`,
+  `compiler_source_excerpt_provider.rs`, `sourcemap/source_map_generator.rs`,
   `sourcemap/source_map_generator_v3.rs`, `cli/abstract_command_line_runner.rs`: chunked output
   (`outputChunkBinaryAndSourceMaps`, files, not JSON streams) is computed before its loop by
   `Compiler::prepare_chunk_outputs` when the chunks' scripts have at least 10K nodes
@@ -1054,20 +1054,22 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `emit_scripts_to_builder` does for the scripts of one chunk) while the compiler thread runs
   `resetAndIntitializeSourceMap` once (after decoding undecoded input source maps, which reports
   nothing); each chunk's code is then assembled in chunk order with the
-  `ChunkGraphAwareLicenseTracker`. Each chunk's source map is a copy (`SourceMap::try_clone`,
-  `SourceMapGenerator::try_clone`, `SourceFileMapping::try_clone`) of that reset map, which is the
-  state the loop gives the map for every chunk: `reset` leaves the sources content, which every
-  chunk adds again unchanged. `SourceMap#addMapping` is split into `resolve_mapping` (the
-  input-map lookup, which changes only caches of earlier results) and `add_resolved_mapping`:
-  the mappings of all chunks are resolved in slices of 4096 (`MAPPING_RESOLVE_SLICE`), each worker
-  with a copy of its own (`run_scoped_indexed_with_state`), then each chunk's map gets them in
-  order, its wrapper prefix and `appendTo` on a worker; the loop writes the files in chunk order
-  as before. A panic is resumed where the loop would raise it. The maps stay in the loop when an
-  input map does not decode (its lookup reports the error) or too few chunks are left.
-  `SourceMappingCache` keeps every file asked about and every original file resolved for it
-  (nodes of other files interleave, and a bundle's map names many original files in turn), and
-  converts the file name itself instead of going through the provider's shared
-  `last_mapping_name`.
+  `ChunkGraphAwareLicenseTracker`. When no chunk has more than 3/4 of the mappings
+  (`PARALLEL_CHUNK_MAPS_MAX_LARGEST_SHARE`; otherwise the loop builds the maps, streaming each to
+  its file, as without preparation), each chunk's source map is built on a worker from a copy
+  (`SourceMap::try_clone`, `SourceMapGenerator::try_clone`, `SourceFileMapping::try_clone`) of
+  that reset map, the state the loop gives the map for every chunk (`reset` leaves the sources
+  content, which every chunk adds again unchanged): its mappings are added in order, its wrapper
+  prefix set, and `appendTo` writes it into 64 KiB blocks (`BlockText`); the loop writes the
+  files in chunk order as before. What waits is kept small: a printed script's mappings are
+  packed into varints of the differences from the previous mapping (`PrintedMappings`), a chunk's
+  code is held a byte per code unit when every unit fits (`HeldCode`), and a map reserves room
+  for its mappings once (`SourceMapGenerator::reserve_mappings`). A panic is resumed where the
+  loop would raise it. The maps stay in the loop when an input map does not decode (its lookup
+  reports the error) or too few chunks are left. `SourceMappingCache` keeps every file asked
+  about and every original file resolved for it (nodes of other files interleave, and a bundle's
+  map names many original files in turn), and converts the file name itself instead of going
+  through the provider's shared `last_mapping_name`.
 - `jscomp/remove_unused_code.rs` `record_function_name_non_local`: a function declaration directly
   in a script marks its name's (outer) var as having a non-local value when it is traversed
   (`isExpressionResultUsed` is true under a SCRIPT). That no longer ends the function's

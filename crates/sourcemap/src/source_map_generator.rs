@@ -70,4 +70,8 @@ pub trait SourceMapGenerator {
     fn try_clone(&self) -> Option<Box<dyn SourceMapGenerator + Send>> {
         None
     }
+    /// Rust-only, not in Java (performance divergence): room for `additional` more mappings,
+    /// for a caller that knows how many it will add (it changes no output). Generators that keep
+    /// no list ignore it.
+    fn reserve_mappings(&mut self, _additional: usize) {}
 }

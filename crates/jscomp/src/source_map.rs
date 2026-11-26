@@ -178,14 +178,6 @@ impl Mapping {
         )
     }
 }
-/// Rust-only (performance divergence): what `SourceMap#addMapping(Node, FilePosition,
-/// FilePosition)` gives the generator for a node besides the output positions
-/// (`SourceMap::resolve_mapping`).
-pub struct ResolvedMapping {
-    source_file_name: JsString,
-    original_name: Option<JsString>,
-    original_position: FilePosition,
-}
 /// Collects information mapping the generated (compiled) source back to its original source for
 /// debugging purposes.
 ///
@@ -238,11 +230,18 @@ impl SourceMap {
             mapping_cache: self.mapping_cache.clone(),
         })
     }
+    /// Rust-only, not in Java (performance divergence): room for `additional` more mappings in
+    /// the generator (`SourceMapGenerator::reserve_mappings`), for a caller that knows how many
+    /// it will add at most.
+    pub fn reserve_mappings(&mut self, additional: usize) {
+        self.generator.reserve_mappings(additional);
+    }
     // port: SourceMap#addMapping(Mapping)
     pub fn add_mapping(&mut self, ast: &Ast, mapping: &Mapping) {
         self.add_mapping_for_node(ast, mapping.node, mapping.start, mapping.end);
     }
     // port: SourceMap#addMapping(Node,FilePosition,FilePosition)
+    #[allow(clippy::unnecessary_unwrap)] // Retain Java null/default/mapped branches.
     pub fn add_mapping_for_node(
         &mut self,
         ast: &Ast,
@@ -250,24 +249,13 @@ impl SourceMap {
         output_start_position: FilePosition,
         output_end_position: Option<FilePosition>,
     ) {
-        if let Some(resolved) = self.resolve_mapping(ast, node) {
-            self.add_resolved_mapping(resolved, output_start_position, output_end_position);
-        }
-    }
-    /// Rust-only (performance divergence): `addMapping(Node, FilePosition, FilePosition)` up to
-    /// the generator: what it gives the generator for `node` besides the output positions, or
-    /// `None` where it returns without a mapping. It reads `node` and changes only caches of
-    /// earlier results (file names, prefix fix-ups, input-map lookups), so that a copy of this map
-    /// (`try_clone`) resolves the same on another thread (`Compiler::prepare_chunk_outputs`).
-    #[allow(clippy::unnecessary_unwrap)] // Retain Java null/default/mapped branches.
-    pub fn resolve_mapping(&mut self, ast: &Ast, node: NodeId) -> Option<ResolvedMapping> {
         // If the node does not have an associated source file or
         // its line number is -1, then the node does not have sufficient
         // information for a mapping to be useful.
         // Rust-only (performance divergence): the source file is read in place instead of copied.
         let source_file = node.get_static_source_file_ref(ast);
         if source_file.is_none() || node.get_lineno(ast) < 0 {
-            return None;
+            return;
         }
         // Rust-only: the file name converted (and prefix-fixed) for the previous node is reused
         // (performance divergence).
@@ -308,7 +296,7 @@ impl SourceMap {
                 // location. We consider this to be a synthetic code range and do not
                 // include it in the output map.
                 // TODO b/452676030 - Report the sourceless mapping.
-                return None;
+                return;
             } else {
                 // The source file mapped our code range to its original source location.
                 let source_mapping = source_mapping.unwrap();
@@ -330,24 +318,10 @@ impl SourceMap {
         // Rhino source lines are one based but for v3 source maps, we make
         // them zero based.
         let line_base_offset = 1;
-        Some(ResolvedMapping {
-            source_file_name,
-            original_name,
-            original_position: FilePosition::new(line_no - line_base_offset, char_no),
-        })
-    }
-    /// Rust-only (performance divergence): the rest of `addMapping(Node, FilePosition,
-    /// FilePosition)` for what `resolve_mapping` gave.
-    pub fn add_resolved_mapping(
-        &mut self,
-        resolved: ResolvedMapping,
-        output_start_position: FilePosition,
-        output_end_position: Option<FilePosition>,
-    ) {
         self.generator.add_mapping(
-            Some(resolved.source_file_name),
-            resolved.original_name,
-            resolved.original_position,
+            Some(source_file_name),
+            original_name,
+            FilePosition::new(line_no - line_base_offset, char_no),
             output_start_position,
             output_end_position.expect("NullPointerException: source mapping end"),
         );
