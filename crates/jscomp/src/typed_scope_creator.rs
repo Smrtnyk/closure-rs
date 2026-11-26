@@ -82,6 +82,9 @@ use closure_rhino::{
 use std::rc::Rc;
 use std::sync::Arc;
 
+mod typed_externs;
+pub(crate) use typed_externs::Control as TypedExternsControl;
+
 // port: TypedScopeCreator#MALFORMED_TYPEDEF
 pub static MALFORMED_TYPEDEF: DiagnosticType = DiagnosticType::warning(
     "JSC_MALFORMED_TYPEDEF",
@@ -1042,6 +1045,9 @@ struct AbstractScopeBuilder<'a> {
     // a membership test in visit() for each descendant.
     deferred_statements: IndexSet<NodeId>,
     bundled_declarations: Option<(NodeId, std::slice::Iter<'static, u8>)>,
+    /// Rust-only (performance divergence): the restore of the bundled externs' typing
+    /// (`typed_externs`).
+    typed_externs: typed_externs::SegmentState,
 }
 
 impl<'a> AbstractScopeBuilder<'a> {
@@ -1064,6 +1070,7 @@ impl<'a> AbstractScopeBuilder<'a> {
             deferred_actions: Vec::new(),
             deferred_statements: IndexSet::default(),
             bundled_declarations: None,
+            typed_externs: typed_externs::SegmentState::default(),
         }
     }
 
@@ -3087,6 +3094,14 @@ impl Callback for AbstractScopeBuilder<'_> {
         script: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
+        // Rust-only (performance divergence): the typing of the bundled externs may be restored
+        // from prepared data instead of computed (`typed_externs`).
+        if self.kind == ScopeBuilderKind::NormalScopeBuilder
+            && self.current_scope.is_global(t.get_compiler())
+            && typed_externs::before_script(self, t, script, parent)
+        {
+            return false;
+        }
         self.bundled_declarations = None;
         if !self.should_traverse(t, script, parent) {
             return false;
@@ -3189,6 +3204,7 @@ impl Callback for AbstractScopeBuilder<'_> {
                 self.run_deferred_action(t.get_compiler(), action);
             }
         }
+        typed_externs::after_visit(self, t, n);
     }
 }
 

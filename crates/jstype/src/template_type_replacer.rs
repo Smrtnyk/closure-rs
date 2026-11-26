@@ -58,16 +58,16 @@ use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub struct TemplateTypeReplacer {
-    bindings: Arc<TemplateTypeMap>,
-    visit_properties: bool,
-    use_unknown_for_missing_keys: bool,
-    use_unknown_for_missing_values: bool,
-    has_made_replacement: bool,
-    key_type: Option<TypeId>,
-    own_sub_map_boundary: i32,
+    pub(crate) bindings: Arc<TemplateTypeMap>,
+    pub(crate) visit_properties: bool,
+    pub(crate) use_unknown_for_missing_keys: bool,
+    pub(crate) use_unknown_for_missing_values: bool,
+    pub(crate) has_made_replacement: bool,
+    pub(crate) key_type: Option<TypeId>,
+    pub(crate) own_sub_map_boundary: i32,
     // Java identity sets/maps are lookup-only; insertion order cannot affect replacement output.
-    seen_types: Option<IndexSet<TypeId>>,
-    visited_object_types: Option<IndexMap<TypeId, TypeId>>,
+    pub(crate) seen_types: Option<IndexSet<TypeId>>,
+    pub(crate) visited_object_types: Option<IndexMap<TypeId, TypeId>>,
 }
 
 impl TemplateTypeReplacer {

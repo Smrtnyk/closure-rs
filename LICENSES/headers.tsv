@@ -574,6 +574,7 @@ crates/jscomp/src/type_validator.rs	e0df035f28d473b9	Apache-2.0	closure:src/com/
 crates/jscomp/src/typed_code_generator.rs	128ebac183a9a501	Apache-2.0	closure:src/com/google/javascript/jscomp/TypedCodeGenerator.java
 crates/jscomp/src/typed_scope.rs	76f239b48ee60411	Apache-2.0	closure:src/com/google/javascript/jscomp/TypedScope.java; closure:src/com/google/javascript/jscomp/AbstractScope.java; closure:src/com/google/javascript/jscomp/TypedVar.java
 crates/jscomp/src/typed_scope_creator.rs	6deda26fdf89a88b	Apache-2.0	closure:src/com/google/javascript/jscomp/TypedScopeCreator.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
+crates/jscomp/src/typed_scope_creator/typed_externs.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/typed_scope_creator_rhino.rs	ab945c33639fbba7	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/jstype/StaticTypedScope.java
 crates/jscomp/src/typed_var.rs	737a2d6d69655237	Apache-2.0	closure:src/com/google/javascript/jscomp/TypedVar.java; closure:src/com/google/javascript/jscomp/AbstractVar.java
 crates/jscomp/src/unique_id_supplier.rs	0f4a708a48f2c32f	Apache-2.0	closure:src/com/google/javascript/jscomp/UniqueIdSupplier.java
@@ -830,6 +831,7 @@ crates/jstype/src/js_type_class.rs	94084c9ced136d9e	(MPL-1.1 OR GPL-2.0-or-later
 crates/jstype/src/js_type_iterations.rs	76f948cd02d29e23	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/jstype/JSTypeIterations.java
 crates/jstype/src/js_type_native.rs	a01bb0a79c4c2acc	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/jstype/JSTypeNative.java
 crates/jstype/src/js_type_registry.rs	6f02cdbe0eefa463	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+crates/jstype/src/js_type_registry/snapshot.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jstype/src/js_type_resolver.rs	febd7e4c506aa580	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/jstype/JSTypeResolver.java
 crates/jstype/src/known_symbol_type.rs	0b546d0dc757394b	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/jstype/KnownSymbolType.java
 crates/jstype/src/lib.rs	322fc2ba37b98b96	Apache-2.0	-
@@ -1130,6 +1132,7 @@ crates/rhino/src/msg.rs	a5fd83c22f83fb1e	(MPL-1.1 OR GPL-2.0-or-later)	closure:s
 crates/rhino/src/node.rs	c3c966d05bcb93ea	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/Node.java
 crates/rhino/src/node/snapshot.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/src/node/snapshot_watch.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/rhino/src/node/typed_snapshot.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/src/non_jsdoc_comment.rs	4b4e3eb1316eb57c	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/NonJSDocComment.java
 crates/rhino/src/outcome.rs	260266ecdc6e1672	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/Outcome.java
 crates/rhino/src/pmap.rs	9b7b180a73a9d5a3	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/PMap.java

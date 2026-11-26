@@ -53,10 +53,10 @@ use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub struct TemplateTypeMap {
-    template_keys: Vec<TypeId>,
-    template_values: Vec<TypeId>,
-    resolved_template_values: Vec<TypeId>,
-    sub_map_starts: Vec<bool>,
+    pub(crate) template_keys: Vec<TypeId>,
+    pub(crate) template_values: Vec<TypeId>,
+    pub(crate) resolved_template_values: Vec<TypeId>,
+    pub(crate) sub_map_starts: Vec<bool>,
 }
 
 impl TemplateTypeMap {

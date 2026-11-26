@@ -51,6 +51,12 @@ use closure_rhino::{
     qualified_name::QualifiedName,
 };
 
+/// Rust-only: what a template scope of the registry is made of (see `snapshot_template_scope`).
+pub type TemplateScopeParts<'a> = (
+    &'a std::sync::Arc<dyn StaticTypedScope>,
+    &'a closure_rhino::fast_hash::IndexMap<JsString, TypeId>,
+);
+
 pub trait StaticTypedScope: Send + Sync {
     fn get_root_node(&self) -> Option<NodeId>;
     // port: StaticTypedScope#getParentScope
@@ -107,6 +113,11 @@ pub trait StaticTypedScope: Send + Sync {
         }
         self.get_parent_scope()
             .and_then(|p| p.get_topmost_scope_of_eventual_declaration(reg, ast, name))
+    }
+    /// Rust-only: the delegate and template names of a `JSTypeRegistry` template scope (for the
+    /// registry snapshot, `js_type_registry::snapshot`); None for every other scope.
+    fn snapshot_template_scope(&self) -> Option<TemplateScopeParts<'_>> {
+        None
     }
     // SyntheticTemplateScope exposes its template names before ordinary lookup.
     fn get_template_type(&self, _name: &JsString) -> Option<TypeId> {

@@ -50,6 +50,7 @@
 //! Rhino's Node API, with object identity represented by arena handles.
 pub mod snapshot;
 mod snapshot_watch;
+pub mod typed_snapshot;
 pub use snapshot_watch::SnapshotUse;
 
 use crate::fast_hash::IndexSet;

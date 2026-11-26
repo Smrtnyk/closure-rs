@@ -147,7 +147,27 @@ pub(crate) enum JSTypeKind {
     Void(crate::void_type::VoidTypeData),
     UnitTesting(UnitTestingJSTypeData),
 }
-pub type TypeValidator = Arc<dyn Fn(TypeId, &mut JSTypeRegistry, &Ast) -> bool + Send + Sync>;
+/// A validator a type runs on its referenced type once it is known (Java: `Predicate<JSType>`).
+///
+/// Rust-only: a trait object rather than a bare closure, so that a snapshot of the registry can
+/// recognize the validators it knows how to recreate (`as_any`, see `js_type_registry::snapshot`).
+/// Any `Fn(TypeId, &mut JSTypeRegistry, &Ast) -> bool` closure is a validator.
+pub trait TypeValidatorFn: Send + Sync + 'static {
+    fn validate(&self, type_: TypeId, reg: &mut JSTypeRegistry, ast: &Ast) -> bool;
+    fn as_any(&self) -> &dyn std::any::Any;
+}
+impl<F> TypeValidatorFn for F
+where
+    F: Fn(TypeId, &mut JSTypeRegistry, &Ast) -> bool + Send + Sync + 'static,
+{
+    fn validate(&self, type_: TypeId, reg: &mut JSTypeRegistry, ast: &Ast) -> bool {
+        self(type_, reg, ast)
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+pub type TypeValidator = Arc<dyn TypeValidatorFn>;
 pub type ResolveCallback = Arc<dyn Fn(TypeId, &mut JSTypeRegistry, &Ast) -> TypeId + Send + Sync>;
 #[doc(hidden)]
 #[derive(Default)]
@@ -2740,7 +2760,7 @@ impl JSType for TypeId {
             JSTypeKind::Template(_) => {
                 crate::template_type::set_validator(self, reg, ast, validator)
             }
-            _ => validator(self, reg, ast),
+            _ => validator.validate(self, reg, ast),
         }
     }
     // port: JSType#toString

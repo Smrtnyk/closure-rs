@@ -130,13 +130,13 @@ pub static ALL_DIAGNOSTICS: LazyLock<Arc<DiagnosticGroup>> = LazyLock::new(|| {
 
 /// Rust-only: Java's `compiler.report(error)`, callable from the type validators the registry runs
 /// when a NamedType resolves, where no `&mut AbstractCompiler` is in reach.
-type CompilerReportFn = Arc<dyn Fn(JSError) + Send + Sync>;
+pub(crate) type CompilerReportFn = Arc<dyn Fn(JSError) + Send + Sync>;
 
 /// Rust-only: a `CompilerReportFn` that reports to `compiler`. The error joins the queue of the
 /// registry's own reporter (`QueueingOldRhinoErrorReporter`), which the Compiler reports, in order,
 /// before it next reports or reads errors (the error managers sort, so the deferral changes no
 /// output).
-fn get_compiler_report_fn(compiler: &AbstractCompiler) -> CompilerReportFn {
+pub(crate) fn get_compiler_report_fn(compiler: &AbstractCompiler) -> CompilerReportFn {
     let queue = compiler.type_registry_error_queue();
     Arc::new(move |error: JSError| queue.push(error))
 }
@@ -269,6 +269,80 @@ impl ImplementedTypeValidator {
     }
 }
 
+impl closure_jstype::js_type::TypeValidatorFn for ExtendedTypeValidator {
+    fn validate(&self, type_: TypeId, reg: &mut JSTypeRegistry, ast: &Ast) -> bool {
+        self.apply(type_, reg, ast)
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+impl closure_jstype::js_type::TypeValidatorFn for ImplementedTypeValidator {
+    fn validate(&self, type_: TypeId, reg: &mut JSTypeRegistry, ast: &Ast) -> bool {
+        self.apply(type_, reg, ast)
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+/// Rust-only: what a validator of this builder captures, so that the typed externs snapshot
+/// (`typed_externs.rs`) can record it and make the same validator again.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ValidatorDescriptor {
+    Extended {
+        error_root: NodeId,
+        formatted_fn_name: String,
+    },
+    Implemented {
+        error_root: NodeId,
+        formatted_fn_name: String,
+    },
+}
+
+impl ValidatorDescriptor {
+    /// The descriptor of a validator this builder made, or None for any other validator.
+    pub(crate) fn of(validator: &TypeValidator) -> Option<Self> {
+        let any = validator.as_any();
+        if let Some(v) = any.downcast_ref::<ExtendedTypeValidator>() {
+            Some(Self::Extended {
+                error_root: v.base.error_root,
+                formatted_fn_name: v.formatted_fn_name.clone(),
+            })
+        } else {
+            any.downcast_ref::<ImplementedTypeValidator>()
+                .map(|v| Self::Implemented {
+                    error_root: v.base.error_root,
+                    formatted_fn_name: v.formatted_fn_name.clone(),
+                })
+        }
+    }
+
+    /// The validator `createExtendedTypeValidator` or `createImplementedTypeValidator` makes,
+    /// reporting through `report` (`get_compiler_report_fn`).
+    pub(crate) fn make_with(self, report: CompilerReportFn) -> TypeValidator {
+        match self {
+            Self::Extended {
+                error_root,
+                formatted_fn_name,
+            } => Arc::new(ExtendedTypeValidator::new(
+                error_root,
+                report,
+                formatted_fn_name,
+            )),
+            Self::Implemented {
+                error_root,
+                formatted_fn_name,
+            } => Arc::new(ImplementedTypeValidator::new(
+                error_root,
+                report,
+                formatted_fn_name,
+            )),
+        }
+    }
+}
+
 /// A builder for FunctionTypes, because FunctionTypes are so ridiculously complex. All methods
 /// return {@code this} for ease of use.
 ///
@@ -305,22 +379,20 @@ pub struct FunctionTypeBuilder {
 impl FunctionTypeBuilder {
     // port: FunctionTypeBuilder#createExtendedTypeValidator
     fn create_extended_type_validator(&self, compiler: &AbstractCompiler) -> TypeValidator {
-        let validator = ExtendedTypeValidator::new(
+        Arc::new(ExtendedTypeValidator::new(
             self.error_root,
             get_compiler_report_fn(compiler),
             self.format_fn_name(),
-        );
-        Arc::new(move |type_, reg, ast| validator.apply(type_, reg, ast))
+        ))
     }
 
     // port: FunctionTypeBuilder#createImplementedTypeValidator
     fn create_implemented_type_validator(&self, compiler: &AbstractCompiler) -> TypeValidator {
-        let validator = ImplementedTypeValidator::new(
+        Arc::new(ImplementedTypeValidator::new(
             self.error_root,
             get_compiler_report_fn(compiler),
             self.format_fn_name(),
-        );
-        Arc::new(move |type_, reg, ast| validator.apply(type_, reg, ast))
+        ))
     }
 
     /// @param fnName The function name to be used in error messages.

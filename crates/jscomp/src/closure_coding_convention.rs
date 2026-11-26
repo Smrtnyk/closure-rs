@@ -46,6 +46,11 @@ impl ClosureCodingConvention {
     pub fn new() -> Self {
         Self::with_convention(CodingConventions::get_default())
     }
+    /// Rust-only: the convention this one wraps (for the typed externs data, which applies to the
+    /// default one).
+    pub(crate) fn next_convention(&self) -> &Arc<dyn CodingConvention> {
+        &self.proxy.next_convention
+    }
     // port: ClosureCodingConvention#ClosureCodingConvention(CodingConvention)
     pub fn with_convention(wrapped: Arc<dyn CodingConvention>) -> Self {
         Self {

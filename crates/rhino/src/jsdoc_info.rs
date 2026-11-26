@@ -929,7 +929,7 @@ impl Marker {
 }
 
 #[derive(Clone, Debug, Default)]
-enum PackedPropertyValues {
+pub(crate) enum PackedPropertyValues {
     #[default]
     Empty,
     Single(PropertyValue),
@@ -950,9 +950,9 @@ pub enum OptimizationTagsKey {
 
 #[derive(Clone, Debug, Default)]
 pub struct JSDocInfo {
-    property_bits: u64,
-    property_keys_bitset: u64,
-    property_values: PackedPropertyValues,
+    pub(crate) property_bits: u64,
+    pub(crate) property_keys_bitset: u64,
+    pub(crate) property_values: PackedPropertyValues,
 }
 impl JSDocInfo {
     // port: JSDocInfo#JSDocInfo

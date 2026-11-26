@@ -1877,6 +1877,12 @@ impl<'a> NodeTraversal<'a> {
 
     /// With synthetic block markers enabled, ordinary scope entry reads each BLOCK's live
     /// SYNTHETIC property. That read validates the value even in a read-only visitor.
+    /// Rust-only: whether the options mark synthetic blocks (the bundled scripts' build-time
+    /// records do not apply then).
+    pub(crate) fn may_contain_synthetic_blocks(&self) -> bool {
+        self.may_contain_synthetic_blocks
+    }
+
     pub(crate) fn bundled_script_prefix(
         &self,
         script: NodeId,

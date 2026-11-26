@@ -1212,3 +1212,64 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `getGlobalNameOfEsModuleLocalVariable` of an ES or CommonJS module builds
   `name + "$$" + path.toModuleName()` (what the module's global name joins back to) in one buffer.
   Each intermediate string cost a reference-count decrement when dropped.
+- `jscomp/code_change_handler.rs`, `change_tracker.rs`, `recent_change.rs`, `forbidden_change.rs`,
+  `phase_optimizer.rs`, `performance_tracker.rs`, `validity_check.rs`: `CodeChangeHandler::report_change`
+  takes `&self` and the handlers are shared as `Arc<dyn CodeChangeHandler>`, not behind a mutex;
+  `RecentChange` and `PhaseOptimizer`'s `ScopedChangeHandler` keep their state in relaxed atomics,
+  and `ChangeTracker::increment_change_stamp` is a load and a store (only the tracker writes the
+  stamp), so that a reported change costs no locked instruction.
+- `rhino/rhino_string_pool.rs`: a thread without a scoped cache (`with_thread_cache`; the compiler
+  thread, scoped workers) looks up a direct-mapped table of the `RECENT_SLOTS` (16K) pool entries it
+  interned last before taking the lock of a pool shard (two locked instructions per lookup); pool
+  entries are never removed, so the table returns what the pool would.
+- `parsing/parser/scanner.rs`, `rhino/rhino_string_pool.rs`: the scanner interns the spelling of an
+  identifier without escapes straight from the source (`RhinoStringPool::add_or_get_units`, which
+  goes through the thread's cache and allocates nothing on a hit) instead of copying it into a
+  reference-counted string that `Node.newString` interns later, so the copies the token, the parse
+  trees and `IRFactory` make of it cost no reference counts. The parser compares identifier values
+  by content only.
+- `rhino/hamt_pmap.rs`, `jscomp/linked_flow_scope.rs`, `flow_scope.rs`, `type_inference.rs`,
+  `semantic_reverse_abstract_interpreter.rs`, the other reverse interpreters, `data_flow_analysis.rs`,
+  `graph/annotation.rs`: TypeInference's lattice (`Rc<dyn FlowScope>`), its overlay scopes and
+  slots, the refinement sets of `RefinementTrackingFlowScope` (`Rc<RefCell<..>>`) and the nodes of
+  `HamtPMap` (also MaybeReachingVariableUse's lattice) are shared with `Rc` instead of `Arc` (and
+  `Mutex`): they are built, read and dropped by one thread, and their reference counts were the
+  largest source of locked instructions. `Annotation` no longer requires `Send + Sync`;
+  `DataFlowAnalysisState` and these lattices are not `Send`.
+- `jstype/union_type.rs`, `js_type.rs`: `UnionType::get_alternates` and `get_union_members` return an
+  `Alternates` snapshot (a slice through `Deref`) that copies a union of at most eight members
+  instead of cloning the union's `Arc<Vec<TypeId>>`, so that taking and dropping it costs no
+  reference count; larger unions share the list. Tests of the list's identity use
+  `get_alternates_shared`.
+- `rhino/rhino_string_pool.rs`: `LazyInternedStringList` keeps the interned string of each entry in
+  a `OnceLock` set by its first `get`, instead of a mutex per entry and a `WriteOnlyBitset` bit, so
+  that a `get` of an interned entry is a plain load.
+- `jscomp/must_be_reaching_variable_def.rs`, `flow_sensitive_inline_variables.rs`: `MustDef`'s map and
+  its `Definition`s are shared with `Rc` instead of `Arc`; `PreparedMustDef`, which the workers of
+  `FlowSensitiveInlineVariables` share, keeps the entry definitions as plain values and each run
+  builds its entry lattice from them (definitions compare by node, so a fresh copy is equal).
+- `jscomp/linked_flow_scope.rs`: lookups of a slot name and of the root of a simple name pass the
+  name by reference (`get_var_of_root`), and joins borrow the slot name, instead of copying a
+  reference-counted string per lookup.
+- `jscomp/typed_scope_creator/typed_externs.rs`, `typed_externs.bin`, `jstype/js_type_registry/snapshot.rs`,
+  `rhino/node/typed_snapshot.rs`, `jscomp/build.rs` (fingerprint), `function_type_builder.rs`
+  (`ValidatorDescriptor`), `jstype/js_type.rs` (`TypeValidatorFn`): the global scope builder does
+  not type the bundled externs when prepared data applies; it decodes the state that typing leaves
+  (every registry field it writes, the typed scope arena, the creator's and builder's state, node
+  types and `TYPEDEF_TYPE` properties, and the detached parameter lists `inferParameterTypes`
+  makes) in its place, relocating nodes per script range and appended block. The data holds, for
+  one canonical ADVANCED compile, the encoded state before and after that work and digests of what
+  it reads. It applies only when the externs root holds `[synthetic:externs]` and then the
+  unchanged parser snapshots of the bundled scripts in canonical order with the expected appended
+  statements and node properties (`InferConsts` flags), the encoded state before is the recorded
+  one, the coding convention is the default `ClosureCodingConvention`, no synthetic block markers
+  are set, no name the bundled externs look up is marked non-nullable or forward declared by the
+  program, and every Closure namespace is a legacy one; what `[synthetic:externs]` declares is
+  left out of both states and put back by position. The encodings destructure every field, so a
+  new field does not compile until it is encoded; the key order of the lookup-only indexes by
+  property name is not part of the state. `CLOSURE_RS_TYPED_EXTERNS=off` runs the ordinary path,
+  `=verify` runs it and compares the state after it with the data. The data is checked in;
+  `CLOSURE_RS_REGENERATE_TYPED_EXTERNS=1 cargo test -p closure-jscomp typed_externs_data_is_current`
+  rewrites it after a change to the type system, to typed scope creation or to the bundled externs
+  (that test and `typed_externs_verify_on_bundled_externs` fail while it is stale; data made from
+  other extern snapshots is ignored).
