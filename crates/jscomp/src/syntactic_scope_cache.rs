@@ -21,8 +21,9 @@
 //! and the garbage collector frees the scopes after the pass; a compilation of a large bundle
 //! creates hundreds of thousands of scopes this way, most of them for code no pass has changed
 //! since the previous scan. Here a scope made by a `SyntacticScopeCreator` with the default
-//! redeclaration handler (which has no effects) is remembered by its root node and handed out
-//! again while
+//! redeclaration handler (which has no effects), or with another handler that the scan did not
+//! call, is remembered by its root node and handed out again (to a creator with another handler
+//! only when its scan called no handler, so that the handler would not have been called) while
 //!
 //! - nothing in the code it was scanned from has changed: the AST records every node whose
 //!   children, token or string change (`Ast::track_changes`), whether or not a pass reports the
@@ -35,19 +36,32 @@
 //! - nobody has declared or undeclared a name in it since (`note_mutation` evicts it);
 //! - it was not handed out yet in the current pass: within a pass every request makes a new
 //!   scope, as in Java, so a pass never sees one scope object where Java has two;
-//! - its parent is the requested parent, or a scope at the same depth (a scope of an unchanged
-//!   function whose enclosing scope was scanned anew), to which it is moved.
+//! - it had a parent and one is requested (a scope of an unchanged function whose enclosing scope
+//!   was scanned anew, or that lies at another depth now), or neither; it is moved to the
+//!   requested parent, at the depth below it. A kept scope is handed out only through `reuse`,
+//!   after its parent, so no pass sees a depth from before such a move.
+//!
+//! In a function's change scope, a change makes only the scopes stale whose scan could see it
+//! (`stamp_declaration_change`): a scan reads the statement lists of blocks and control
+//! structures, declarations with their binding patterns, parameter lists, and the names of
+//! functions and classes, never what lies inside an expression. In a script's change scope every
+//! change counts.
 //!
 //! The scope's contents are then exactly what a new scan would produce. A scope's vars hold no
 //! state that passes change (their constness, types and references are read from the AST or kept
 //! by the passes themselves), so a reused scope behaves as a new one. Setting
 //! `CLOSURE_RS_SCOPE_CACHE=off` makes every request scan anew; `CLOSURE_RS_SCOPE_CACHE=verify`
 //! scans anew on every reuse too and panics when the two scopes differ.
+//! `CLOSURE_RS_SCOPE_DECLARATION_STAMPS=off` makes every change in a function's change scope count
+//! and moves a scope only to a parent at the depth of its old one;
+//! `CLOSURE_RS_SCOPE_REDECLARATION_FREE_REUSE=off` keeps creators with a handler of their own out
+//! of the cache.
 
 use crate::{abstract_compiler::AbstractCompiler, node_util::NodeUtil, scope::ScopeId};
 use closure_rhino::{
     fast_hash::IndexMap,
-    node::{AstChangeCursor, NodeId},
+    node::{Ast, AstChangeCursor, NodeId},
+    token::Token,
 };
 use std::{
     num::NonZeroU32,
@@ -69,6 +83,174 @@ static MODE: LazyLock<Mode> =
             _ => Mode::On,
         },
     );
+
+/// Whether creators with a redeclaration handler of their own reuse and keep scopes whose scan
+/// called no handler (`SyntacticScopeCreator::default_handler`).
+pub(crate) static REDECLARATION_FREE_REUSE: LazyLock<bool> = LazyLock::new(|| {
+    std::env::var("CLOSURE_RS_SCOPE_REDECLARATION_FREE_REUSE").as_deref() != Ok("off")
+});
+
+/// Whether only the changes a scan can see make the scopes of a function stale (see
+/// `stamp_declaration_change`), and a scope may move to a parent at another depth.
+static DECLARATION_STAMPS: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_SCOPE_DECLARATION_STAMPS").as_deref() != Ok("off"));
+
+/// Rust-only (performance divergence): calls `stamp` with every scope root whose scan can see the
+/// change recorded at `n` (to its children, token or string), so that only the scopes of these
+/// roots become stale.
+///
+/// A scan (`ScopeScanner`) starts at a scope root and reads the children of statement blocks and
+/// control structures, declarations (`var`, `let`, `const`, `import`, `export`, `catch`) with the
+/// targets of their binding patterns, parameter lists, and the first child (the name) of functions
+/// and classes; of other nodes it reads only the token, and the string of a name only where it is
+/// declared. A change at `n` is seen when the scan reads `n`'s children or string and reaches `n`
+/// from its root through nodes it reads;
+/// every scope root on that path is stamped, which also covers the hoisting of `var` into a
+/// function body from nested blocks. A token change is recorded at the parent too, so it needs no
+/// reading of `n`'s token. When an edit moves `n` out of what a scan reads, the edit is recorded at
+/// a node on the old path, and the topmost such node is still reached from the root. A function's
+/// body reads the function's parameters (`ScopeScanner::is_shadowing_allowed`), so a stamp of a
+/// function stamps its body. A function or class declaration's name is read by the enclosing scope
+/// too, which is checked on reuse instead (`ScopeId::declared_names_unchanged`) for a function,
+/// whose name is in its own change scope.
+fn stamp_declaration_change(ast: &Ast, n: NodeId, mut stamp: impl FnMut(NodeId)) {
+    fn is_scope_root_kind(token: Token) -> bool {
+        matches!(
+            token,
+            Token::FUNCTION
+                | Token::CLASS
+                | Token::BLOCK
+                | Token::FOR
+                | Token::FOR_IN
+                | Token::FOR_OF
+                | Token::FOR_AWAIT_OF
+                | Token::SWITCH_BODY
+                | Token::MODULE_BODY
+                | Token::SCRIPT
+                | Token::ROOT
+                | Token::MEMBER_FIELD_DEF
+                | Token::COMPUTED_FIELD_DEF
+        )
+    }
+    // Statement blocks, control structures and switch bodies
+    // (`NodeUtil::is_shallow_statement_tree`): the scan reads the token of each child.
+    fn is_statement_list(token: Token) -> bool {
+        matches!(
+            token,
+            Token::ROOT
+                | Token::SCRIPT
+                | Token::BLOCK
+                | Token::MODULE_BODY
+                | Token::SWITCH_BODY
+                | Token::FOR
+                | Token::FOR_IN
+                | Token::FOR_OF
+                | Token::FOR_AWAIT_OF
+                | Token::DO
+                | Token::WHILE
+                | Token::WITH
+                | Token::IF
+                | Token::LABEL
+                | Token::TRY
+                | Token::CATCH
+                | Token::SWITCH
+                | Token::CASE
+                | Token::DEFAULT_CASE
+        )
+    }
+    // Declarations and binding patterns (`NodeUtil::visit_lhs_nodes_in_node`): the scan reads each
+    // child as a target.
+    fn is_declaration_list(token: Token) -> bool {
+        matches!(
+            token,
+            Token::VAR
+                | Token::LET
+                | Token::CONST
+                | Token::IMPORT
+                | Token::IMPORT_SPECS
+                | Token::EXPORT
+                | Token::ARRAY_PATTERN
+                | Token::OBJECT_PATTERN
+                | Token::PARAM_LIST
+        )
+    }
+    fn reads_all_children(token: Token) -> bool {
+        is_statement_list(token) || is_declaration_list(token)
+    }
+    // Whether a scan that reads `parent` reads its child `child`.
+    fn reads_child(ast: &Ast, parent: NodeId, child: NodeId) -> bool {
+        let token = parent.get_token(ast);
+        if reads_all_children(token) {
+            return true;
+        }
+        match token {
+            Token::DESTRUCTURING_LHS
+            | Token::DEFAULT_VALUE
+            | Token::ITER_REST
+            | Token::OBJECT_REST
+            | Token::CAST
+            | Token::CLASS => parent.get_first_child(ast) == Some(child),
+            Token::STRING_KEY | Token::COMPUTED_PROP | Token::IMPORT_SPEC => {
+                parent.get_last_child(ast) == Some(child)
+            }
+            // The name and the parameters; the body is a scope root of its own.
+            Token::FUNCTION => parent.get_last_child(ast) != Some(child),
+            _ => false,
+        }
+    }
+    let token = n.get_token(ast);
+    let reads_into_n = is_scope_root_kind(token)
+        || reads_all_children(token)
+        || matches!(
+            token,
+            Token::NAME
+                | Token::IMPORT_STAR
+                | Token::DESTRUCTURING_LHS
+                | Token::DEFAULT_VALUE
+                | Token::ITER_REST
+                | Token::OBJECT_REST
+                | Token::CAST
+                | Token::STRING_KEY
+                | Token::COMPUTED_PROP
+                | Token::IMPORT_SPEC
+        );
+    if !reads_into_n {
+        return;
+    }
+    if matches!(token, Token::NAME | Token::IMPORT_STAR)
+        && let Some(parent) = n.get_parent(ast)
+    {
+        // A name directly in a statement (an `if` condition, a `for-in` target) declares nothing;
+        // a `catch` declares its first child.
+        let parent_token = parent.get_token(ast);
+        if is_statement_list(parent_token)
+            && (parent_token != Token::CATCH || parent.get_first_child(ast) != Some(n))
+        {
+            return;
+        }
+    }
+    let mut current = n;
+    loop {
+        let token = current.get_token(ast);
+        if is_scope_root_kind(token) {
+            stamp(current);
+            if token == Token::FUNCTION {
+                if let Some(body) = current.get_last_child(ast) {
+                    stamp(body);
+                }
+                // Above lies another change scope.
+                return;
+            }
+        }
+        let Some(parent) = current.get_parent(ast) else {
+            return;
+        };
+        if !reads_child(ast, parent, current) {
+            return;
+        }
+        current = parent;
+    }
+}
 
 /// Where a scope root is, which decides the scope's contents together with the code inside the
 /// root's change scope.
@@ -196,6 +378,8 @@ struct Entry {
     /// Whether the scope declares the name of a function declaration, which lies in the
     /// function's change scope rather than in the scope's (`ScopeId::declared_names_unchanged`).
     declares_functions: bool,
+    /// Whether the scan called the redeclaration handler.
+    redeclared: bool,
 }
 
 /// A declaration that a scan of the top level of a script makes in a global scope (see
@@ -232,6 +416,9 @@ pub(crate) struct SyntacticScopeCache {
     stamps: Vec<u32>,
     /// The number of `record_changes` rounds that found changed nodes.
     round: u32,
+    /// Rust-only (performance divergence): per scope root, the last round of `record_changes` that
+    /// found a change a scan of it can see (`stamp_declaration_change`).
+    declaration_stamps: Vec<u32>,
     /// Rust-only (performance divergence): per node, the last round of `record_changes` that found
     /// an in-place change to `JSDOC_INFO`, `SIDE_EFFECT_FLAGS`, `IS_CONSTANT_NAME`, or
     /// `CONSTANT_VAR_FLAGS` in its change scope.
@@ -285,6 +472,7 @@ impl SyntacticScopeCache {
             cache.global_scripts.clear();
             cache.script_declarations.clear();
             cache.stamps.clear();
+            cache.declaration_stamps.clear();
             cache.flag_stamps.clear();
             cache.changed_functions = None;
             changed_flags.clear();
@@ -293,6 +481,7 @@ impl SyntacticScopeCache {
             compiler.flow_inline_clean_cache = Default::default();
             compiler.inline_vars_clean_cache = Default::default();
             compiler.inline_object_literals_clean_cache = Default::default();
+            compiler.optimize_calls_unit_cache = Default::default();
         }
         if !changed.is_empty() {
             let cache = &mut compiler.syntactic_scope_cache;
@@ -319,6 +508,18 @@ impl SyntacticScopeCache {
                         break;
                     }
                     node = current.get_parent(&compiler.ast);
+                }
+            }
+            if *DECLARATION_STAMPS {
+                let stamps = &mut cache.declaration_stamps;
+                for &n in &changed {
+                    stamp_declaration_change(&compiler.ast, n, |root| {
+                        let index = root.arena_index();
+                        if stamps.len() <= index {
+                            stamps.resize(index + 1, 0);
+                        }
+                        stamps[index] = round;
+                    });
                 }
             }
             if cache
@@ -361,6 +562,23 @@ impl SyntacticScopeCache {
     fn changed_since(&self, change_root: NodeId, round: u32) -> bool {
         self.stamps
             .get(change_root.arena_index())
+            .is_some_and(|stamp| *stamp >= round)
+    }
+
+    /// Whether the scope rooted at `root` in the change scope rooted at `change_root` may have
+    /// changed in a round at or after `round`: in a function, by a change a scan of `root` can see.
+    fn scope_changed_since(
+        &self,
+        ast: &Ast,
+        root: NodeId,
+        change_root: NodeId,
+        round: u32,
+    ) -> bool {
+        if !*DECLARATION_STAMPS || !change_root.is_function(ast) {
+            return self.changed_since(change_root, round);
+        }
+        self.declaration_stamps
+            .get(root.arena_index())
             .is_some_and(|stamp| *stamp >= round)
     }
 
@@ -493,19 +711,22 @@ impl SyntacticScopeCache {
     }
 
     /// A kept scope for `root` that may be handed out with parent `parent`, moved to that parent
-    /// if needed.
+    /// if needed; when `without_redeclarations`, only one whose scan called no redeclaration
+    /// handler.
     pub(crate) fn reuse(
         compiler: &mut AbstractCompiler,
         root: NodeId,
         parent: Option<ScopeId>,
         context: &ScopeContext,
+        without_redeclarations: bool,
     ) -> Option<ScopeId> {
         Self::record_changes(compiler);
         let cache = &compiler.syntactic_scope_cache;
         let slot = *cache.by_root.get(root.arena_index())?;
         let scope = ScopeId(NonZeroU32::new(slot)?);
         let entry = cache.entries[scope.index()];
-        if entry.handed_out_in == compiler.scope_handout_round()
+        if (without_redeclarations && entry.redeclared)
+            || entry.handed_out_in == compiler.scope_handout_round()
             || entry.script != context.script
             || entry.change_root != context.change_root
             || entry.kind != context.kind
@@ -519,21 +740,32 @@ impl SyntacticScopeCache {
                         .iter()
                         .any(|script| cache.changed_since(*script, entry.scanned_at))
             }
-            (None, Some(change_root)) => cache.changed_since(change_root, entry.scanned_at),
+            (None, Some(change_root)) => {
+                cache.scope_changed_since(&compiler.ast, root, change_root, entry.scanned_at)
+            }
             (None, None) => true,
         };
         if changed || (entry.declares_functions && !scope.declared_names_unchanged(compiler)) {
             return None;
         }
         let current_parent = scope.get_parent(compiler);
-        if current_parent != parent {
-            let (Some(_), Some(parent)) = (current_parent, parent) else {
-                return None;
-            };
-            if parent.get_depth(compiler).wrapping_add(1) != scope.get_depth(compiler) {
-                return None;
+        match (current_parent, parent) {
+            (None, None) => {}
+            (Some(current_parent), Some(parent)) => {
+                if !*DECLARATION_STAMPS
+                    && parent.get_depth(compiler).wrapping_add(1) != scope.get_depth(compiler)
+                {
+                    return None;
+                }
+                if current_parent != parent {
+                    scope.set_parent(compiler, parent);
+                } else if parent.get_depth(compiler).wrapping_add(1) != scope.get_depth(compiler) {
+                    // The parent was moved to another depth since this scope was kept (a module
+                    // body that was rewritten into its script took a scope out of the chain).
+                    scope.set_depth_below_parent(compiler);
+                }
             }
-            scope.set_parent(compiler, parent);
+            _ => return None,
         }
         let pass_index = compiler.scope_handout_round();
         let current_tag = compiler.syntactic_scope_cache.round.wrapping_add(1);
@@ -543,13 +775,15 @@ impl SyntacticScopeCache {
         Some(scope)
     }
 
-    /// Keeps `scope`, just scanned from `root` in `scan_round` `scanned_at`, for reuse.
+    /// Keeps `scope`, just scanned from `root` in `scan_round` `scanned_at`, for reuse;
+    /// `redeclared`: whether the scan called the redeclaration handler.
     pub(crate) fn keep(
         compiler: &mut AbstractCompiler,
         root: NodeId,
         scope: ScopeId,
         scanned_at: u32,
         context: ScopeContext,
+        redeclared: bool,
     ) {
         let context_tag = compiler.syntactic_scope_cache.round.wrapping_add(1);
         let entry = Entry {
@@ -560,6 +794,7 @@ impl SyntacticScopeCache {
             change_root: context.change_root,
             kind: context.kind,
             declares_functions: scope.declares_functions(compiler),
+            redeclared,
         };
         let cache = &mut compiler.syntactic_scope_cache;
         let index = root.arena_index();
@@ -640,8 +875,30 @@ impl SyntacticScopeCache {
         *MODE == Mode::Verify
     }
 
-    /// Panics unless `reused` declares the same vars, in the same order, as the new scan `fresh`.
-    pub(crate) fn verify(compiler: &AbstractCompiler, reused: ScopeId, fresh: ScopeId) {
+    /// Panics unless `reused` declares the same vars, in the same order, as the new scan `fresh`,
+    /// at the same depth, and its scan called a redeclaration handler as `fresh_redeclared` says.
+    pub(crate) fn verify(
+        compiler: &AbstractCompiler,
+        reused: ScopeId,
+        fresh: ScopeId,
+        fresh_redeclared: bool,
+    ) {
+        if let Some(entry) = compiler.syntactic_scope_cache.entries.get(reused.index()) {
+            assert!(
+                entry.redeclared == fresh_redeclared,
+                "syntactic scope cache: reused scope of {} redeclared {}, a new scan {}",
+                reused.get_root_node(compiler).to_string(compiler),
+                entry.redeclared,
+                fresh_redeclared
+            );
+        }
+        assert!(
+            reused.get_depth(compiler) == fresh.get_depth(compiler),
+            "syntactic scope cache: reused scope of {} at depth {}, a new scan at depth {}",
+            reused.get_root_node(compiler).to_string(compiler),
+            reused.get_depth(compiler),
+            fresh.get_depth(compiler)
+        );
         let describe = |scope: ScopeId| -> Vec<String> {
             scope
                 .get_var_iterable(compiler)
@@ -665,5 +922,86 @@ impl SyntacticScopeCache {
             "syntactic scope cache: reused scope of {} differs from a new scan:\nreused {a:?}\nnew    {b:?}",
             reused.get_root_node(compiler).to_string(compiler)
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn stamped(ast: &Ast, n: NodeId) -> Vec<NodeId> {
+        let mut roots = Vec::new();
+        stamp_declaration_change(ast, n, |root| roots.push(root));
+        roots
+    }
+
+    /// `function f(p = d) { var x = init(); g(); if (c) { let y; } class C { m() {} } }`
+    #[test]
+    fn declaration_changes_stamp_the_scope_roots_that_read_them() {
+        let mut ast = Ast::new();
+        let name = |ast: &mut Ast, s: &str| ast.new_string_with_token(Token::NAME, s);
+        let f = name(&mut ast, "f");
+        let p = name(&mut ast, "p");
+        let d = name(&mut ast, "d");
+        let default_value = ast.new_node_with_children2(Token::DEFAULT_VALUE, p, d);
+        let params = ast.new_node_with_child(Token::PARAM_LIST, default_value);
+        let init_callee = name(&mut ast, "init");
+        let init = ast.new_node_with_child(Token::CALL, init_callee);
+        let x = name(&mut ast, "x");
+        x.add_child_to_back(&mut ast, init);
+        let var = ast.new_node_with_child(Token::VAR, x);
+        let g = name(&mut ast, "g");
+        let call = ast.new_node_with_child(Token::CALL, g);
+        let expr = ast.new_node_with_child(Token::EXPR_RESULT, call);
+        let c = name(&mut ast, "c");
+        let y = name(&mut ast, "y");
+        let let_node = ast.new_node_with_child(Token::LET, y);
+        let inner_block = ast.new_node_with_child(Token::BLOCK, let_node);
+        let if_node = ast.new_node_with_children2(Token::IF, c, inner_block);
+        let class_name = name(&mut ast, "C");
+        let extends = ast.new_node(Token::EMPTY);
+        let method_name = name(&mut ast, "");
+        let method_params = ast.new_node(Token::PARAM_LIST);
+        let method_body = ast.new_node(Token::BLOCK);
+        let method =
+            ast.new_node_with_children3(Token::FUNCTION, method_name, method_params, method_body);
+        let member = ast.new_string_with_token(Token::MEMBER_FUNCTION_DEF, "m");
+        member.add_child_to_back(&mut ast, method);
+        let members = ast.new_node_with_child(Token::CLASS_MEMBERS, member);
+        let class = ast.new_node_with_children3(Token::CLASS, class_name, extends, members);
+        let body = ast.new_node_with_child(Token::BLOCK, var);
+        for statement in [expr, if_node, class] {
+            body.add_child_to_back(&mut ast, statement);
+        }
+        let function = ast.new_node_with_children3(Token::FUNCTION, f, params, body);
+        let script = ast.new_node_with_child(Token::SCRIPT, function);
+
+        // Inside expressions: no scan reads them.
+        for n in [init, init_callee, call, g, expr, c, d, members, member] {
+            assert_eq!(stamped(&ast, n), [], "{}", n.to_string(&ast));
+        }
+        // A declared name, its declaration and the statement lists up to the function body.
+        assert_eq!(stamped(&ast, x), [body]);
+        assert_eq!(stamped(&ast, var), [body]);
+        assert_eq!(stamped(&ast, body), [body]);
+        assert_eq!(stamped(&ast, if_node), [body]);
+        // A nested block, and the body that hoists `var`s out of it.
+        assert_eq!(stamped(&ast, y), [inner_block, body]);
+        // The class scope and the scope that declares the class.
+        assert_eq!(stamped(&ast, class_name), [class, body]);
+        assert_eq!(stamped(&ast, class), [class, body]);
+        // Parameters and the function's name: the function and its body.
+        assert_eq!(stamped(&ast, p), [function, body]);
+        assert_eq!(stamped(&ast, default_value), [function, body]);
+        assert_eq!(stamped(&ast, f), [function, body]);
+        assert_eq!(stamped(&ast, function), [function, body]);
+        // A method is a change scope of its own.
+        assert_eq!(stamped(&ast, method_body), [method_body]);
+        assert_eq!(stamped(&ast, method), [method, method_body]);
+        // The top level of a script.
+        assert_eq!(stamped(&ast, script), [script]);
+        // A detached node.
+        let detached = name(&mut ast, "z");
+        assert_eq!(stamped(&ast, detached), []);
     }
 }

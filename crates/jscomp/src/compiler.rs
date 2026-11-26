@@ -150,6 +150,8 @@ pub struct Compiler {
     /// Cached unchanged global functions known to have no `InlineObjectLiterals` splits.
     pub(crate) inline_object_literals_clean_cache:
         crate::inline_object_literals::InlineObjectLiteralsCleanCache,
+    /// The references of unchanged top-level statements for `OptimizeCalls`.
+    pub(crate) optimize_calls_unit_cache: crate::optimize_calls::UnitReferenceCache,
     accessor_summary: Option<Arc<crate::accessor_summary::AccessorSummary>>,
     unique_name_id: Arc<std::sync::atomic::AtomicI32>,
     unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier,
@@ -296,6 +298,7 @@ impl Compiler {
             flow_inline_clean_cache: Default::default(),
             inline_vars_clean_cache: Default::default(),
             inline_object_literals_clean_cache: Default::default(),
+            optimize_calls_unit_cache: Default::default(),
             accessor_summary: None,
             unique_name_id: Arc::new(std::sync::atomic::AtomicI32::new(0)),
             unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier::default(),

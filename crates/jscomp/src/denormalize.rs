@@ -33,6 +33,7 @@
 //!    `if (y) { var x = 0; }`, effectively undoing what HoistVarsOutOfBlocks does.
 use crate::{
     AbstractCompiler,
+    abstract_scope::ImplicitVar,
     compiler_pass::CompilerPass,
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
@@ -43,19 +44,139 @@ use crate::{
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
 use closure_rhino::{
     check_state,
+    fast_hash::IndexSet,
     ir::IR,
+    js_string::JsString,
     node::{Ast, NodeId},
     token::Token,
 };
+use std::sync::LazyLock;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CandidatesMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_DENORMALIZE_CANDIDATES=off` collects the references of every variable;
+/// `=verify` also checks the candidates against a walk of the whole tree.
+static CANDIDATES_MODE: LazyLock<CandidatesMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_DENORMALIZE_CANDIDATES").as_deref() {
+            Ok("off") => CandidatesMode::Off,
+            Ok("verify") => CandidatesMode::Verify,
+            _ => CandidatesMode::On,
+        },
+    );
+
+/// Rust-only (performance divergence): what the reference collection of step 3 needs. Java
+/// collects the references of every variable, but a scope exit changes a function body only for a
+/// variable that a `var` statement declares there without a value (the `declaration` of
+/// `after_exit_scope`), and only that variable's references are read. So only the spellings of such
+/// declarations are resolved, and functions without one are skipped (`Behavior::needs_name`,
+/// `can_skip_function_with_no_needed_names`, `can_skip_global_function_if_no_pending_hoist`). The
+/// names of function declarations are resolved too, so that the collector jumps to hoisted
+/// functions as before and the scope exits, and their code change reports, come in Java's order.
+#[derive(Default)]
+struct Candidates {
+    /// The `var` nodes seen by the first traversal.
+    vars: Vec<NodeId>,
+    /// The spellings to resolve: of the declarations without a value, of function declarations.
+    names: IndexSet<JsString>,
+    /// The functions whose body may declare a variable without a value.
+    functions: IndexSet<NodeId>,
+    /// Those functions and every function around one.
+    enclosing_functions: IndexSet<NodeId>,
+}
+
+impl Candidates {
+    /// Records the declarations without a value among `vars` that lie in a function.
+    fn finish(&mut self, ast: &Ast) {
+        for var in std::mem::take(&mut self.vars) {
+            if !var.is_var(ast) {
+                continue;
+            }
+            let mut uninitialized = false;
+            let mut child = var.get_first_child(ast);
+            while let Some(c) = child {
+                if c.is_name(ast) && !c.has_children(ast) {
+                    uninitialized = true;
+                    self.names.insert(c.get_string(ast));
+                }
+                child = c.get_next(ast);
+            }
+            if uninitialized {
+                self.add_function_around(ast, var);
+            }
+        }
+    }
+
+    fn add_function_around(&mut self, ast: &Ast, n: NodeId) {
+        let mut node = n.get_parent(ast);
+        let mut first = true;
+        while let Some(current) = node {
+            if current.is_function(ast) {
+                if first {
+                    self.functions.insert(current);
+                    first = false;
+                }
+                if !self.enclosing_functions.insert(current) {
+                    break;
+                }
+            }
+            node = current.get_parent(ast);
+        }
+    }
+
+    /// Panics unless every declaration without a value in a function below `root` is a candidate.
+    fn verify(&self, ast: &Ast, root: NodeId) {
+        let mut pending = vec![root];
+        while let Some(n) = pending.pop() {
+            if n.is_var(ast) {
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    if c.is_name(ast) && !c.has_children(ast) {
+                        let mut function = n.get_parent(ast);
+                        while let Some(f) = function
+                            && !f.is_function(ast)
+                        {
+                            function = f.get_parent(ast);
+                        }
+                        if let Some(function) = function {
+                            assert!(
+                                self.names.contains(c.get_string_ref(ast))
+                                    && self.functions.contains(&function)
+                                    && self.enclosing_functions.contains(&function),
+                                "Denormalize candidates miss {}",
+                                n.to_string_tree(ast)
+                            );
+                        }
+                    }
+                    child = c.get_next(ast);
+                }
+            }
+            let mut child = n.get_first_child(ast);
+            while let Some(c) = child {
+                pending.push(c);
+                child = c.get_next(ast);
+            }
+        }
+    }
+}
 
 pub struct Denormalize {
     output_feature_set: FeatureSet,
+    candidates: Option<Candidates>,
 }
 
 impl Denormalize {
     // port: Denormalize#Denormalize
     pub fn new(_compiler: &AbstractCompiler, output_feature_set: FeatureSet) -> Self {
-        Self { output_feature_set }
+        Self {
+            output_feature_set,
+            candidates: None,
+        }
     }
 
     /// Rust-only: the `outputFeatureSet` field the test harness reads reflectively.
@@ -65,18 +186,27 @@ impl Denormalize {
 
     // port: Denormalize#process
     pub fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
-        NodeTraversal::traverse(compiler, root, self);
         // Don't inline the VAR declaration if this compilation involves old-style ctemplates.
-        if compiler
+        let inline_vars = compiler
             .get_options()
             .get_synthetic_block_start_marker()
-            .is_none()
-        {
+            .is_none();
+        self.candidates =
+            (inline_vars && *CANDIDATES_MODE != CandidatesMode::Off).then(Candidates::default);
+        NodeTraversal::traverse(compiler, root, self);
+        if inline_vars {
+            if let Some(candidates) = &mut self.candidates {
+                candidates.finish(compiler);
+                if *CANDIDATES_MODE == CandidatesMode::Verify {
+                    candidates.verify(compiler, root);
+                }
+            }
             let mut scope_creator = SyntacticScopeCreator::new();
             let mut collector = ReferenceCollector::new(compiler, &mut *self, &mut scope_creator);
             collector.reuse_reference_sites();
             collector.process(compiler, root);
         }
+        self.candidates = None;
     }
 
     /// Collapse VARs and EXPR_RESULT node into FOR loop initializers where possible.
@@ -293,6 +423,16 @@ impl Callback for Denormalize {
 
     // port: Denormalize#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
+        if let Some(candidates) = &mut self.candidates {
+            match n.get_token(t) {
+                Token::VAR => candidates.vars.push(n),
+                Token::FUNCTION if NodeUtil::is_function_declaration(t, n) => {
+                    let name = n.get_first_child(t).unwrap();
+                    candidates.names.insert(name.get_string(t));
+                }
+                _ => {}
+            }
+        }
         self.maybe_collapse_into_for_statements(t, n, parent);
         self.maybe_collapse_logical_assign_shorthand(t, n, parent);
         self.maybe_collapse_assign_shorthand(t, n, parent);
@@ -306,6 +446,32 @@ impl Behavior for Denormalize {
         true
     }
 
+    // Rust-only (performance divergence): see `Candidates`.
+    fn needs_name(&self, ast: &Ast, node: NodeId) -> bool {
+        self.candidates.as_ref().is_none_or(|candidates| {
+            let name = node.get_string_ref(ast);
+            candidates.names.contains(name) || ImplicitVar::of(name).is_some()
+        })
+    }
+
+    // Rust-only (performance divergence): see `Candidates`.
+    fn can_skip_function_with_no_needed_names(&self, _ast: &Ast, fn_node: NodeId) -> bool {
+        self.candidates
+            .as_ref()
+            .is_some_and(|candidates| !candidates.functions.contains(&fn_node))
+    }
+
+    // Rust-only (performance divergence): see `Candidates`; a global variable is never changed.
+    fn can_skip_global_function_if_no_pending_hoist(
+        &self,
+        _compiler: &mut AbstractCompiler,
+        fn_node: NodeId,
+    ) -> bool {
+        self.candidates
+            .as_ref()
+            .is_some_and(|candidates| !candidates.enclosing_functions.contains(&fn_node))
+    }
+
     /// Implements step 3 (inlining the var keyword).
     // port: Denormalize#afterExitScope
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap) {
@@ -314,9 +480,13 @@ impl Behavior for Denormalize {
             let mut changed = false;
             let scope = t.get_scope();
             for v in scope.get_var_iterable(t.get_compiler()) {
-                let references = reference_map
-                    .get_references(v)
-                    .expect("NullPointerException");
+                let references = match reference_map.get_references(v) {
+                    Some(references) => references,
+                    // Rust-only (performance divergence): a variable whose name was not resolved
+                    // has no declaration without a value (see `Candidates`).
+                    None if self.candidates.is_some() => continue,
+                    None => panic!("NullPointerException"),
+                };
                 let mut declaration = None;
                 let mut assign = None;
                 for r in references {

@@ -1323,9 +1323,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   their scope by `FirstOrderFunctionAnalyzer`, which walks the same tree with the same scopes just
   before, and visited from that list in the same order; only the externs are walked again.
 - `jscomp/check_unreachable_code.rs`, `node_traversal.rs` `CfgObject::FullyReachable`: for a
-  function whose body runs its statements once, in order (`ControlFlowAnalysis::linear_function`),
-  every node of the graph is reachable, so `CheckUnreachableCode` neither builds nor walks it
-  (`AbstractCfgCallback` still builds it if asked for).
+  root whose graph has every node reachable (`needs_no_graph`, below; it accepts every function
+  `ControlFlowAnalysis::linear_function` accepts, whose statements run once, in order),
+  `CheckUnreachableCode` neither builds nor walks the graph (`AbstractCfgCallback` still builds it
+  if asked for).
 - `jscomp/rhino_error_reporter.rs` `map_error`: each thread keeps the diagnostic type it matched
   for each message (bounded); the result depends on the message only.
   `CLOSURE_RS_RHINO_ERROR_MAP_MEMO=off|verify`.
@@ -1367,8 +1368,8 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   scopes' and that the job finds nothing where the screen found nothing.
 - `jscomp/check_unreachable_code.rs`, `node_traversal.rs`: at its first scope `CheckUnreachableCode`
   computes, on worker threads, the graph and the reachability marks of every CFG root below
-  (except the straight-line functions, whose graphs it knows to be fully reachable without
-  building them) and keeps the roots whose graph has no unreachable node it would report (a line
+  (except the roots `settled_without_graph` settles, `needs_no_graph` below, whose graphs it
+  knows to report nothing without building them) and keeps the roots whose graph has no unreachable node it would report (a line
   number, no EMPTY or BREAK); `AbstractCfgCallback` enters those as skipped (`set_skip_roots`,
   `is_current_cfg_skipped`), and the check neither computes their graph nor looks nodes up in it
   (at least 64 roots per thread; `CLOSURE_RS_PARALLEL_ANALYSIS=off` turns it off, `=verify`
@@ -1376,3 +1377,72 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/parallel_parse.rs`: `available_cpus` asks `std::thread::available_parallelism` once per
   process (on Linux each call reads the affinity mask and the cgroup quota files) for
   `parallel_thread_count`, `can_spawn_background_worker` and the parse workers.
+- `jscomp/syntactic_scope_cache.rs` (`stamp_declaration_change`), `scope.rs` (`set_parent`,
+  `set_depth_below_parent`): in a function's change scope, a kept syntactic scope goes stale only
+  through a change that a scan of its root can see (the statement lists of blocks and control
+  structures, declarations with their binding pattern targets, parameter lists, the names of
+  functions and classes, a declared name's string), recorded per scope root on the path from the
+  changed node; a stamped function stamps its body, whose scan reads the parameters. A kept scope
+  may move to a parent at another depth (a module body rewritten into its script leaves every scope
+  below it one level higher) and takes the depth below the parent on every reuse.
+  `CLOSURE_RS_SCOPE_DECLARATION_STAMPS=off` restores whole-change-scope stamps and same-depth
+  moves; `CLOSURE_RS_SCOPE_CACHE=verify` compares each reused scope, depth included, with a new scan.
+- `jscomp/syntactic_scope_creator.rs`, `syntactic_scope_cache.rs`: a scope creator with a
+  redeclaration handler of its own (`VarCheck`, `Normalize`'s duplicate declaration handler) takes
+  part in the syntactic scope cache: it reuses a kept scope whose scan called no redeclaration
+  handler (a new scan of the same code would not call its handler either) and keeps its own scans
+  that called none, without replaying script declarations into a global scope. A creator that
+  treats provides as redeclarations stays out. `CLOSURE_RS_SCOPE_REDECLARATION_FREE_REUSE=off`
+  keeps all such creators out; `CLOSURE_RS_SCOPE_CACHE=verify` also checks the recorded handler
+  calls against a new scan.
+- `jscomp/denormalize.rs` (`Candidates`), `reference_collector.rs` (the `&mut` behavior forwards
+  the function skip hooks): the reference collection that inlines `var` keywords
+  resolves only the spellings of `var` declarations without a value in functions (found by the
+  pass's first traversal) and of function declarations (so hoisted functions are visited in Java's
+  order), skips leaf and top-level functions that hold no such declaration, and passes over the
+  variables of a function body whose names it did not resolve: only a declaration without a value
+  lets a scope exit change the body. `CLOSURE_RS_DENORMALIZE_CANDIDATES=off` resolves every name;
+  `=verify` checks the candidates against a walk of the whole tree.
+- `jscomp/check_unreachable_code.rs` (`needs_no_graph`): a CFG root needs no graph when its
+  statements show every graph node reachable: statement lists in which only the last statement
+  may fail to complete normally (`return`, `throw`, unlabeled jumps; an `if` completes when a
+  branch does, a loop always does), no condition with a known boolean value, no `for` without a
+  condition or with an increment after a body that cannot complete, and no `do`, `switch`, `try`,
+  label, `with` or synthetic block. Such a graph reports nothing (`CfgObject::FullyReachable`).
+  `CLOSURE_RS_REACHABLE_SHORTCUT=off` builds every graph; `=verify`, and every debug build, also
+  builds the graphs of such roots and checks that none would report (an unreachable node without
+  a line, an empty statement or a break, such as the empty increment of a `for` whose body cannot
+  complete, is not reported), and `=verify` checks that no straight-line function is left to a
+  graph.
+- `jscomp/check_unreachable_code.rs` (`all_reachable`), `node_traversal.rs`
+  (`AbstractCfgCallback::skip_control_flow_graph`): `CheckUnreachableCode` neither builds nor
+  walks the control flow graph of a CFG root whose statements show every graph node reachable:
+  statement lists in which only the last statement may fail to complete normally (`return`,
+  `throw`, unlabeled jumps; an `if` completes when a branch does, a loop always does), no condition
+  with a known boolean value, no `for` without a condition or with an increment after a body that
+  cannot complete, and no `do`, `switch`, `try`, label, `with` or synthetic block. Such a graph
+  reports nothing. `CLOSURE_RS_REACHABLE_SHORTCUT=off` builds every graph; `=verify` also builds
+  the skipped ones and checks that none would report.
+- `jscomp/concretize_static_inheritance_for_inlining.rs` (`has_inherits_call`): the pass first
+  searches the tree for a `$jscomp.inherits` call and returns without its traversal when there is
+  none: the traversal only records classes and static members for `process_inherits`, which acts
+  on those calls alone. `CLOSURE_RS_STATIC_INHERITANCE_PRECHECK=off` always traverses.
+- `jscomp/closure_code_removal.rs`: the abstract-method and assertion finders, which only read the
+  tree and report nothing, run in a plain post-order walk (what they collect comes out in the
+  order of the combined `NodeTraversal`, which visits a node after its children in child order).
+  `CLOSURE_RS_CLOSURE_CODE_REMOVAL_WALK=off` uses the traversal; `=verify` runs both and compares.
+- `jscomp/j2cl_checks_pass.rs`: the equality operators are listed by a plain post-order walk and
+  checked after it, in the order the `NodeTraversal` would visit them (the check changes no
+  tree). `CLOSURE_RS_J2CL_CHECKS_WALK=off` checks them in the traversal.
+- `sourcemap/util.rs` (`write_escaped_string`): runs of characters that need no JSON escape are
+  tested and narrowed eight UTF-16 units at a time (`is_safe_json_ascii`, equal to
+  `SAFE_JSON_ASCII`) before the per-unit loop.
+- `jscomp/optimize_calls.rs` (`UnitReferenceCache`, `collect_with_unit_cache`), `compiler.rs`:
+  an `OptimizeCalls` run that ignores the externs takes the references of each unchanged
+  top-level unit (a statement of a script, or a whole script) from the previous run and walks only
+  the others, then adds them all in unit order (global names filtered then, against the current
+  global scope). A unit counts as unchanged while its script argument, the change stamps of the
+  unit and of every function in it, and the `is_quoted_string_key` results the walk read are as
+  recorded, and the extern-property set is the same object. The cache is cleared with the other
+  stamp-keyed caches when the change log is not continuous. `CLOSURE_RS_OPTIMIZE_CALLS_CACHE=off`
+  walks every unit; `=verify` walks every unit and compares the cached references.

@@ -442,11 +442,24 @@ impl ScopeId {
     }
 
     /// Rust-only (performance divergence): moves a scope that the `SyntacticScopeCache` hands out
-    /// again under a new parent at the same depth (the parent's scope was scanned anew).
+    /// again under a new parent (the parent's scope was scanned anew or lies at another depth),
+    /// at the depth below it.
     pub(crate) fn set_parent(self, compiler: &mut AbstractCompiler, parent: ScopeId) {
         compiler.scope_lookups.invalidate(self);
+        let depth = parent.get_depth(compiler).wrapping_add(1);
         ScopeArena::write(compiler).scopes[self.index()].parent = Some(parent);
-        compiler.scope_mirror.scopes[self.index()].parent = Some(parent);
+        let meta = &mut compiler.scope_mirror.scopes[self.index()];
+        meta.parent = Some(parent);
+        meta.depth = depth;
+    }
+
+    /// Rust-only (performance divergence): puts a scope that the `SyntacticScopeCache` hands out
+    /// again at the depth below its parent, which was moved to another depth. Name lookups do not
+    /// read depths, so their cache stays valid.
+    pub(crate) fn set_depth_below_parent(self, compiler: &mut AbstractCompiler) {
+        let parent = self.get_parent(compiler).unwrap();
+        let depth = parent.get_depth(compiler).wrapping_add(1);
+        compiler.scope_mirror.scopes[self.index()].depth = depth;
     }
 
     /// Rust-only (performance divergence): whether every name declared here is still the name of

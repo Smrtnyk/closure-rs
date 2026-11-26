@@ -109,7 +109,12 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+
+/// `CLOSURE_RS_STATIC_INHERITANCE_PRECHECK=off` traverses even without a `$jscomp.inherits` call.
+static SKIP_WITHOUT_INHERITS: LazyLock<bool> = LazyLock::new(|| {
+    std::env::var("CLOSURE_RS_STATIC_INHERITANCE_PRECHECK").as_deref() != Ok("off")
+});
 
 // port: ConcretizeStaticInheritanceForInlining#DUPLICATE_CLASS
 pub static DUPLICATE_CLASS: DiagnosticType = DiagnosticType::error(
@@ -162,6 +167,26 @@ impl ConcretizeStaticInheritanceForInlining {
             classes: Vec::new(),
             class_by_alias: IndexMap::<_, _>::default(),
         }
+    }
+
+    /// Rust-only (performance divergence): whether a CALL below `root` calls `$jscomp.inherits`
+    /// (as `FindStaticMembersVisitor::visit` matches it).
+    fn has_inherits_call(&self, ast: &Ast, root: NodeId) -> bool {
+        let mut pending = vec![root];
+        while let Some(n) = pending.pop() {
+            if n.is_call(ast)
+                && let Some(callee) = n.get_first_child(ast)
+                && self.inherits.matches(ast, callee)
+            {
+                return true;
+            }
+            let mut child = n.get_first_child(ast);
+            while let Some(c) = child {
+                pending.push(c);
+                child = c.get_next(ast);
+            }
+        }
+        false
     }
 
     /// Rust-only: `classByAlias.get(name)` for a nullable name.
@@ -310,6 +335,12 @@ impl ConcretizeStaticInheritanceForInlining {
 impl CompilerPass for ConcretizeStaticInheritanceForInlining {
     // port: ConcretizeStaticInheritanceForInlining#process
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
+        // Rust-only (performance divergence): the traversal below only records what
+        // `process_inherits` reads, which acts on `$jscomp.inherits` calls alone; without one
+        // the pass changes and reports nothing, so a plain search for such a call comes first.
+        if *SKIP_WITHOUT_INHERITS && !self.has_inherits_call(compiler, root) {
+            return;
+        }
         let mut find_static_members = FindStaticMembers::new();
         // Since this is an optimization pass, running on externs would be unnecessary
         {

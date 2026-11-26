@@ -2174,6 +2174,16 @@ impl<T: Behavior + ?Sized> Behavior for &mut T {
     fn needs_name(&self, ast: &Ast, node: NodeId) -> bool {
         (**self).needs_name(ast, node)
     }
+    fn can_skip_function_with_no_needed_names(&self, ast: &Ast, fn_node: NodeId) -> bool {
+        (**self).can_skip_function_with_no_needed_names(ast, fn_node)
+    }
+    fn can_skip_global_function_if_no_pending_hoist(
+        &self,
+        compiler: &mut AbstractCompiler,
+        fn_node: NodeId,
+    ) -> bool {
+        (**self).can_skip_global_function_if_no_pending_hoist(compiler, fn_node)
+    }
     fn needs_variable(&mut self, compiler: &AbstractCompiler, var: VarId) -> bool {
         (**self).needs_variable(compiler, var)
     }
