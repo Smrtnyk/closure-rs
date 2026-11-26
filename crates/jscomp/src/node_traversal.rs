@@ -343,6 +343,9 @@ enum CfgObject {
     /// to be reachable without building it (`mark_front_fully_reachable`); built like `Root`
     /// if asked for.
     FullyReachable(NodeId),
+    /// Rust-only (performance divergence): a root in `AbstractCfgCallback::skip_roots`. Its graph
+    /// is computed as for `Root` if the callback asks for it.
+    Skipped(NodeId),
 }
 type CfgScopeHook<'a> = Box<dyn FnMut(&mut AbstractCfgCallback<'a>, &mut NodeTraversal<'_>) + 'a>;
 type CfgShouldTraverseHook<'a> = Box<
@@ -354,6 +357,9 @@ type CfgVisitHook<'a> = Box<
 >;
 pub struct AbstractCfgCallback<'a> {
     cfgs: VecDeque<CfgObject>,
+    /// Rust-only (performance divergence): CFG roots for which a read-only pre-pass (on worker
+    /// threads) found that the callback has nothing to do; see `is_current_cfg_skipped`.
+    skip_roots: Option<closure_rhino::fast_hash::IndexSet<NodeId>>,
     enter_scope_with_cfg: Option<CfgScopeHook<'a>>,
     exit_scope_with_cfg: Option<CfgScopeHook<'a>>,
     should_traverse: Option<CfgShouldTraverseHook<'a>>,
@@ -368,6 +374,7 @@ impl<'a> AbstractCfgCallback<'a> {
     pub fn new() -> Self {
         Self {
             cfgs: VecDeque::new(),
+            skip_roots: None,
             enter_scope_with_cfg: None,
             exit_scope_with_cfg: None,
             should_traverse: None,
@@ -412,8 +419,11 @@ impl<'a> AbstractCfgCallback<'a> {
         compiler: &mut AbstractCompiler,
     ) -> &ControlFlowGraph<NodeId> {
         check_state!(!self.cfgs.is_empty());
-        if let Some(CfgObject::Root(cfg_root) | CfgObject::FullyReachable(cfg_root)) =
-            self.cfgs.front()
+        if let Some(
+            CfgObject::Root(cfg_root)
+            | CfgObject::FullyReachable(cfg_root)
+            | CfgObject::Skipped(cfg_root),
+        ) = self.cfgs.front()
         {
             let result = ControlFlowAnalysis::builder()
                 .set_compiler(compiler)
@@ -425,7 +435,9 @@ impl<'a> AbstractCfgCallback<'a> {
         }
         match self.cfgs.front().unwrap() {
             CfgObject::Graph(result) => result,
-            CfgObject::Root(_) | CfgObject::FullyReachable(_) => unreachable!(),
+            CfgObject::Root(_) | CfgObject::FullyReachable(_) | CfgObject::Skipped(_) => {
+                unreachable!()
+            }
         }
     }
 
@@ -451,8 +463,22 @@ impl<'a> AbstractCfgCallback<'a> {
         self.get_control_flow_graph(compiler);
         match self.cfgs.front_mut().unwrap() {
             CfgObject::Graph(result) => result,
-            CfgObject::Root(_) | CfgObject::FullyReachable(_) => unreachable!(),
+            CfgObject::Root(_) | CfgObject::FullyReachable(_) | CfgObject::Skipped(_) => {
+                unreachable!()
+            }
         }
+    }
+
+    /// Rust-only (performance divergence): from now on, the scope roots in `roots` are entered as
+    /// skipped (`is_current_cfg_skipped`).
+    pub(crate) fn set_skip_roots(&mut self, roots: closure_rhino::fast_hash::IndexSet<NodeId>) {
+        self.skip_roots = Some(roots);
+    }
+
+    /// Rust-only (performance divergence): whether the innermost CFG root is one the callback's
+    /// pre-pass found nothing to do for, and whose graph has not been asked for.
+    pub(crate) fn is_current_cfg_skipped(&self) -> bool {
+        matches!(self.cfgs.front(), Some(CfgObject::Skipped(_)))
     }
 }
 impl ScopedCallback for AbstractCfgCallback<'_> {
@@ -460,7 +486,15 @@ impl ScopedCallback for AbstractCfgCallback<'_> {
     fn enter_scope(&mut self, t: &mut NodeTraversal<'_>) {
         let current_scope_root = check_not_null!(t.get_scope_root());
         if NodeUtil::is_valid_cfg_root(t, current_scope_root) {
-            self.cfgs.push_front(CfgObject::Root(current_scope_root));
+            let skipped = self
+                .skip_roots
+                .as_ref()
+                .is_some_and(|roots| roots.contains(&current_scope_root));
+            self.cfgs.push_front(if skipped {
+                CfgObject::Skipped(current_scope_root)
+            } else {
+                CfgObject::Root(current_scope_root)
+            });
         }
         self.enter_scope_with_cfg(t);
     }

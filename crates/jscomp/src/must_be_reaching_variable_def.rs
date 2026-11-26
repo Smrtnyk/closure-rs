@@ -94,15 +94,20 @@ impl MustDef {
         compiler: &AbstractCompiler,
         vars: impl IntoIterator<Item = VarId>,
     ) -> Self {
+        Self::new_with_var_scope_roots(
+            vars.into_iter()
+                .map(|var| (var, var.get_scope(compiler).get_root_node(compiler))),
+        )
+    }
+
+    /// Rust-only: `new_with_vars` with the root of each variable's scope given.
+    pub(crate) fn new_with_var_scope_roots(
+        vars: impl IntoIterator<Item = (VarId, NodeId)>,
+    ) -> Self {
         let mut result = Self::new();
         let reaching_def = Arc::make_mut(&mut result.reaching_def);
-        for var in vars {
-            reaching_def.insert(
-                var,
-                Some(Arc::new(Definition::new(
-                    var.get_scope(compiler).get_root_node(compiler),
-                ))),
-            );
+        for (var, scope_root) in vars {
+            reaching_def.insert(var, Some(Arc::new(Definition::new(scope_root))));
         }
         result
     }
@@ -261,6 +266,41 @@ impl PreparedMustDef {
             }
         }
         let entry_lattice = MustDef::new_with_vars(compiler, all_vars_in_fn.values().copied());
+        Self {
+            escaped_var_ids,
+            param_var_ids,
+            all_vars_in_fn,
+            entry_lattice,
+        }
+    }
+
+    /// Rust-only (performance divergence): `new` for a function that
+    /// `crate::function_vars::FunctionVars::collect` handles, from the `Ast` alone, with the
+    /// stand-in ids of `vars` (for `run_borrowed` on a worker thread). `escaped` is what
+    /// `compute_escaped` finds (`FunctionVars::escaped`).
+    pub(crate) fn from_function_vars(
+        vars: &crate::function_vars::FunctionVars,
+        escaped: &[usize],
+    ) -> Self {
+        use crate::function_vars::FunctionVars;
+        let all_vars_in_fn = vars.all_vars_in_fn();
+        let mut escaped_var_ids = IndexSet::default();
+        let mut param_var_ids = IndexSet::default();
+        // Two variables of a function are equal only if they are the same variable.
+        for &var in all_vars_in_fn.values() {
+            let index = FunctionVars::index(var);
+            if escaped.contains(&index) {
+                escaped_var_ids.insert(var);
+            }
+            if vars.ordered[index].is_param() {
+                param_var_ids.insert(var);
+            }
+        }
+        let entry_lattice = MustDef::new_with_var_scope_roots(
+            all_vars_in_fn
+                .values()
+                .map(|&var| (var, vars.scope_root(FunctionVars::index(var)))),
+        );
         Self {
             escaped_var_ids,
             param_var_ids,

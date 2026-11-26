@@ -24,6 +24,7 @@
 //! `LiveVariablesAnalysis`. If there is an assignment to variable `x` and `x` is dead after this
 //! assignment, we know that the current content of `x` will not be read and this assignment is
 //! useless.
+use crate::function_vars::FunctionVars;
 use crate::{
     AbstractCompiler,
     compiler_pass::CompilerPass,
@@ -36,10 +37,11 @@ use crate::{
     },
     node_traversal::{Callback, NodeTraversal, ScopedCallback},
     node_util::NodeUtil,
+    parallel_parse::ParallelAnalysisMode,
     syntactic_scope_creator::{SyntacticScopeCreator, ensure_ancestor_scope},
     var::VarId,
 };
-use closure_rhino::fast_hash::IndexMap;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state, ir::IR, js_string::JsString, node::NodeId,
     token::Token,
@@ -182,40 +184,144 @@ impl DeadAssignmentsElimination {
 
     /// Rust-only (performance divergence): collects eligible leaf functions in exact
     /// `NodeTraversal` post-order (`exitScopeWithCfg`) without creating scopes for unchanged or
-    /// non-leaf functions.
+    /// non-leaf functions. `change_cutoff` is `AbstractCompiler::scope_change_cutoff`.
     fn collect_leaf_candidates(
-        compiler: &AbstractCompiler,
+        ast: &closure_rhino::node::Ast,
+        change_cutoff: Option<i32>,
         n: NodeId,
         out: &mut Vec<(NodeId, NodeId)>,
     ) -> (bool, bool) {
-        if n.is_function(compiler) {
-            let fn_name = n.get_first_child(compiler).unwrap();
-            let params = fn_name.get_next(compiler).unwrap();
-            let body = params.get_next(compiler).unwrap();
+        if n.is_function(ast) {
+            let fn_name = n.get_first_child(ast).unwrap();
+            let params = fn_name.get_next(ast).unwrap();
+            let body = params.get_next(ast).unwrap();
             // Default parameter expressions can contain nested leaf functions; they are visited
             // before `body` enters its function-block scope.
-            Self::collect_leaf_candidates(compiler, params, out);
-            let (body_has_fn, body_has_assign) = Self::collect_leaf_candidates(compiler, body, out);
-            if body.is_block(compiler)
+            Self::collect_leaf_candidates(ast, change_cutoff, params, out);
+            let (body_has_fn, body_has_assign) =
+                Self::collect_leaf_candidates(ast, change_cutoff, body, out);
+            if body.is_block(ast)
                 && !body_has_fn
                 && body_has_assign
-                && compiler.has_scope_changed(n)
+                && change_cutoff.is_none_or(|cutoff| n.get_change_time(ast) > cutoff)
             {
                 out.push((n, body));
             }
             return (true, false);
         }
         let mut has_fn = false;
-        let mut has_assign = Self::is_removable_assign_ast(&compiler.ast, n);
-        let mut child = n.get_first_child(compiler);
+        let mut has_assign = Self::is_removable_assign_ast(ast, n);
+        let mut child = n.get_first_child(ast);
         while let Some(c) = child {
-            let next = c.get_next(compiler);
-            let (cf, ca) = Self::collect_leaf_candidates(compiler, c, out);
+            let next = c.get_next(ast);
+            let (cf, ca) = Self::collect_leaf_candidates(ast, change_cutoff, c, out);
             has_fn |= cf;
             has_assign |= ca;
             child = next;
         }
         (has_fn, has_assign)
+    }
+
+    /// Rust-only (performance divergence): `collect_leaf_candidates` of `root`, on worker threads
+    /// for a large tree. The statements below the scripts are walked in runs (each a subtree that
+    /// is no function's descendant but `root`'s, so that what a walk of `root` finds in it is what
+    /// a walk of the subtree alone finds) and the candidates are concatenated in statement order:
+    /// the order of a walk of `root`.
+    fn collect_candidates(compiler: &AbstractCompiler, root: NodeId) -> Vec<(NodeId, NodeId)> {
+        let ast = &compiler.ast;
+        let change_cutoff = compiler.scope_change_cutoff();
+        if *crate::parallel_parse::PARALLEL_ANALYSIS != ParallelAnalysisMode::Off
+            // Smaller trees are walked faster than worker threads start.
+            && ast.node_count() >= 50_000
+            && crate::parallel_parse::parallel_thread_count(usize::MAX, 2, 8) > 1
+        {
+            let units = crate::parallel_parse::statement_units(ast, root);
+            let threads = crate::parallel_parse::parallel_thread_count(units.len(), 2, 8);
+            if threads > 1
+                && let Some(candidates) = crate::parallel_parse::collect_in_unit_order(
+                    "closure-dae",
+                    threads,
+                    &units,
+                    |unit, out| {
+                        Self::collect_leaf_candidates(ast, change_cutoff, unit, out);
+                    },
+                )
+            {
+                return candidates;
+            }
+        }
+        let mut candidates = Vec::new();
+        Self::collect_leaf_candidates(ast, change_cutoff, root, &mut candidates);
+        candidates
+    }
+
+    /// Rust-only (performance divergence): whether `try_remove_dead_assignments` may remove
+    /// something in the candidate `fn_node`, found from the `Ast` alone (on a worker thread):
+    /// `Some(false)` when `eliminate_dead_assignments` would skip the function or find nothing for
+    /// `has_potential_dead_assignment`, `None` when the function needs its scopes to tell.
+    ///
+    /// For a function `FunctionVars::collect` handles, it runs what `process` runs for the
+    /// function, with the variables `FunctionVars` lists instead of those of its scopes: the
+    /// same names, scopes and declarations in the same order (`CLOSURE_RS_PARALLEL_ANALYSIS=verify`
+    /// compares them), so the same liveness. A candidate is a function without a function in it,
+    /// so its analysis reads nothing that the work on another candidate (a disjoint subtree)
+    /// changes: the analysis may run before any candidate is done.
+    fn screen(
+        ast: &closure_rhino::node::Ast,
+        convention: &dyn crate::coding_convention::CodingConvention,
+        can_continue_after_errors: bool,
+        fn_node: NodeId,
+    ) -> Option<bool> {
+        let vars = FunctionVars::collect(ast, fn_node)?;
+        let count = vars.function_and_block_var_count() as i32;
+        if count > MAX_VARIABLES_TO_ANALYZE + 1 {
+            return Some(false);
+        }
+        if !vars.well_below_max() {
+            return None;
+        }
+        let escaped = vars.escaped(convention);
+        let prepared = PreparedLiveness::from_function_vars(ast, fn_node, &vars, &escaped, true)?;
+        let cfg = ControlFlowAnalysis::compute_cfg_readonly(
+            ast,
+            can_continue_after_errors,
+            fn_node,
+            false,
+            true,
+        );
+        let borrowed = prepared.run_borrowed(ast, cfg, false);
+        Some(Self::has_potential_dead_assignment(
+            ast, &prepared, &borrowed,
+        ))
+    }
+
+    /// Rust-only (performance divergence): `screen` of every candidate on worker threads; the
+    /// candidates it finds nothing in.
+    fn screen_candidates(
+        compiler: &AbstractCompiler,
+        candidates: &[(NodeId, NodeId)],
+        threads: usize,
+    ) -> IndexSet<NodeId> {
+        let ast = &compiler.ast;
+        let convention = compiler.get_coding_convention();
+        let can_continue_after_errors = compiler.get_options().can_continue_after_errors();
+        crate::parallel_parse::run_scoped_indexed(
+            "closure-dae",
+            threads,
+            candidates,
+            |_, &(fn_node, _)| {
+                crate::parallel_parse::catch_unwind_quietly(|| {
+                    Self::screen(ast, convention, can_continue_after_errors, fn_node)
+                })
+                .flatten()
+                .filter(|&may_remove| !may_remove)
+                .map(|_| fn_node)
+            },
+        )
+        .into_iter()
+        .flatten()
+        .map(|(_, fn_node)| fn_node)
+        .collect()
     }
 
     /// Try to remove useless assignments from a control flow graph that has been annotated with
@@ -780,8 +886,7 @@ impl CompilerPass for DeadAssignmentsElimination {
         // and liveness screening in parallel (dropping CFGs/lattices on the same worker thread to
         // avoid cross-thread heap retention), then apply removals only for surviving functions in
         // exact post-order.
-        let mut candidates = Vec::new();
-        Self::collect_leaf_candidates(compiler, root, &mut candidates);
+        let candidates = Self::collect_candidates(compiler, root);
         if candidates.is_empty() {
             return;
         }
@@ -832,6 +937,24 @@ impl CompilerPass for DeadAssignmentsElimination {
             }
             return;
         }
+        // Rust-only (performance divergence): the candidates `screen` finds nothing in need no
+        // scopes and no work (with `verify`, they get both, and the work must find nothing).
+        let mode = *crate::parallel_parse::PARALLEL_ANALYSIS;
+        let screened = if mode == ParallelAnalysisMode::Off {
+            IndexSet::default()
+        } else {
+            let threads = crate::parallel_parse::parallel_thread_count(candidates.len(), 64, 8);
+            Self::screen_candidates(compiler, &candidates, threads)
+        };
+        let verify = mode == ParallelAnalysisMode::Verify;
+        let candidates: Vec<_> = if verify {
+            candidates
+        } else {
+            candidates
+                .into_iter()
+                .filter(|(fn_node, _)| !screened.contains(fn_node))
+                .collect()
+        };
         const CHUNK_SIZE: usize = 4096;
         for chunk in candidates.chunks(CHUNK_SIZE) {
             let mut jobs = Vec::with_capacity(chunk.len());
@@ -844,6 +967,32 @@ impl CompilerPass for DeadAssignmentsElimination {
                     fn_node,
                 );
                 let block_scope = scope_creator.create_scope(compiler, body, Some(fn_scope));
+                if verify && screened.contains(&fn_node) {
+                    let all_vars = NodeUtil::get_all_vars_declared_in_function(
+                        compiler,
+                        &mut scope_creator,
+                        fn_scope,
+                    );
+                    let mut escaped = IndexSet::default();
+                    crate::data_flow_analysis::compute_escaped(
+                        compiler,
+                        fn_scope,
+                        &mut escaped,
+                        &mut scope_creator,
+                        all_vars.get_all_variables(),
+                    );
+                    FunctionVars::collect(&compiler.ast, fn_node)
+                        .unwrap()
+                        .verify(
+                            compiler,
+                            &all_vars,
+                            Some((
+                                fn_scope.get_var_count(compiler),
+                                block_scope.get_var_count(compiler),
+                            )),
+                            &escaped,
+                        );
+                }
                 if MAX_VARIABLES_TO_ANALYZE
                     < block_scope.get_var_count(compiler) + fn_scope.get_var_count(compiler)
                 {
@@ -873,6 +1022,25 @@ impl CompilerPass for DeadAssignmentsElimination {
                         false,
                         true,
                     );
+                    if verify && screened.contains(&fn_node) {
+                        let cfg = ControlFlowAnalysis::compute_cfg_readonly(
+                            &compiler.ast,
+                            can_continue_after_errors,
+                            fn_node,
+                            false,
+                            true,
+                        );
+                        let borrowed = prepared.run_borrowed(&compiler.ast, cfg, false);
+                        check_state!(
+                            !Self::has_potential_dead_assignment(
+                                &compiler.ast,
+                                &prepared,
+                                &borrowed
+                            ),
+                            "CLOSURE_RS_PARALLEL_ANALYSIS=verify: DeadAssignmentsElimination screened out %s",
+                            fn_node.to_string(&compiler.ast)
+                        );
+                    }
                     let mut liveness = prepared.into_analysis(cfg);
                     liveness.analyze_readonly(&compiler.ast);
                     self.liveness = Some(liveness);
@@ -905,7 +1073,13 @@ impl CompilerPass for DeadAssignmentsElimination {
                 },
             );
             for ((fn_node, prepared), flag) in jobs.into_iter().zip(has_dead) {
-                if !flag.into_inner() {
+                let flag = flag.into_inner();
+                check_state!(
+                    !(verify && flag && screened.contains(&fn_node)),
+                    "CLOSURE_RS_PARALLEL_ANALYSIS=verify: DeadAssignmentsElimination screened out %s",
+                    fn_node.to_string(compiler)
+                );
+                if !flag {
                     continue;
                 }
                 let cfg = ControlFlowAnalysis::compute_cfg_readonly(

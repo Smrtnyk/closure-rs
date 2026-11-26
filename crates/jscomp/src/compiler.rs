@@ -635,6 +635,15 @@ impl Compiler {
         })
     }
 
+    /// Rust-only (performance divergence): `has_scope_changed` for code that only has the `Ast`
+    /// (on worker threads), as the time after which a change counts: a scope has changed iff it
+    /// is `None` or the scope root's change time is greater. Valid until the pass ends.
+    pub(crate) fn scope_change_cutoff(&self) -> Option<i32> {
+        let p = self.phase_optimizer.as_ref()?;
+        let state = p.lock().unwrap();
+        (state.in_loop && state.time_of_last_run != 0).then_some(state.time_of_last_run)
+    }
+
     // port: Compiler#reportChangeToChangeScope
     pub fn report_change_to_change_scope(&mut self, change_scope_root: NodeId) {
         self.change_tracker

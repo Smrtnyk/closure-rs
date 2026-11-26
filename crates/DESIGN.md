@@ -1338,3 +1338,41 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   last statement (or the body), so `fastAllPathsReturnCheck` of that node decides without the
   graph. Debug builds build the graph and compare; `check_unreachable_code.rs` does the same for
   its fully reachable shortcut.
+- `jscomp/function_vars.rs`, `dead_assignments_elimination.rs`, `flow_sensitive_inline_variables.rs`,
+  `coalesce_variable_names.rs`, `live_variables_analysis.rs`, `must_be_reaching_variable_def.rs`,
+  `parallel_parse.rs`, `compiler.rs`: before they create the scopes of a function, the parallel
+  paths of `DeadAssignmentsElimination`, `FlowSensitiveInlineVariables` and
+  `CoalesceVariableNames` screen every function on worker threads with the variables
+  `FunctionVars::collect` finds from the `Ast` alone: the scopes `get_all_vars_declared_in_function`
+  enters, in its order, with what `ScopeScanner` declares in each (same redeclaration tests), and
+  the variables a name in a nested function resolves to (`computeEscaped`'s closure capture);
+  functions with a CLASS, a synthetic block or a name of an implicit variable below them are left
+  to the scopes. The analyses run on stand-in `VarId`s (one per variable of the function, never
+  looked up in the compiler; `PreparedLiveness::from_function_vars`,
+  `PreparedMustDef::from_function_vars`), exactly as each pass's worker job runs, and a function
+  for which the job finds nothing (no dead assignment, no inlining, no merge, or too many
+  variables) gets no scopes and no further work; the others go through the existing path (a
+  function the coalescing job merges in gets its scopes only to materialize the job's output when
+  their variables have the same names in the same order). `CoalesceVariableNames`' traversal then
+  does not descend below nodes that are neither in a function with a coloring nor on the path to
+  one (`on_path_to_coloring`): nothing there is renamed, and the nodes it visits it visits in the
+  same order, so the changes are reported in the same order. DAE and
+  FSIV also collect their candidate functions on worker threads, over runs of the statements of
+  the scripts concatenated in order (`statement_units`, `collect_in_unit_order`; trees of at least
+  50,000 nodes), and DAE reads the phase optimizer's change cutoff once
+  (`scope_change_cutoff`) instead of locking it per function. A worker panic only makes the
+  function (or the walk) go the serial way (`catch_unwind_quietly`, silent panic hook).
+  `CLOSURE_RS_PARALLEL_ANALYSIS=off` turns these sections off; `=verify` screens but gives every
+  function the existing path too and checks that its variables, counts and escaped set equal the
+  scopes' and that the job finds nothing where the screen found nothing.
+- `jscomp/check_unreachable_code.rs`, `node_traversal.rs`: at its first scope `CheckUnreachableCode`
+  computes, on worker threads, the graph and the reachability marks of every CFG root below
+  (except the straight-line functions, whose graphs it knows to be fully reachable without
+  building them) and keeps the roots whose graph has no unreachable node it would report (a line
+  number, no EMPTY or BREAK); `AbstractCfgCallback` enters those as skipped (`set_skip_roots`,
+  `is_current_cfg_skipped`), and the check neither computes their graph nor looks nodes up in it
+  (at least 64 roots per thread; `CLOSURE_RS_PARALLEL_ANALYSIS=off` turns it off, `=verify`
+  computes the skipped graphs and checks that they report nothing).
+- `jscomp/parallel_parse.rs`: `available_cpus` asks `std::thread::available_parallelism` once per
+  process (on Linux each call reads the affinity mask and the cgroup quota files) for
+  `parallel_thread_count`, `can_spawn_background_worker` and the parse workers.

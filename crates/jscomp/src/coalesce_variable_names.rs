@@ -41,6 +41,7 @@ use crate::{
     control_flow_analysis::ControlFlowAnalysis,
     control_flow_graph::ControlFlowGraph,
     data_flow_analysis::DataFlowAnalysis,
+    function_vars::{FunctionVar, FunctionVars},
     graph::{adjacency_graph::AdjacencyGraph, graph_node::GraphNode},
     live_variables_analysis::{
         LiveVariableLattice, LiveVariablesAnalysis, MAX_VARIABLES_TO_ANALYZE, PreparedLiveness,
@@ -48,6 +49,7 @@ use crate::{
     memoized_scope_creator::MemoizedScopeCreator,
     node_traversal::{Callback, NodeTraversal, ScopedCallback},
     node_util::NodeUtil,
+    parallel_parse::ParallelAnalysisMode,
     scope::ScopeId,
     scope_creator::ScopeCreator,
     syntactic_scope_creator::{SyntacticScopeCreator, ensure_ancestor_scope},
@@ -131,6 +133,17 @@ impl Coloring {
             representatives,
         }
     }
+}
+
+/// Rust-only (performance divergence): what `CoalesceVariableNames::screen` settles for a function.
+enum Screened {
+    /// `process` skips the function (`MAX_VARIABLES_TO_ANALYZE`).
+    TooManyVariables,
+    /// `process` records that the function merges no variables.
+    NoMerge,
+    /// The job's output for the variables named, in their order; `process` materializes it with
+    /// the variables of the scopes when those have the same names in the same order.
+    Merge(Box<(Vec<JsString>, CompactColoringOutput)>),
 }
 
 struct FunctionColoring {
@@ -268,7 +281,18 @@ impl PreparedCoalesceJob {
     }
 
     fn materialize(self, out: CompactColoringOutput) -> FunctionColoring {
-        let ordered = self.prepared.ordered_vars();
+        let ordered = self.prepared.ordered_vars().to_vec();
+        materialize_vars(&ordered, self.prepared.into_all_vars(), &out)
+    }
+}
+
+/// `PreparedCoalesceJob::materialize` with the job's variables given.
+fn materialize_vars(
+    ordered: &[VarId],
+    all_vars: IndexMap<JsString, VarId>,
+    out: &CompactColoringOutput,
+) -> FunctionColoring {
+    {
         let mut colors = IndexMap::with_capacity_and_hasher(ordered.len(), Default::default());
         let mut live_uninit_loop_lets = IndexSet::default();
         for (index, &v) in ordered.iter().enumerate() {
@@ -285,7 +309,7 @@ impl PreparedCoalesceJob {
             representatives: vec![None; usize::from(out.num_colors)],
         };
         FunctionColoring {
-            all_vars: self.prepared.into_all_vars(),
+            all_vars,
             ordered_vars: Vec::new(),
             live_uninit_loop_lets,
             coloring,
@@ -307,6 +331,9 @@ pub struct CoalesceVariableNames {
     /// `!use_pseudo_names && export_tests_are_pure()`. Absent key means `should_optimize_scope`
     /// returned `None` (too many vars).
     precomputed: Option<IndexMap<NodeId, Option<FunctionColoring>>>,
+    /// Rust-only (performance divergence): with `precomputed`, the nodes (by arena index, as
+    /// bits) on the path from the root to a function with a coloring (see `process`).
+    on_path_to_coloring: Option<Vec<u64>>,
 }
 
 impl CoalesceVariableNames {
@@ -329,6 +356,7 @@ impl CoalesceVariableNames {
             should_optimize_scope_stack: VecDeque::new(),
             cfgs: VecDeque::new(),
             precomputed: None,
+            on_path_to_coloring: None,
         }
     }
 
@@ -851,10 +879,7 @@ impl CoalesceVariableNames {
     }
 
     // port: CoalesceVariableNames#isUninitializedLetNameInLoopBody
-    fn is_uninitialized_let_name_in_loop_body(
-        compiler: &AbstractCompiler,
-        name_node: NodeId,
-    ) -> bool {
+    fn is_uninitialized_let_name_in_loop_body(compiler: &Ast, name_node: NodeId) -> bool {
         check_state!(
             name_node.is_name(compiler),
             "%s",
@@ -904,6 +929,127 @@ impl CoalesceVariableNames {
             .contains(&original_var)
     }
 
+    /// Rust-only (performance divergence): what the parallel part of `process` finds for the
+    /// function `fn_node`, found from the `Ast` alone (on a worker thread), or `None` when the
+    /// function needs its scopes to tell (or may merge variables).
+    ///
+    /// For a function `FunctionVars::collect` handles, it builds the job `process` builds, with
+    /// the variables `FunctionVars` lists instead of those of its scopes: the same names, scopes,
+    /// declarations and escaped variables in the same order (`CLOSURE_RS_PARALLEL_ANALYSIS=verify`
+    /// compares them), so `run_borrowed` finds the same. `process` analyses every function before
+    /// it renames anything.
+    fn screen(
+        ast: &Ast,
+        convention: &dyn crate::coding_convention::CodingConvention,
+        is_es3: bool,
+        can_continue_after_errors: bool,
+        fn_node: NodeId,
+    ) -> Option<Screened> {
+        let vars = FunctionVars::collect(ast, fn_node)?;
+        let count = vars.ordered.len() as i32;
+        if count > MAX_VARIABLES_TO_ANALYZE + 1 {
+            return Some(Screened::TooManyVariables);
+        }
+        if !vars.well_below_max() {
+            return None;
+        }
+        if vars.ordered.len() < 2 || vars.ordered.iter().all(FunctionVar::is_param) {
+            return Some(Screened::NoMerge);
+        }
+        let escaped = vars.escaped(convention);
+        let prepared = PreparedLiveness::from_function_vars(ast, fn_node, &vars, &escaped, false)?;
+        let mut base_eligible = 0u128;
+        let mut parameters = 0u128;
+        let mut variables_by_name = IndexMap::<JsString, u128>::default();
+        let mut var_indices = Vec::with_capacity(vars.ordered.len());
+        let mut uninit_loop_lets = Vec::new();
+        let mut name_to_index = IndexMap::<JsString, i32>::default();
+        for (idx, v) in vars.ordered.iter().enumerate() {
+            name_to_index.insert(v.name.clone(), idx as i32);
+        }
+        for (index, v) in vars.ordered.iter().enumerate() {
+            let bit = 1u128 << index;
+            let var_index = name_to_index[&v.name];
+            var_indices.push(var_index);
+            *variables_by_name.entry(v.name.clone()).or_default() |= bit;
+            if Self::is_uninitialized_let_name_in_loop_body(ast, v.name_node) {
+                let let_node = v.name_node.get_parent(ast)?;
+                uninit_loop_lets.push((index, let_node, var_index));
+            }
+            let parent = v.name_node.get_parent(ast)?;
+            if parent.is_function(ast)
+                || parent.is_class(ast)
+                || Self::is_in_multiple_lvalue_decl_ast(ast, v)?
+            {
+                continue;
+            }
+            base_eligible |= bit;
+            if v.is_param() {
+                parameters |= bit;
+            }
+        }
+        let es3_escape_2_params =
+            is_es3 && NodeUtil::get_function_parameters(ast, fn_node).has_two_children(ast);
+        let job = PreparedCoalesceJob {
+            fn_node,
+            prepared,
+            es3_escape_2_params,
+            variables_by_name,
+            base_eligible,
+            parameters,
+            var_indices,
+            uninit_loop_lets,
+        };
+        match job.run_borrowed(ast, can_continue_after_errors) {
+            None => Some(Screened::NoMerge),
+            Some(out) => Some(Screened::Merge(Box::new((
+                vars.ordered.into_iter().map(|var| var.name).collect(),
+                out,
+            )))),
+        }
+    }
+
+    /// Rust-only (performance divergence): for `CLOSURE_RS_PARALLEL_ANALYSIS=verify`, panics
+    /// unless the job's output `out` for a function is what `screen` found for it.
+    fn check_screen(
+        compiler: &AbstractCompiler,
+        fn_node: NodeId,
+        screen: Option<&Screened>,
+        out: Option<&CompactColoringOutput>,
+    ) {
+        let agrees = match (screen, out) {
+            (None, _) | (Some(Screened::NoMerge), None) => true,
+            (Some(Screened::Merge(merge)), Some(out)) => {
+                let mine = &merge.1;
+                mine.num_colors == out.num_colors
+                    && mine.live_uninit_mask == out.live_uninit_mask
+                    && mine.color_by_var == out.color_by_var
+            }
+            _ => false,
+        };
+        check_state!(
+            agrees,
+            "CLOSURE_RS_PARALLEL_ANALYSIS=verify: CoalesceVariableNames screen differs for %s",
+            fn_node.to_string(compiler)
+        );
+    }
+
+    /// Rust-only (performance divergence): `is_in_multiple_lvalue_decl` for a variable of
+    /// `FunctionVars`.
+    fn is_in_multiple_lvalue_decl_ast(ast: &Ast, v: &FunctionVar) -> Option<bool> {
+        match v.declaration_type {
+            Token::LET | Token::CONST | Token::VAR => {
+                let name_decl = NodeUtil::get_enclosing_node(ast, v.name_node, &|ast, n| {
+                    NodeUtil::is_name_declaration(ast, Some(n))
+                })?;
+                let mut count = 0;
+                NodeUtil::visit_lhs_nodes_in_node_readonly(ast, name_decl, &mut |_| count += 1);
+                Some(count > 1)
+            }
+            _ => Some(false),
+        }
+    }
+
     fn collect_functions(ast: &Ast, n: NodeId, out: &mut Vec<NodeId>) {
         if n.is_function(ast) {
             out.push(n);
@@ -936,10 +1082,55 @@ impl CompilerPass for CoalesceVariableNames {
                 let mut precomputed: IndexMap<NodeId, Option<FunctionColoring>> =
                     IndexMap::default();
                 let mut any_merges = false;
+                // Rust-only (performance divergence): the functions `screen` settles need no
+                // scopes and no job (with `verify`, they get both, and the job must agree).
+                let mode = *crate::parallel_parse::PARALLEL_ANALYSIS;
+                let verify = mode == ParallelAnalysisMode::Verify;
+                let screened: IndexMap<NodeId, Screened> = if mode == ParallelAnalysisMode::Off {
+                    IndexMap::default()
+                } else {
+                    let ast = &compiler.ast;
+                    let convention = compiler.get_coding_convention();
+                    let threads =
+                        crate::parallel_parse::parallel_thread_count(functions.len(), 64, 8);
+                    crate::parallel_parse::run_scoped_indexed(
+                        "closure-coalesce",
+                        threads,
+                        &functions,
+                        |_, &fn_node| {
+                            crate::parallel_parse::catch_unwind_quietly(|| {
+                                Self::screen(
+                                    ast,
+                                    convention,
+                                    is_es3,
+                                    can_continue_after_errors,
+                                    fn_node,
+                                )
+                            })
+                            .flatten()
+                            .map(|screened| (fn_node, screened))
+                        },
+                    )
+                    .into_iter()
+                    .flatten()
+                    .map(|(_, screened)| screened)
+                    .collect()
+                };
                 const CHUNK_SIZE: usize = 4096;
                 for chunk in functions.chunks(CHUNK_SIZE) {
                     let mut jobs = Vec::with_capacity(chunk.len());
                     for &fn_node in chunk {
+                        let screen = screened.get(&fn_node);
+                        if !verify {
+                            match screen {
+                                Some(Screened::TooManyVariables) => continue,
+                                Some(Screened::NoMerge) => {
+                                    precomputed.insert(fn_node, None);
+                                    continue;
+                                }
+                                Some(Screened::Merge(_)) | None => {}
+                            }
+                        }
                         let scope = ensure_ancestor_scope(
                             compiler,
                             &mut scope_creator,
@@ -952,10 +1143,50 @@ impl CompilerPass for CoalesceVariableNames {
                             &mut scope_creator,
                             scope,
                         );
-                        let vars = all_vars.get_all_variables_in_order();
-                        if MAX_VARIABLES_TO_ANALYZE <= vars.len() as i32 {
+                        if !verify
+                            && let Some(Screened::Merge(merge)) = screen
+                            && all_vars.get_all_variables_in_order().len() == merge.0.len()
+                            && all_vars
+                                .get_all_variables_in_order()
+                                .iter()
+                                .zip(&merge.0)
+                                .all(|(var, name)| var.get_name(compiler) == *name)
+                        {
+                            // The job ran on the same variables (`screen`): only its output
+                            // needs the scopes' variables.
+                            let (all_vars_in_fn, ordered) = all_vars.into_parts();
+                            precomputed.insert(
+                                fn_node,
+                                Some(materialize_vars(&ordered, all_vars_in_fn, &merge.1)),
+                            );
+                            any_merges = true;
                             continue;
                         }
+                        if screen.is_some() {
+                            let mut escaped = IndexSet::default();
+                            crate::data_flow_analysis::compute_escaped(
+                                compiler,
+                                scope,
+                                &mut escaped,
+                                &mut scope_creator,
+                                all_vars.get_all_variables(),
+                            );
+                            FunctionVars::collect(&compiler.ast, fn_node)
+                                .unwrap()
+                                .verify(compiler, &all_vars, None, &escaped);
+                        }
+                        let vars = all_vars.get_all_variables_in_order();
+                        if MAX_VARIABLES_TO_ANALYZE <= vars.len() as i32 {
+                            check_state!(
+                                screen.is_none_or(|s| matches!(s, Screened::TooManyVariables)),
+                                "CLOSURE_RS_PARALLEL_ANALYSIS=verify: CoalesceVariableNames screen"
+                            );
+                            continue;
+                        }
+                        check_state!(
+                            !matches!(screen, Some(Screened::TooManyVariables)),
+                            "CLOSURE_RS_PARALLEL_ANALYSIS=verify: CoalesceVariableNames screen"
+                        );
                         if vars.len() < 2 || vars.iter().all(|v| v.is_param(compiler)) {
                             precomputed.insert(fn_node, None);
                             continue;
@@ -1019,6 +1250,14 @@ impl CompilerPass for CoalesceVariableNames {
                         for job in jobs {
                             let fn_node = job.fn_node;
                             let out = job.run_borrowed(&compiler.ast, can_continue_after_errors);
+                            if verify {
+                                Self::check_screen(
+                                    compiler,
+                                    fn_node,
+                                    screened.get(&fn_node),
+                                    out.as_ref(),
+                                );
+                            }
                             let res = out.map(|o| job.materialize(o));
                             any_merges |= res.is_some();
                             precomputed.insert(fn_node, res);
@@ -1040,6 +1279,14 @@ impl CompilerPass for CoalesceVariableNames {
                         }
                         for (job, out) in jobs.into_iter().zip(outputs) {
                             let fn_node = job.fn_node;
+                            if verify {
+                                Self::check_screen(
+                                    compiler,
+                                    fn_node,
+                                    screened.get(&fn_node),
+                                    out.as_ref(),
+                                );
+                            }
                             let res = out.map(|o| job.materialize(o));
                             any_merges |= res.is_some();
                             precomputed.insert(fn_node, res);
@@ -1050,6 +1297,30 @@ impl CompilerPass for CoalesceVariableNames {
                     compiler.set_life_cycle_stage(LifeCycleStage::RAW);
                     return;
                 }
+                // Rust-only (performance divergence): the traversal renames only in the
+                // functions with a coloring (and in the functions without an entry below them,
+                // which share the enclosing coloring). Below any other node that is not on the
+                // path to such a function, every visit returns at once and every scope it enters
+                // it leaves again, so the traversal need not go there (`should_traverse`); the
+                // nodes it visits, it visits in the same order.
+                if *crate::parallel_parse::PARALLEL_ANALYSIS != ParallelAnalysisMode::Off {
+                    let mut on_path = vec![0u64; compiler.ast.node_count().div_ceil(64) as usize];
+                    for (&function, coloring) in &precomputed {
+                        if coloring.is_none() {
+                            continue;
+                        }
+                        let mut n = Some(function);
+                        while let Some(node) = n {
+                            let (word, bit) = (node.arena_index() / 64, node.arena_index() % 64);
+                            if on_path[word] & (1 << bit) != 0 {
+                                break;
+                            }
+                            on_path[word] |= 1 << bit;
+                            n = node.get_parent(compiler);
+                        }
+                    }
+                    self.on_path_to_coloring = Some(on_path);
+                }
                 self.precomputed = Some(precomputed);
             }
         }
@@ -1059,6 +1330,7 @@ impl CompilerPass for CoalesceVariableNames {
             .set_scope_creator(&mut scope_creator)
             .traverse(root);
         self.precomputed = None;
+        self.on_path_to_coloring = None;
         compiler.set_life_cycle_stage(LifeCycleStage::RAW);
     }
 }
@@ -1068,9 +1340,18 @@ impl Callback for CoalesceVariableNames {
     fn should_traverse(
         &mut self,
         _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
+        n: NodeId,
         _parent: Option<NodeId>,
     ) -> bool {
+        // Rust-only (performance divergence): see `process`.
+        if let Some(on_path) = &self.on_path_to_coloring
+            && !matches!(self.colorings.last(), Some(Some(_)))
+        {
+            let index = n.arena_index();
+            return on_path
+                .get(index / 64)
+                .is_some_and(|w| w & (1 << (index % 64)) != 0);
+        }
         true
     }
 
