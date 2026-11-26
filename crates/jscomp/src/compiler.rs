@@ -2381,39 +2381,46 @@ impl Compiler {
         chunk: &crate::js_chunk::JSChunk,
     ) -> closure_rhino::js_string::JsString {
         self.run_in_compiler_thread(|compiler| {
-            let inputs = chunk.get_inputs();
-            let chunk_externs: Vec<CompilerInput> = if compiler.get_options().should_print_externs()
-            {
-                compiler
-                    .hoisted_externs_by_chunk
-                    .get(chunk)
-                    .map(|externs| externs.iter().cloned().collect())
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            };
-            if inputs.is_empty() && chunk_externs.is_empty() {
+            let Some(scripts) = compiler.chunk_scripts(chunk) else {
                 return closure_rhino::js_string::JsString::default();
-            }
+            };
             let mut cb = CodeBuilder::default();
-            let mut scripts = Vec::with_capacity(chunk_externs.len() + inputs.len());
-            let mut seq = 0;
-            for extern_input in &chunk_externs {
-                let script_node = extern_input.get_ast_root(compiler);
-                scripts.push((seq, script_node));
-                seq += 1;
-            }
-            for input in &inputs {
-                if !chunk_externs.is_empty() && Compiler::is_fill_file_name(input.get_name()) {
-                    continue;
-                }
-                let root = input.get_ast_root(compiler);
-                scripts.push((seq, root));
-                seq += 1;
-            }
             compiler.emit_scripts_to_builder(&mut cb, tracker, &scripts);
             cb.to_js_string()
         })
+    }
+    /// The scripts `toSource(LicenseTracker, JSChunk)` prints for `chunk`, with their input
+    /// sequence numbers (`None`: the chunk has no inputs and no hoisted externs, and its code is
+    /// empty).
+    fn chunk_scripts(&mut self, chunk: &crate::js_chunk::JSChunk) -> Option<Vec<(i32, NodeId)>> {
+        let inputs = chunk.get_inputs();
+        let chunk_externs: Vec<CompilerInput> = if self.get_options().should_print_externs() {
+            self.hoisted_externs_by_chunk
+                .get(chunk)
+                .map(|externs| externs.iter().cloned().collect())
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        if inputs.is_empty() && chunk_externs.is_empty() {
+            return None;
+        }
+        let mut scripts = Vec::with_capacity(chunk_externs.len() + inputs.len());
+        let mut seq = 0;
+        for extern_input in &chunk_externs {
+            let script_node = extern_input.get_ast_root(self);
+            scripts.push((seq, script_node));
+            seq += 1;
+        }
+        for input in &inputs {
+            if !chunk_externs.is_empty() && Compiler::is_fill_file_name(input.get_name()) {
+                continue;
+            }
+            let root = input.get_ast_root(self);
+            scripts.push((seq, root));
+            seq += 1;
+        }
+        Some(scripts)
     }
     /// Rust-only (performance divergence): prints scripts in parallel on worker threads when a
     /// chunk or single output contains multiple scripts and the license tracker supports deduped
@@ -2443,34 +2450,73 @@ impl Compiler {
             }
             return;
         }
-        let ast = &self.ast;
-        let options = self.get_options();
+        let printed =
+            Self::print_scripts_on_workers(&self.ast, self.get_options(), threads, scripts)
+                .into_iter()
+                .map(|printed| printed.unwrap_or_else(|panic| std::panic::resume_unwind(panic)));
+        let gather_source_map = self.get_options().should_gather_source_map_info();
+        let script_mappings = self.append_printed_scripts(cb, tracker, printed, gather_source_map);
+        if gather_source_map {
+            let mut map = self.source_map.as_ref().unwrap().lock().unwrap();
+            Self::add_script_mappings(&self.ast, &mut map, script_mappings);
+        }
+    }
+    /// Rust-only (performance divergence): prints `scripts` (with their input sequence numbers)
+    /// on `threads` worker threads as `to_source_and_mappings` would, each with a
+    /// `RecordingLicenseTracker` in place of the real tracker. Returns, in the order of
+    /// `scripts`, each script's code and mappings and the nodes to replay into the real tracker,
+    /// or the panic its printing raised.
+    fn print_scripts_on_workers(
+        ast: &Ast,
+        options: &CompilerOptions,
+        threads: usize,
+        scripts: &[(i32, NodeId)],
+    ) -> Vec<std::thread::Result<PrintedScript>> {
         let tag_as_type_summary = options.should_generate_typed_externs();
         let emit_use_strict = options.should_emit_use_strict();
-        let mut ordered: Vec<Option<(crate::code_printer::SourceAndMappings, Vec<NodeId>)>> =
+        let mut ordered: Vec<Option<std::thread::Result<PrintedScript>>> =
             (0..scripts.len()).map(|_| None).collect();
         let worker_outputs = crate::parallel_parse::run_scoped_indexed(
             "closure-codegen",
             threads,
             scripts,
             |_idx, &(seq, root)| {
-                let mut rec = crate::compiler_license_tracker::RecordingLicenseTracker::default();
-                let sam = crate::code_printer::Builder::with_compiler_options(root, options)
-                    .set_tag_as_type_summary(tag_as_type_summary)
-                    .set_tag_as_strict(seq == 0 && emit_use_strict)
-                    .set_license_tracker(Some(&mut rec))
-                    .build_with_source_mappings(ast);
-                Some((sam, rec.into_nodes()))
+                Some(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                    || {
+                        let mut rec =
+                            crate::compiler_license_tracker::RecordingLicenseTracker::default();
+                        let sam =
+                            crate::code_printer::Builder::with_compiler_options(root, options)
+                                .set_tag_as_type_summary(tag_as_type_summary)
+                                .set_tag_as_strict(seq == 0 && emit_use_strict)
+                                .set_license_tracker(Some(&mut rec))
+                                .build_with_source_mappings(ast);
+                        (sam, rec.into_nodes())
+                    },
+                )))
             },
         );
         for batch in worker_outputs {
-            for (idx, (sam, nodes)) in batch {
-                ordered[idx] = Some((sam, nodes));
+            for (idx, printed) in batch {
+                ordered[idx] = Some(printed);
             }
         }
-        let gather_source_map = self.get_options().should_gather_source_map_info();
-        for item in ordered {
-            let (source_and_mappings, license_nodes) = item.unwrap();
+        ordered.into_iter().map(Option::unwrap).collect()
+    }
+    /// Rust-only (performance divergence): appends scripts printed by `print_scripts_on_workers`
+    /// to `cb` as `to_source_with_builder` appends them (licenses, which the recorded nodes
+    /// replayed into `tracker` give, then the code and a missing semicolon), and returns for each
+    /// script with code the position it starts at and its mappings (when `gather_source_map`),
+    /// for `add_script_mappings`.
+    fn append_printed_scripts(
+        &self,
+        cb: &mut CodeBuilder,
+        tracker: &mut (dyn crate::code_printer::LicenseTracker + Send),
+        printed: impl IntoIterator<Item = PrintedScript>,
+        gather_source_map: bool,
+    ) -> Vec<ScriptMappings> {
+        let mut script_mappings = Vec::new();
+        for (source_and_mappings, license_nodes) in printed {
             for node in license_nodes {
                 tracker.track_licenses_for_node(&self.ast, node);
             }
@@ -2481,14 +2527,7 @@ impl Compiler {
             if code.is_empty() {
                 continue;
             }
-            if gather_source_map {
-                self.source_map
-                    .as_ref()
-                    .unwrap()
-                    .lock()
-                    .unwrap()
-                    .set_starting_position(cb.get_line_index(), cb.get_column_index());
-            }
+            let start = (cb.get_line_index(), cb.get_column_index());
             let chars = code.as_units();
             let length = chars.len();
             let last_char = chars[length - 1];
@@ -2499,10 +2538,27 @@ impl Compiler {
                 cb.append(";");
             }
             if gather_source_map {
-                let mut map = self.source_map.as_ref().unwrap().lock().unwrap();
-                for mapping in source_and_mappings.mappings.unwrap() {
-                    map.add_mapping(self, &mapping);
-                }
+                script_mappings.push(ScriptMappings {
+                    line: start.0,
+                    column: start.1,
+                    mappings: source_and_mappings.mappings.unwrap(),
+                });
+            }
+        }
+        script_mappings
+    }
+    /// Rust-only (performance divergence): what `to_source_with_builder` does to the source map
+    /// for each script of `append_printed_scripts`: `setStartingPosition`, then `addMapping` for
+    /// each of its mappings.
+    fn add_script_mappings(
+        ast: &Ast,
+        map: &mut crate::source_map::SourceMap,
+        script_mappings: Vec<ScriptMappings>,
+    ) {
+        for script in script_mappings {
+            map.set_starting_position(script.line, script.column);
+            for mapping in &script.mappings {
+                map.add_mapping(ast, mapping);
             }
         }
     }
@@ -2712,6 +2768,418 @@ impl Compiler {
             }
             sources
         })
+    }
+}
+
+/// Rust-only (performance divergence): the number of nodes in the scripts of the chunks from
+/// which `Compiler::prepare_chunk_outputs` prints them and builds their source maps on worker
+/// threads.
+const PARALLEL_CHUNK_OUTPUT_MIN_NODES: usize = 10_000;
+
+/// Rust-only (performance divergence): the number of mappings one task of
+/// `Compiler::build_chunk_source_maps` resolves.
+const MAPPING_RESOLVE_SLICE: usize = 4096;
+
+/// Rust-only (performance divergence): a script printed on a worker thread
+/// (`Compiler::print_scripts_on_workers`): its code and mappings, and the nodes to replay into the
+/// real license tracker.
+type PrintedScript = (crate::code_printer::SourceAndMappings, Vec<NodeId>);
+
+/// Rust-only (performance divergence): what `SourceMap::resolve_mapping` gave for the mappings of
+/// one script, in slices of `MAPPING_RESOLVE_SLICE`.
+type ResolvedScript = Vec<Vec<Option<crate::source_map::ResolvedMapping>>>;
+
+/// Rust-only (performance divergence): where a printed script starts in the code of its output,
+/// and its mappings (`Compiler::append_printed_scripts`).
+struct ScriptMappings {
+    line: i32,
+    column: i32,
+    mappings: Vec<crate::source_map::Mapping>,
+}
+
+/// Rust-only (performance divergence): a chunk for `Compiler::prepare_chunk_outputs`.
+pub struct ChunkOutputJob<'a> {
+    pub chunk: &'a crate::js_chunk::JSChunk,
+    /// The name of the chunk's output file, which its source map names (`SourceMap#appendTo`).
+    pub file_name: String,
+    /// The part of the chunk's wrapper before the code, if the wrapper has a code placeholder
+    /// (`SourceMap#setWrapperPrefix`).
+    pub wrapper_prefix: Option<JsString>,
+}
+
+/// Rust-only (performance divergence): the output of one chunk, computed by
+/// `Compiler::prepare_chunk_outputs` before the output loop gets to the chunk.
+pub struct PreparedChunkOutput {
+    code: JsString,
+    /// The mappings, while the chunk's source map has not been built.
+    script_mappings: Vec<ScriptMappings>,
+    source_map: Option<PreparedSourceMap>,
+    /// A panic raised where the loop would print the chunk (printing or adding its mappings).
+    print_panic: Option<Box<dyn std::any::Any + Send>>,
+}
+
+/// Rust-only (performance divergence): a chunk's source map built on a worker thread.
+enum PreparedSourceMap {
+    /// What `SourceMap#appendTo` wrote, and its result.
+    Written {
+        text: String,
+        result: std::fmt::Result,
+    },
+    /// `SourceMap#appendTo` panicked.
+    WritePanic(Box<dyn std::any::Any + Send>),
+}
+
+/// Rust-only (performance divergence): the source map of one chunk, to build on a worker thread
+/// from its resolved mappings.
+struct ChunkMapJob {
+    index: usize,
+    map: crate::source_map::SourceMap,
+    script_mappings: Vec<ScriptMappings>,
+    /// For each script, what `SourceMap::resolve_mapping` gave for each of its mappings.
+    resolved: Vec<ResolvedScript>,
+    wrapper_prefix: Option<JsString>,
+    file_name: String,
+}
+
+impl ChunkMapJob {
+    /// What the output loop does to the compiler's source map for this chunk after
+    /// `resetAndIntitializeSourceMap`: the mappings (`Err`: they panicked), the wrapper prefix and
+    /// `appendTo`.
+    fn build(self) -> Result<PreparedSourceMap, Box<dyn std::any::Any + Send>> {
+        let ChunkMapJob {
+            mut map,
+            script_mappings,
+            resolved,
+            wrapper_prefix,
+            file_name,
+            ..
+        } = self;
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            for (script, resolved) in script_mappings.into_iter().zip(resolved) {
+                map.set_starting_position(script.line, script.column);
+                let resolved = resolved.into_iter().flatten();
+                for (mapping, resolved) in script.mappings.iter().zip(resolved) {
+                    if let Some(resolved) = resolved {
+                        map.add_resolved_mapping(resolved, mapping.start, mapping.end);
+                    }
+                }
+            }
+        }))?;
+        if let Some(prefix) = &wrapper_prefix {
+            map.set_wrapper_prefix(prefix);
+        }
+        let mut text = String::new();
+        Ok(
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                map.append_to(&mut text, file_name.as_str())
+            })) {
+                Ok(result) => PreparedSourceMap::Written { text, result },
+                Err(panic) => PreparedSourceMap::WritePanic(panic),
+            },
+        )
+    }
+}
+
+impl PreparedChunkOutput {
+    /// Whether the chunk's source map was built ahead (`write_source_map`). If not,
+    /// `Compiler::take_prepared_chunk_code` adds the chunk's mappings to the compiler's source
+    /// map, which the caller then writes as it does without preparation.
+    pub fn has_source_map(&self) -> bool {
+        self.source_map.is_some()
+    }
+    /// Writes the source map built ahead, as `SourceMap#appendTo(out, fileName)` writes it, and
+    /// returns its result.
+    pub fn write_source_map(&mut self, out: &mut dyn std::fmt::Write) -> std::fmt::Result {
+        match self.source_map.take().expect("no prepared source map") {
+            PreparedSourceMap::Written { text, result } => {
+                out.write_str(&text)?;
+                result
+            }
+            PreparedSourceMap::WritePanic(panic) => std::panic::resume_unwind(panic),
+        }
+    }
+}
+
+impl Compiler {
+    /// Rust-only (performance divergence): computes ahead of the loop of
+    /// `AbstractCommandLineRunner#outputChunkBinaryAndSourceMaps` what the loop computes for each
+    /// of `jobs` (given in the loop's order). The scripts of all chunks are printed in one batch
+    /// on worker threads, while the compiler thread readies the source map
+    /// (`ready_source_map_for_copies`); each chunk's code is then assembled in chunk order with
+    /// `tracker` (`set_current_chunk_context` first, as the loop does) as `toSource(LicenseTracker,
+    /// JSChunk)` assembles it, and the source maps are built on worker threads
+    /// (`build_chunk_source_maps`). Returns `None`, having done nothing, when the chunks are small,
+    /// the machine is busy or input delimiters are printed: the loop then does all the work
+    /// itself.
+    pub fn prepare_chunk_outputs(
+        &mut self,
+        jobs: &[ChunkOutputJob<'_>],
+        tracker: &mut crate::compiler_license_tracker::ChunkGraphAwareLicenseTracker,
+    ) -> Option<Vec<PreparedChunkOutput>> {
+        if self.get_options().should_print_input_delimiter() {
+            return None;
+        }
+        let chunk_scripts: Vec<Vec<(i32, NodeId)>> = jobs
+            .iter()
+            .map(|job| self.chunk_scripts(job.chunk).unwrap_or_default())
+            .collect();
+        let scripts: Vec<(i32, NodeId)> = chunk_scripts.iter().flatten().copied().collect();
+        if !self.has_nodes(&scripts, PARALLEL_CHUNK_OUTPUT_MIN_NODES) {
+            return None;
+        }
+        let non_empty = scripts
+            .iter()
+            .filter(|&&(_, root)| root.has_children(&self.ast))
+            .count();
+        let threads = crate::parallel_parse::parallel_thread_count(non_empty, 1, 8);
+        if threads < 2 {
+            return None;
+        }
+        let gather_source_map = self.get_options().should_gather_source_map_info();
+        let (printed, map_ready) = {
+            let this = &*self;
+            let (ast, options) = (&this.ast, this.get_options());
+            std::thread::scope(|scope| {
+                let printing = std::thread::Builder::new()
+                    .name("closure-codegen".into())
+                    .stack_size(crate::compiler_executor::COMPILER_STACK_SIZE)
+                    .spawn_scoped(scope, || {
+                        Self::print_scripts_on_workers(ast, options, threads, &scripts)
+                    })
+                    .expect("spawn scoped worker");
+                let map_ready = gather_source_map && this.ready_source_map_for_copies();
+                let printed = printing
+                    .join()
+                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+                (printed, map_ready)
+            })
+        };
+        let mut printed = printed.into_iter();
+        let mut prepared = Vec::with_capacity(jobs.len());
+        for (job, scripts) in jobs.iter().zip(&chunk_scripts) {
+            tracker.set_current_chunk_context(job.chunk.clone());
+            let chunk_printed: Result<Vec<PrintedScript>, _> =
+                printed.by_ref().take(scripts.len()).collect();
+            let chunk_printed = match chunk_printed {
+                Ok(chunk_printed) => chunk_printed,
+                Err(panic) => {
+                    // The loop resumes it where it prints this chunk, and stops there.
+                    prepared.push(PreparedChunkOutput {
+                        code: JsString::default(),
+                        script_mappings: Vec::new(),
+                        source_map: None,
+                        print_panic: Some(panic),
+                    });
+                    break;
+                }
+            };
+            let mut cb = CodeBuilder::default();
+            let script_mappings =
+                self.append_printed_scripts(&mut cb, tracker, chunk_printed, gather_source_map);
+            prepared.push(PreparedChunkOutput {
+                code: cb.to_js_string(),
+                script_mappings,
+                source_map: None,
+                print_panic: None,
+            });
+        }
+        if map_ready {
+            self.build_chunk_source_maps(jobs, &mut prepared);
+        }
+        Some(prepared)
+    }
+    /// Whether the trees of `scripts` have at least `limit` nodes (counted up to `limit`).
+    fn has_nodes(&self, scripts: &[(i32, NodeId)], limit: usize) -> bool {
+        let mut stack: Vec<NodeId> = scripts.iter().map(|&(_, root)| root).collect();
+        let mut count = 0;
+        while let Some(node) = stack.pop() {
+            count += 1;
+            if count >= limit {
+                return true;
+            }
+            let mut child = node.get_first_child(&self.ast);
+            while let Some(c) = child {
+                stack.push(c);
+                child = c.get_next(&self.ast);
+            }
+        }
+        false
+    }
+    /// Rust-only (performance divergence): brings the compiler's source map into the state the
+    /// output loop gives it for every chunk (`resetAndIntitializeSourceMap`, which the loop may
+    /// then repeat to no further effect), to copy it for each chunk (`build_chunk_source_maps`).
+    /// Undecoded input source maps are decoded first, which reports nothing. Returns false if
+    /// an input map then still has to report a decode error when first used (in the loop's order,
+    /// on the compiler thread), or the map cannot be copied.
+    fn ready_source_map_for_copies(&self) -> bool {
+        let Some(source_map) = &self.source_map else {
+            return false;
+        };
+        let input_maps: Vec<Arc<crate::source_map_input::SourceMapInput>> =
+            if self.get_options().get_apply_input_source_maps() {
+                self.input_source_maps
+                    .lock()
+                    .unwrap()
+                    .values()
+                    .cloned()
+                    .collect()
+            } else {
+                Vec::new()
+            };
+        let undecoded: Vec<_> = input_maps
+            .iter()
+            .filter(|map| map.get_cached_source_map().is_none())
+            .cloned()
+            .collect();
+        crate::parallel_parse::run_scoped_for_each(
+            "closure-sourcemap",
+            crate::parallel_parse::parallel_thread_count(undecoded.len(), 1, 8),
+            &undecoded,
+            |_, map| map.predecode_into_cache(),
+        );
+        self.reset_and_intitialize_source_map();
+        input_maps
+            .iter()
+            .all(|map| map.get_cached_source_map().is_some())
+            && source_map.lock().unwrap().try_clone().is_some()
+    }
+    /// Rust-only (performance divergence): builds the source maps of the `prepared` chunks on
+    /// worker threads (`prepare_chunk_outputs`), from copies of the compiler's source map
+    /// readied by `ready_source_map_for_copies`. First the mappings of all chunks are resolved
+    /// (`SourceMap::resolve_mapping`) in slices of `MAPPING_RESOLVE_SLICE`; then each chunk's
+    /// map gets its resolved mappings, in order, and its wrapper prefix, and is written to a
+    /// string. Leaves the maps to the output loop when there are too few chunks or the machine
+    /// is busy.
+    fn build_chunk_source_maps(
+        &self,
+        jobs: &[ChunkOutputJob<'_>],
+        prepared: &mut [PreparedChunkOutput],
+    ) {
+        let source_map = self.source_map.as_ref().unwrap();
+        // A chunk whose printing panicked is the last one prepared.
+        let count = prepared
+            .iter()
+            .take_while(|chunk| chunk.print_panic.is_none())
+            .count();
+        let threads = crate::parallel_parse::parallel_thread_count(count, 1, 8);
+        if threads < 2 {
+            return;
+        }
+        let copy = || source_map.lock().unwrap().try_clone().unwrap();
+        let ast = &self.ast;
+        let resolved_slices = {
+            let slices: Vec<&[crate::source_map::Mapping]> = prepared[..count]
+                .iter()
+                .flat_map(|chunk| &chunk.script_mappings)
+                .flat_map(|script| script.mappings.chunks(MAPPING_RESOLVE_SLICE))
+                .collect();
+            let mut ordered: Vec<Option<std::thread::Result<Vec<_>>>> =
+                (0..slices.len()).map(|_| None).collect();
+            // Each worker resolves with a copy of its own, whose caches only remember results.
+            let resolved = crate::parallel_parse::run_scoped_indexed_with_state(
+                "closure-sourcemap",
+                crate::parallel_parse::parallel_thread_count(slices.len(), 1, 8),
+                &slices,
+                copy,
+                |resolver, _, mappings| {
+                    let resolved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        mappings
+                            .iter()
+                            .map(|mapping| resolver.resolve_mapping(ast, mapping.node))
+                            .collect::<Vec<_>>()
+                    }));
+                    if resolved.is_err() {
+                        // Its caches may be half updated.
+                        *resolver = copy();
+                    }
+                    Some(resolved)
+                },
+            );
+            for (idx, resolved) in resolved.into_iter().flatten() {
+                ordered[idx] = Some(resolved);
+            }
+            ordered
+        };
+        let mut resolved_slices = resolved_slices.into_iter().map(Option::unwrap);
+        let mut resolved_by_chunk: Vec<Vec<ResolvedScript>> =
+            (0..count).map(|_| Vec::new()).collect();
+        for (chunk, resolved_scripts) in prepared[..count].iter_mut().zip(&mut resolved_by_chunk) {
+            for script in &chunk.script_mappings {
+                let mut resolved = Vec::new();
+                for _ in script.mappings.chunks(MAPPING_RESOLVE_SLICE) {
+                    match resolved_slices.next().unwrap() {
+                        Ok(slice) => resolved.push(slice),
+                        // The first panic of the chunk is the one the loop would raise.
+                        Err(panic) => {
+                            chunk.print_panic.get_or_insert(panic);
+                        }
+                    }
+                }
+                resolved_scripts.push(resolved);
+            }
+        }
+        let mut map_jobs: Vec<ChunkMapJob> = prepared[..count]
+            .iter_mut()
+            .zip(jobs)
+            .zip(resolved_by_chunk)
+            .enumerate()
+            .filter(|(_, ((chunk, _), _))| chunk.print_panic.is_none())
+            .map(|(index, ((chunk, job), resolved))| ChunkMapJob {
+                index,
+                map: copy(),
+                script_mappings: std::mem::take(&mut chunk.script_mappings),
+                resolved,
+                wrapper_prefix: job.wrapper_prefix.clone(),
+                file_name: job.file_name.clone(),
+            })
+            .collect();
+        // The largest maps first, so that no thread starts a large one last.
+        map_jobs.sort_by_cached_key(|job| {
+            std::cmp::Reverse(
+                job.script_mappings
+                    .iter()
+                    .map(|script| script.mappings.len())
+                    .sum::<usize>(),
+            )
+        });
+        let items: Vec<std::sync::Mutex<Option<ChunkMapJob>>> = map_jobs
+            .into_iter()
+            .map(|job| std::sync::Mutex::new(Some(job)))
+            .collect();
+        let built = crate::parallel_parse::run_scoped_indexed(
+            "closure-sourcemap",
+            threads,
+            &items,
+            |_, item| {
+                let job = item.lock().unwrap().take().unwrap();
+                Some((job.index, job.build()))
+            },
+        );
+        for (_, (index, map)) in built.into_iter().flatten() {
+            match map {
+                Ok(map) => prepared[index].source_map = Some(map),
+                Err(panic) => prepared[index].print_panic = Some(panic),
+            }
+        }
+    }
+    /// Rust-only (performance divergence): what the output loop does for a chunk of
+    /// `prepare_chunk_outputs` where it prints it (after `resetAndIntitializeSourceMap`, when
+    /// source map info is gathered): resumes a panic raised there and, unless the chunk's source
+    /// map was built ahead, adds the chunk's mappings to the compiler's source map. Returns the
+    /// chunk's code.
+    pub fn take_prepared_chunk_code(&mut self, prepared: &mut PreparedChunkOutput) -> JsString {
+        if let Some(panic) = prepared.print_panic.take() {
+            std::panic::resume_unwind(panic);
+        }
+        if prepared.source_map.is_none() && self.get_options().should_gather_source_map_info() {
+            let mut map = self.source_map.as_ref().unwrap().lock().unwrap();
+            Self::add_script_mappings(
+                &self.ast,
+                &mut map,
+                std::mem::take(&mut prepared.script_mappings),
+            );
+        }
+        std::mem::take(&mut prepared.code)
     }
 }
 

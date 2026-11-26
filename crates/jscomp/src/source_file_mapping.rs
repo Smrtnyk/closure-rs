@@ -23,13 +23,27 @@ use closure_sourcemap::{
 use std::sync::Arc;
 /// Rust-only, not in Java (performance divergence): what
 /// `SourceFileMapping::get_source_mapping_cached` keeps from one call to the next, for a caller
-/// that asks about one node after another of the same file.
-#[derive(Default)]
+/// that asks about one node after another, mostly of the same file.
+#[derive(Clone, Default)]
 pub struct SourceMappingCache {
-    /// The file last asked about and its parsed input map (`None`: it has none that maps).
-    pub file: Option<(JsString, Option<Arc<SourceMapConsumerV3>>)>,
+    /// Every file asked about, by name (nodes of other files are often interleaved).
+    pub files: closure_rhino::fast_hash::IndexMap<JsString, FileMappingCache>,
+    /// The index in `files` of the file last asked about.
+    pub current: Option<usize>,
+}
+/// Rust-only, not in Java (performance divergence): what `SourceMappingCache` keeps for one file.
+#[derive(Clone)]
+pub struct FileMappingCache {
+    /// The file name as a Rust string.
+    pub name: String,
+    /// Its parsed input map (`None`: it has none that maps).
+    pub consumer: Option<Arc<SourceMapConsumerV3>>,
     /// The original file that map last named, and the path resolved for it.
     pub resolved: Option<(JsString, JsString)>,
+    /// Every original file that map has named so far, and the path resolved for it (the path
+    /// depends only on the map and the original file; a bundle's map names many original files,
+    /// often in turn).
+    pub resolved_paths: closure_rhino::fast_hash::IndexMap<JsString, JsString>,
 }
 /// A SourceFileMapping maps a source file, line, and column into an {@link OriginalMapping}.
 ///
@@ -61,5 +75,12 @@ pub trait SourceFileMapping {
     ) -> Option<OriginalMapping> {
         let _ = cache;
         self.get_source_mapping(file_name, line_no, column_no)
+    }
+    /// Rust-only, not in Java (performance divergence): another handle on this mapping that a
+    /// worker thread can use while other threads use this one (it then gives the same results),
+    /// for the per-chunk source maps of `Compiler::prepare_chunk_outputs`. `None`: there is
+    /// none.
+    fn try_clone(&self) -> Option<Box<dyn SourceFileMapping + Send>> {
+        None
     }
 }

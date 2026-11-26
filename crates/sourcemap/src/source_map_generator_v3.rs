@@ -63,7 +63,7 @@ impl<F: FnMut(&JsString, &ExtensionValue, &ExtensionValue) -> ExtensionValue> Ex
         self(k, c, n)
     }
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct SourceMapGeneratorV3 {
     mappings: Vec<Mapping>,
     source_file_map: MappingNames,
@@ -503,7 +503,7 @@ impl crate::source_map_consumer_v3::EntryVisitor for ConsumerEntryVisitor<'_> {
 // Rust-only (performance divergence): the per-mapping record holds compact file/name keys.
 // An interned key gets its source-map index only when the traversal actually writes it. A
 // covered mapping can therefore arrive first and emit its name later, or never emit it at all.
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct MappingNames {
     interned: IndexMap<JsString, i32>,
     emitted_ids: Vec<i32>,
@@ -554,6 +554,7 @@ impl MappingNames {
     }
 }
 
+#[derive(Clone)]
 struct Mapping {
     source_file: i32,
     original_name: i32,
@@ -953,6 +954,9 @@ impl SourceMapGenerator for SourceMapGeneratorV3 {
         end: FilePosition,
     ) {
         self.add_mapping(source, symbol, original, start, end)
+    }
+    fn try_clone(&self) -> Option<Box<dyn SourceMapGenerator + Send>> {
+        Some(Box::new(self.clone()))
     }
 }
 
