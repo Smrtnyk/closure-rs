@@ -140,63 +140,6 @@ pub(crate) fn run_scoped_indexed<T: Sync, R: Send>(
     })
 }
 
-/// Rust-only (performance divergence): `run_scoped_indexed` where each worker (or the inline
-/// fallback) first creates a state with `init` and passes it to `work` for each item it takes.
-/// Results must not depend on which items a state saw before (caches of earlier results only).
-pub(crate) fn run_scoped_indexed_with_state<T: Sync, S, R: Send>(
-    thread_name: &str,
-    threads: usize,
-    items: &[T],
-    init: impl Fn() -> S + Sync,
-    work: impl Fn(&mut S, usize, &T) -> Option<R> + Sync,
-) -> Vec<Vec<(usize, R)>> {
-    if items.is_empty() {
-        return Vec::new();
-    }
-    let worker_count = threads.min(items.len());
-    if worker_count < 2 {
-        let mut state = init();
-        let mut local = Vec::new();
-        for (idx, item) in items.iter().enumerate() {
-            if let Some(res) = work(&mut state, idx, item) {
-                local.push((idx, res));
-            }
-        }
-        return vec![local];
-    }
-    let next = AtomicUsize::new(0);
-    let (init_ref, work_ref) = (&init, &work);
-    std::thread::scope(|scope| {
-        let mut handles = Vec::with_capacity(worker_count);
-        for _ in 0..worker_count {
-            let next = &next;
-            let handle = std::thread::Builder::new()
-                .name(thread_name.into())
-                .stack_size(crate::compiler_executor::COMPILER_STACK_SIZE)
-                .spawn_scoped(scope, move || {
-                    let mut state = init_ref();
-                    let mut local = Vec::new();
-                    loop {
-                        let idx = next.fetch_add(1, Ordering::Relaxed);
-                        let Some(item) = items.get(idx) else {
-                            break;
-                        };
-                        if let Some(res) = work_ref(&mut state, idx, item) {
-                            local.push((idx, res));
-                        }
-                    }
-                    local
-                })
-                .expect("spawn scoped worker");
-            handles.push(handle);
-        }
-        handles
-            .into_iter()
-            .map(|h| h.join().expect("scoped worker panicked"))
-            .collect()
-    })
-}
-
 /// Rust-only (performance divergence): executes `work(index, item)` across up to `threads` scoped
 /// worker threads with atomic work stealing and `COMPILER_STACK_SIZE` stacks. Falls back to inline
 /// execution when `threads < 2` or `items.len() < 2`.

@@ -958,6 +958,9 @@ impl SourceMapGenerator for SourceMapGeneratorV3 {
     fn try_clone(&self) -> Option<Box<dyn SourceMapGenerator + Send>> {
         Some(Box::new(self.clone()))
     }
+    fn reserve_mappings(&mut self, additional: usize) {
+        self.mappings.reserve_exact(additional);
+    }
 }
 
 // Util.escapeString produces ASCII, but raw section maps, extension keys and
