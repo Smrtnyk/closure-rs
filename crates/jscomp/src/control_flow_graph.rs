@@ -61,6 +61,9 @@ pub struct ControlFlowGraph<N: Clone + Eq + Hash> {
     entry: DiGraphNode,
     pub(crate) ast_comparator: bool,
     node_formatter: fn(Option<&AbstractCompiler>, &N) -> String,
+    /// Rust-only (performance divergence): set by `CheckUnreachableCode` when every node with a
+    /// value carries its `Reachable` annotation.
+    pub(crate) all_valued_nodes_reachable: bool,
 }
 impl<N: Clone + Eq + Hash> ControlFlowGraph<N> {
     // port: ControlFlowGraph#ControlFlowGraph
@@ -92,6 +95,7 @@ impl<N: Clone + Eq + Hash> ControlFlowGraph<N> {
             implicit_return,
             entry,
             ast_comparator: false,
+            all_valued_nodes_reachable: false,
             node_formatter,
         }
     }
@@ -176,6 +180,9 @@ impl ControlFlowGraph<NodeId> {
                 n.to_string(compiler.expect("AST CFG formatting requires a compiler"))
             });
         cfg.ast_comparator = true;
+        // Rust-only (performance divergence): a function's graph has about 15 nodes and edges;
+        // room for them up front saves growing the tables from empty.
+        cfg.graph.reserve(16, 16);
         cfg
     }
     /// A traversal restricted to one CFG node prunes every child of these containers.

@@ -1474,6 +1474,16 @@ impl JSTypeRegistry {
             .get(&root)
             .is_some_and(|names| names.contains(&name))
     }
+    /// Rust-only (performance divergence): false when `is_non_nullable_name` of `name` is false
+    /// in every scope (no scope root has the name and no lookup log is kept), so a caller whose
+    /// lookup has no other effect can skip it.
+    pub fn may_be_non_nullable_name(&self, name: &JsString) -> bool {
+        self.snapshot_lookups.is_some()
+            || self
+                .non_nullable_type_names
+                .values()
+                .any(|names| names.contains(name))
+    }
     // port: JSTypeRegistry#getGlobalType
     pub fn get_global_type(
         &mut self,

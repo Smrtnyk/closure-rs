@@ -20,6 +20,7 @@ use crate::{
     check_level::CheckLevel, diagnostic_type::DiagnosticType, error_handler::ErrorHandler,
     js_error::JSError,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{error_reporter::ErrorReporter, java_lang::regex::Pattern, msg::Msg};
 use std::sync::LazyLock;
 // port: RhinoErrorReporter#PARSE_ERROR
@@ -107,6 +108,23 @@ pub static CLOSURE_UNAWARE_ANNOTATION_PRESENT: LazyLock<DiagnosticType> = LazyLo
         Msg::JSDOC_CLOSURE_UNAWARE_CODE_INVALID.format(),
     )
 });
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MemoMode {
+    On,
+    Off,
+    Verify,
+}
+
+/// Rust-only: `CLOSURE_RS_RHINO_ERROR_MAP_MEMO` (`RhinoErrorReporter::map_error`).
+static MAP_ERROR_MEMO: LazyLock<MemoMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_RHINO_ERROR_MAP_MEMO").as_deref() {
+            Ok("off") => MemoMode::Off,
+            Ok("verify") => MemoMode::Verify,
+            _ => MemoMode::On,
+        },
+    );
+
 static TYPE_MAP: LazyLock<Vec<(Pattern, &'static DiagnosticType)>> = LazyLock::new(|| {
     vec![
         (
@@ -292,6 +310,42 @@ impl<'a> RhinoErrorReporter<'a> {
     }
     // port: RhinoErrorReporter#mapError
     pub fn map_error(message: &str) -> Option<&'static DiagnosticType> {
+        // Rust-only (performance divergence): the result depends on the message only and the
+        // same messages recur (a type unknown at several annotations), so each thread keeps the
+        // results it found, keyed by the whole message; Java matches the patterns every time.
+        // `CLOSURE_RS_RHINO_ERROR_MAP_MEMO=off` matches every time, `=verify` matches on a hit
+        // too and compares.
+        thread_local! {
+            static MAPPED: std::cell::RefCell<IndexMap<Box<str>, Option<&'static DiagnosticType>>> =
+                std::cell::RefCell::new(IndexMap::default());
+        }
+        let mode = *MAP_ERROR_MEMO;
+        if mode != MemoMode::Off
+            && let Some(hit) = MAPPED.with(|mapped| mapped.borrow().get(message).copied())
+        {
+            if mode == MemoMode::Verify {
+                assert_eq!(
+                    hit.map(|t| t.key),
+                    Self::match_type_map(message).map(|t| t.key),
+                    "CLOSURE_RS_RHINO_ERROR_MAP_MEMO=verify: {message}"
+                );
+            }
+            return hit;
+        }
+        let result = Self::match_type_map(message);
+        if mode != MemoMode::Off {
+            MAPPED.with(|mapped| {
+                let mut mapped = mapped.borrow_mut();
+                if mapped.len() >= 4096 {
+                    mapped.clear();
+                }
+                mapped.insert(message.into(), result);
+            });
+        }
+        result
+    }
+
+    fn match_type_map(message: &str) -> Option<&'static DiagnosticType> {
         TYPE_MAP
             .iter()
             .find_map(|(pattern, ty)| pattern.matcher(message).matches().then_some(*ty))

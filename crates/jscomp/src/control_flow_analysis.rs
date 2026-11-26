@@ -30,7 +30,6 @@ use crate::{
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::java_util::priority_queue::PriorityQueue;
-use closure_rhino::jscomp_base::linked_identity_hash_map::LinkedIdentityHashMap;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     js_string::JsString,
@@ -43,7 +42,16 @@ pub(crate) type LinearScripts = IndexMap<NodeId, Vec<NodeId>>;
 
 pub struct ControlFlowAnalysis {
     cfg: ControlFlowGraph<NodeId>,
-    ast_position: Option<LinkedIdentityHashMap<Option<NodeId>, i32>>,
+    /// Java's `astPosition` map (`LinkedIdentityHashMap<Node, Integer>`), as the log of its puts
+    /// in order; the implicit return's (null) position is `ast_position_counter` once the
+    /// traversal is done.
+    ///
+    /// Rust-only (performance divergence): Java looks positions up in the map whenever its
+    /// priority queue compares two CFG nodes. Only CFG nodes are ever looked up, and only after
+    /// every position is recorded, so the puts are logged and replayed once, in order (a later
+    /// put of a node wins, as in the map), into a table indexed by CFG node
+    /// (`cfg_node_positions`).
+    ast_position: Vec<(NodeId, i32)>,
     ast_position_counter: i32,
     priority_counter: i32,
     should_traverse_functions: bool,
@@ -117,7 +125,7 @@ impl ControlFlowAnalysis {
             ControlFlowGraph::new_ast(Self::compute_fall_through(ast, root), edge_annotations);
         Self {
             cfg,
-            ast_position: None,
+            ast_position: Vec::new(),
             ast_position_counter: 0,
             priority_counter: 0,
             should_traverse_functions,
@@ -248,27 +256,25 @@ impl ControlFlowAnalysis {
     // port: ControlFlowAnalysis#computeCfg
     fn compute_cfg_ast(&mut self, ast: &Ast, root: NodeId) {
         self.root = root;
-        self.ast_position = Some(LinkedIdentityHashMap::default());
+        self.ast_position.clear();
         self.ast_position_counter = 0;
         self.traverse_ast(ast, root, None);
         self.ast_position_counter += 1;
-        self.ast_position
-            .as_mut()
-            .unwrap()
-            .put(None, Some(self.ast_position_counter));
+        // astPosition.put(null, ++astPositionCounter)
+        let positions = self.cfg_node_positions();
         self.priority_counter = 0;
-        self.prioritize_from_entry_node(ast, self.cfg.get_entry());
+        self.prioritize_from_entry_node(ast, self.cfg.get_entry(), &positions);
         if self.should_traverse_functions {
             for candidate in self.cfg.get_nodes() {
                 if candidate
                     .get_value(&self.cfg)
                     .is_some_and(|n| n.is_function(ast))
                 {
-                    self.prioritize_from_entry_node(ast, candidate);
+                    self.prioritize_from_entry_node(ast, candidate, &positions);
                 }
             }
         }
-        self.ast_position = None;
+        self.ast_position = Vec::new();
         for candidate in self.cfg.get_nodes() {
             if !candidate.has_priority(&self.cfg) {
                 self.priority_counter += 1;
@@ -279,6 +285,21 @@ impl ControlFlowAnalysis {
         self.cfg
             .get_implicit_return()
             .set_priority(&mut self.cfg, self.priority_counter);
+    }
+
+    /// Rust-only (performance divergence): the AST position of each CFG node's value, indexed by
+    /// CFG node (see `ast_position`); `None` where the map has no entry.
+    fn cfg_node_positions(&self) -> Vec<Option<i32>> {
+        let mut positions = vec![None; self.cfg.get_node_count()];
+        for &(n, position) in &self.ast_position {
+            if let Some(node) = self.cfg.get_node(&Some(n)) {
+                positions[node.0] = Some(position);
+            }
+        }
+        if let Some(node) = self.cfg.get_node(&None) {
+            positions[node.0] = Some(self.ast_position_counter);
+        }
+        positions
     }
 
     /// Direct read-only AST walk matching `NodeTraversal::traverse` order (including `CLASS`
@@ -335,10 +356,7 @@ impl ControlFlowAnalysis {
 
     fn should_traverse_node(&mut self, ast: &Ast, n: NodeId, parent: Option<NodeId>) -> bool {
         if self.should_traverse_into_children(ast, n, parent) {
-            self.ast_position
-                .as_mut()
-                .unwrap()
-                .put(Some(n), Some(self.ast_position_counter));
+            self.ast_position.push((n, self.ast_position_counter));
             self.ast_position_counter += 1;
             true
         } else {
@@ -385,11 +403,11 @@ impl ControlFlowAnalysis {
     fn priority_comparator<'a>(
         ast: &'a Ast,
         cfg: &'a ControlFlowGraph<NodeId>,
-        ast_position: &'a LinkedIdentityHashMap<Option<NodeId>, i32>,
+        positions: &'a [Option<i32>],
     ) -> impl FnMut(&DiGraphNode, &DiGraphNode) -> std::cmp::Ordering + 'a {
         let key = move |digraph_node: &DiGraphNode| {
-            *check_not_null!(
-                ast_position.get(digraph_node.get_value(cfg)),
+            check_not_null!(
+                positions[digraph_node.0],
                 "%s",
                 digraph_node
                     .get_value(cfg)
@@ -399,19 +417,21 @@ impl ControlFlowAnalysis {
         move |a, b| key(a).cmp(&key(b))
     }
     // port: ControlFlowAnalysis#prioritizeFromEntryNode
-    fn prioritize_from_entry_node(&mut self, ast: &Ast, entry: DiGraphNode) {
+    fn prioritize_from_entry_node(
+        &mut self,
+        ast: &Ast,
+        entry: DiGraphNode,
+        positions: &[Option<i32>],
+    ) {
         let mut worklist: PriorityQueue<DiGraphNode> = PriorityQueue::new(10);
         worklist.add(
             entry,
-            &mut Self::priority_comparator(ast, &self.cfg, self.ast_position.as_ref().unwrap()),
+            &mut Self::priority_comparator(ast, &self.cfg, positions),
         );
 
         while !worklist.is_empty() {
-            let current = worklist.remove(&mut Self::priority_comparator(
-                ast,
-                &self.cfg,
-                self.ast_position.as_ref().unwrap(),
-            ));
+            let current =
+                worklist.remove(&mut Self::priority_comparator(ast, &self.cfg, positions));
             if current.has_priority(&self.cfg) {
                 continue;
             }
@@ -426,7 +446,7 @@ impl ControlFlowAnalysis {
                 cfg.node_out_edges(current)
                     .iter()
                     .map(|edge| cfg.edge_node_b(*edge)),
-                &mut Self::priority_comparator(ast, cfg, self.ast_position.as_ref().unwrap()),
+                &mut Self::priority_comparator(ast, cfg, positions),
             );
         }
     }
@@ -459,10 +479,7 @@ impl ControlFlowAnalysis {
                 Token::FOR | Token::FOR_IN | Token::FOR_OF | Token::FOR_AWAIT_OF => {
                     let traverse = Some(n) == parent.get_last_child(compiler);
                     if !traverse {
-                        self.ast_position
-                            .as_mut()
-                            .unwrap()
-                            .put(Some(n), Some(self.ast_position_counter));
+                        self.ast_position.push((n, self.ast_position_counter));
                         self.ast_position_counter += 1;
                     }
                     return traverse;
@@ -996,6 +1013,16 @@ impl ControlFlowAnalysis {
         cfg_node: NodeId,
         target: NodeId,
     ) {
+        // Rust-only (performance divergence): outside a TRY the innermost handler is the
+        // function (or there is none), where connecting stops at once; Java asks the pure
+        // mayThrowException first.
+        if self
+            .exception_handler
+            .front()
+            .is_none_or(|handler| handler.is_function(compiler))
+        {
+            return;
+        }
         if Self::may_throw_exception(compiler, target) {
             self.connect_to_possible_exception_handler_unconditionally(compiler, cfg_node);
         }

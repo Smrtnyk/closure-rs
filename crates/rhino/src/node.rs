@@ -1141,6 +1141,12 @@ impl Ast {
         }
     }
 
+    /// Rust-only (performance divergence): the slot of `color` in the node color table, which
+    /// `NodeId::set_color_ref` stores for a node (the color is added on first use).
+    pub fn color_slot_of(&mut self, color: &Color) -> u32 {
+        self.color_slot(color)
+    }
+
     fn color_slot_slow(&mut self, color: &Color, address: usize) -> u32 {
         let next = self.colors.len();
         let slot = *self
@@ -4710,6 +4716,18 @@ impl NodeId {
         );
         let slot = x.map(|color| NodeType::Color(ast.color_slot(color)));
         ast.set_node_type(self, slot);
+        self
+    }
+    /// Rust-only (performance divergence): `set_color_ref(Some(color))` where `slot` is
+    /// `Ast::color_slot_of(color)`, for a caller that colors many nodes with one color.
+    pub fn set_color_slot(self, ast: &mut Ast, slot: u32) -> Self {
+        check_state!(
+            matches!(ast.node_type_slot(self), None | Some(NodeType::Color(_))),
+            "%s",
+            self.to_string(ast)
+        );
+        debug_assert!((slot as usize) < ast.colors.len());
+        ast.set_node_type(self, Some(NodeType::Color(slot)));
         self
     }
     // port: Node#copyTypeFrom

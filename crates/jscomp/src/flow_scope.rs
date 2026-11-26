@@ -48,6 +48,19 @@ pub trait FlowScope: LatticeElement {
         type_: Option<TypeId>,
     ) -> Arc<dyn FlowScope>;
 
+    /// Rust-only (performance divergence): `infer_slot_type` of a simple (undotted) `symbol`
+    /// whose declaration the caller has just looked up in `get_declaration_scope`: `declared`
+    /// is that lookup's result, so a flow scope that would look the name up again can use it.
+    fn infer_simple_slot_type(
+        self: Arc<Self>,
+        compiler: &mut AbstractCompiler,
+        symbol: &JsString,
+        _declared: Option<TypedVar>,
+        type_: Option<TypeId>,
+    ) -> Arc<dyn FlowScope> {
+        self.infer_slot_type(compiler, symbol, type_)
+    }
+
     // port: FlowScope#inferQualifiedSlot
     /// Returns a flow scope with the type of the given `symbol` updated to `inferredType`. Updates
     /// are not performed in-place.
