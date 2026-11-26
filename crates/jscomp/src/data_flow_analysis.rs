@@ -745,7 +745,7 @@ pub fn compute_escaped(
     }
 }
 
-fn contains_nested_cfg_or_class(
+pub(crate) fn contains_nested_cfg_or_class(
     ast: &closure_rhino::node::Ast,
     fn_root: closure_rhino::node::NodeId,
 ) -> bool {

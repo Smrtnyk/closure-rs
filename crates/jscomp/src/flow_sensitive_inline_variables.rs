@@ -1,5 +1,6 @@
 /*
  * Copyright 2009 The Closure Compiler Authors.
+ * Copyright 2018 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +15,7 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
+//   src/com/google/javascript/jscomp/AbstractScope.java,
 //   src/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java.
 
 //! Port of `FlowSensitiveInlineVariables.java`.
@@ -41,6 +43,7 @@ use crate::compiler_pass::CompilerPass;
 use crate::control_flow_analysis::ControlFlowAnalysis;
 use crate::control_flow_graph::ControlFlowGraph;
 use crate::data_flow_analysis::{DataFlowAnalysis, compute_escaped};
+use crate::function_vars::FunctionVars;
 use crate::graph::adjacency_graph::AdjacencyGraph;
 use crate::graph::check_paths_between_nodes::CheckPathsBetweenNodes;
 use crate::live_variables_analysis;
@@ -50,6 +53,7 @@ use crate::must_be_reaching_variable_def::{
 };
 use crate::node_traversal::{Callback, NodeTraversal, ScopedCallback};
 use crate::node_util::NodeUtil;
+use crate::parallel_parse::ParallelAnalysisMode;
 use crate::scope::ScopeId;
 use crate::scope_creator::ScopeCreator;
 use crate::syntactic_scope_cache::SyntacticScopeCache;
@@ -184,6 +188,10 @@ impl SideEffectPredicate {
         false
     }
 }
+
+/// Rust-only (performance divergence): `(fn_node, body, analysis, is_leaf)` of
+/// `collect_candidate_functions`.
+type CollectedCandidate = (NodeId, NodeId, InlineAnalysis, bool);
 
 /// A function can be ruled out before allocating a control-flow graph. A surviving
 /// replacement needs a definition and a non-loop read with the same spelling. Collisions
@@ -364,61 +372,123 @@ impl FlowSensitiveInlineVariables {
     fn collect_candidate_functions(
         compiler: &AbstractCompiler,
         n: NodeId,
-        out: &mut Vec<(NodeId, NodeId, InlineAnalysis, bool)>,
+        out: &mut Vec<CollectedCandidate>,
     ) -> bool {
-        if n.is_script(compiler)
-            && let Some(input_id) = n.get_input_id(compiler)
-            && compiler
+        Self::collect_candidate_functions_in(
+            &compiler.ast,
+            &|script| Self::is_extern_script(compiler, script),
+            n,
+            out,
+        )
+    }
+
+    fn is_extern_script(compiler: &AbstractCompiler, script: NodeId) -> bool {
+        script.get_input_id(compiler).is_some_and(|input_id| {
+            compiler
                 .get_input(&input_id)
                 .is_some_and(|input| input.is_extern())
-        {
+        })
+    }
+
+    /// `collect_candidate_functions` with the extern test of a SCRIPT as `is_extern_script`.
+    fn collect_candidate_functions_in(
+        ast: &Ast,
+        is_extern_script: &dyn Fn(NodeId) -> bool,
+        n: NodeId,
+        out: &mut Vec<CollectedCandidate>,
+    ) -> bool {
+        if n.is_script(ast) && is_extern_script(n) {
             return false;
         }
-        match n.get_token(compiler) {
+        match n.get_token(ast) {
             Token::FUNCTION => {
-                let fn_name = n.get_first_child(compiler).unwrap();
-                let params = fn_name.get_next(compiler).unwrap();
-                let body = params.get_next(compiler).unwrap();
-                let params_has_nested = Self::collect_candidate_functions(compiler, params, out);
-                let slot =
-                    if body.is_block(compiler) && Self::is_candidate_function(&compiler.ast, n) {
-                        let analysis = InlineAnalysis::for_body(&compiler.ast, body, usize::MAX);
-                        if !matches!(analysis, InlineAnalysis::NoCandidate) {
-                            let idx = out.len();
-                            out.push((n, body, analysis, false));
-                            Some(idx)
-                        } else {
-                            None
-                        }
+                let fn_name = n.get_first_child(ast).unwrap();
+                let params = fn_name.get_next(ast).unwrap();
+                let body = params.get_next(ast).unwrap();
+                let params_has_nested =
+                    Self::collect_candidate_functions_in(ast, is_extern_script, params, out);
+                let slot = if body.is_block(ast) && Self::is_candidate_function(ast, n) {
+                    let analysis = InlineAnalysis::for_body(ast, body, usize::MAX);
+                    if !matches!(analysis, InlineAnalysis::NoCandidate) {
+                        let idx = out.len();
+                        out.push((n, body, analysis, false));
+                        Some(idx)
                     } else {
                         None
-                    };
-                let body_has_nested = Self::collect_candidate_functions(compiler, body, out);
+                    }
+                } else {
+                    None
+                };
+                let body_has_nested =
+                    Self::collect_candidate_functions_in(ast, is_extern_script, body, out);
                 if let Some(idx) = slot {
                     out[idx].3 = !params_has_nested && !body_has_nested;
                 }
                 true
             }
             Token::CLASS => {
-                let class_name = n.get_first_child(compiler).unwrap();
-                let extends_clause = class_name.get_next(compiler).unwrap();
-                let body = extends_clause.get_next(compiler).unwrap();
-                Self::collect_candidate_functions(compiler, extends_clause, out);
-                Self::collect_candidate_functions(compiler, class_name, out);
-                Self::collect_candidate_functions(compiler, body, out);
+                let class_name = n.get_first_child(ast).unwrap();
+                let extends_clause = class_name.get_next(ast).unwrap();
+                let body = extends_clause.get_next(ast).unwrap();
+                Self::collect_candidate_functions_in(ast, is_extern_script, extends_clause, out);
+                Self::collect_candidate_functions_in(ast, is_extern_script, class_name, out);
+                Self::collect_candidate_functions_in(ast, is_extern_script, body, out);
                 true
             }
             _ => {
                 let mut has_nested = false;
-                let mut child = n.get_first_child(compiler);
+                let mut child = n.get_first_child(ast);
                 while let Some(c) = child {
-                    let next = c.get_next(compiler);
-                    has_nested |= Self::collect_candidate_functions(compiler, c, out);
+                    let next = c.get_next(ast);
+                    has_nested |=
+                        Self::collect_candidate_functions_in(ast, is_extern_script, c, out);
                     child = next;
                 }
                 has_nested
             }
         }
+    }
+
+    /// Rust-only (performance divergence): `collect_candidate_functions` of `root`, on worker
+    /// threads for a large tree. The statements of the scripts that are no externs are walked in
+    /// runs (each statement is no function's descendant, so what a walk of `root` finds in it is
+    /// what a walk of the statement alone finds, and it holds no SCRIPT) and the candidates are
+    /// concatenated in statement order: the order of a walk of `root`.
+    fn collect_candidates(compiler: &AbstractCompiler, root: NodeId) -> Vec<CollectedCandidate> {
+        let ast = &compiler.ast;
+        if *crate::parallel_parse::PARALLEL_ANALYSIS != ParallelAnalysisMode::Off
+            && root.is_root(ast)
+            // Smaller trees are walked faster than worker threads start.
+            && ast.node_count() >= 50_000
+            && crate::parallel_parse::parallel_thread_count(usize::MAX, 2, 8) > 1
+        {
+            let mut units = Vec::new();
+            let mut script = root.get_first_child(ast);
+            while let Some(s) = script {
+                if !s.is_script(ast) {
+                    units.push(s);
+                } else if !Self::is_extern_script(compiler, s) {
+                    units.extend(crate::parallel_parse::statement_units(ast, s));
+                }
+                script = s.get_next(ast);
+            }
+            let threads = crate::parallel_parse::parallel_thread_count(units.len(), 2, 8);
+            if threads > 1
+                && let Some(candidates) = crate::parallel_parse::collect_in_unit_order(
+                    "closure-fsiv",
+                    threads,
+                    &units,
+                    |unit, out| {
+                        Self::collect_candidate_functions_in(ast, &|_| false, unit, out);
+                    },
+                )
+            {
+                return candidates;
+            }
+        }
+        let mut candidates = Vec::new();
+        Self::collect_candidate_functions(compiler, root, &mut candidates);
+        candidates
     }
 
     /// Runs full flow-sensitive inlining on one function body. Returns `(did_inline,
@@ -569,6 +639,64 @@ impl PreparedFlowJob {
             .iter()
             .any(|c| reaching_uses.has_single_use(&c.var_name, c.get_def_cfg_node()))
     }
+
+    /// Rust-only (performance divergence): whether the candidate `fn_node` may inline, found from
+    /// the `Ast` alone (on a worker thread): `Some(false)` when `process` would skip the function
+    /// for its variable count or `might_inline` finds nothing, `None` when the function needs its
+    /// scopes to tell.
+    ///
+    /// For a function `FunctionVars::collect` handles, it builds the job `process` builds, with
+    /// the variables `FunctionVars` lists instead of those of its scopes: the same names, scopes,
+    /// declarations and escaped variables (`CLOSURE_RS_PARALLEL_ANALYSIS=verify` compares them),
+    /// so `might_inline` finds the same. As for the screen of a chunk in `process`, the work on
+    /// other functions before this one changes nothing that its analysis reads: its own subtree
+    /// (an inlining in an enclosing function may move the function, never change it; the
+    /// functions in it come after it).
+    fn screen(
+        ast: &Ast,
+        convention: &dyn crate::coding_convention::CodingConvention,
+        can_continue_after_errors: bool,
+        fn_node: NodeId,
+        body: NodeId,
+        analysis: InlineAnalysis,
+        is_leaf: bool,
+    ) -> Option<bool> {
+        let vars = FunctionVars::collect(ast, fn_node)?;
+        let count = vars.block_var_count() as i32;
+        if count > live_variables_analysis::MAX_VARIABLES_TO_ANALYZE + 1 {
+            return Some(false);
+        }
+        if !vars.well_below_max() {
+            return None;
+        }
+        let escaped = vars.escaped(convention);
+        let mut catch_vars = IndexSet::default();
+        let mut exported_local_names = IndexSet::default();
+        for (name, &index) in &vars.all {
+            let scope_root = vars.scope_root(index);
+            // port: AbstractScope#isCatchScope
+            if scope_root.is_block(ast)
+                && scope_root.has_one_child(ast)
+                && scope_root.get_first_child(ast)?.is_catch(ast)
+            {
+                catch_vars.insert(FunctionVars::id(index));
+            }
+            if convention.is_exported(name, /* local= */ true) {
+                exported_local_names.insert(name.clone());
+            }
+        }
+        let job = PreparedFlowJob {
+            fn_node,
+            body,
+            analysis,
+            is_leaf,
+            start_stamp: (0, 0),
+            prepared: PreparedMustDef::from_function_vars(&vars, &escaped),
+            catch_vars,
+            exported_local_names,
+        };
+        Some(job.might_inline(ast, can_continue_after_errors))
+    }
 }
 
 impl CompilerPass for FlowSensitiveInlineVariables {
@@ -593,8 +721,7 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                     assume_getters_pure,
                 );
             }
-            let mut raw_candidates = Vec::new();
-            Self::collect_candidate_functions(compiler, root, &mut raw_candidates);
+            let raw_candidates = Self::collect_candidates(compiler, root);
             if raw_candidates.is_empty() {
                 return;
             }
@@ -670,6 +797,59 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                 }
                 return;
             }
+            // Rust-only (performance divergence): the candidates `PreparedFlowJob::screen` finds
+            // nothing in need no scopes and no work, only the clean-leaf record a leaf would get
+            // (with `verify`, they get both, and the work must find nothing).
+            let mode = *crate::parallel_parse::PARALLEL_ANALYSIS;
+            let verify = mode == ParallelAnalysisMode::Verify;
+            let screened: IndexSet<NodeId> = if mode == ParallelAnalysisMode::Off {
+                IndexSet::default()
+            } else {
+                let ast = &compiler.ast;
+                let convention = compiler.get_coding_convention();
+                let threads = crate::parallel_parse::parallel_thread_count(candidates.len(), 64, 8);
+                crate::parallel_parse::run_scoped_indexed(
+                    "closure-fsiv",
+                    threads,
+                    &candidates,
+                    |_, &(fn_node, body, analysis, is_leaf, _)| {
+                        crate::parallel_parse::catch_unwind_quietly(|| {
+                            PreparedFlowJob::screen(
+                                ast,
+                                convention,
+                                can_continue_after_errors,
+                                fn_node,
+                                body,
+                                analysis,
+                                is_leaf,
+                            )
+                        })
+                        .flatten()
+                        .filter(|&may_inline| !may_inline)
+                        .map(|_| fn_node)
+                    },
+                )
+                .into_iter()
+                .flatten()
+                .map(|(_, fn_node)| fn_node)
+                .collect()
+            };
+            let candidates: Vec<_> = if verify {
+                candidates
+            } else {
+                let mut rest = Vec::with_capacity(candidates.len() - screened.len());
+                for candidate in candidates {
+                    if !screened.contains(&candidate.0) {
+                        rest.push(candidate);
+                    } else if use_cache && candidate.3 {
+                        compiler
+                            .flow_inline_clean_cache
+                            .clean_leaves
+                            .insert(candidate.0, candidate.4);
+                    }
+                }
+                rest
+            };
             const CHUNK_SIZE: usize = 4096;
             for chunk in candidates.chunks(CHUNK_SIZE) {
                 let mut jobs = Vec::with_capacity(chunk.len());
@@ -682,6 +862,32 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                         fn_node,
                     );
                     let block_scope = scope_creator.create_scope(compiler, body, Some(fn_scope));
+                    if verify && screened.contains(&fn_node) {
+                        let all_vars = NodeUtil::get_all_vars_declared_in_function(
+                            compiler,
+                            &mut scope_creator,
+                            fn_scope,
+                        );
+                        let mut escaped = IndexSet::default();
+                        crate::data_flow_analysis::compute_escaped(
+                            compiler,
+                            fn_scope,
+                            &mut escaped,
+                            &mut scope_creator,
+                            all_vars.get_all_variables(),
+                        );
+                        FunctionVars::collect(&compiler.ast, fn_node)
+                            .unwrap()
+                            .verify(
+                                compiler,
+                                &all_vars,
+                                Some((
+                                    fn_scope.get_var_count(compiler),
+                                    block_scope.get_var_count(compiler),
+                                )),
+                                &escaped,
+                            );
+                    }
                     if live_variables_analysis::MAX_VARIABLES_TO_ANALYZE
                         < block_scope.get_var_count(compiler)
                     {
@@ -735,6 +941,13 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                 let threads = crate::parallel_parse::parallel_thread_count(jobs.len(), 64, 8);
                 if threads < 2 {
                     for job in jobs {
+                        check_state!(
+                            !(verify
+                                && screened.contains(&job.fn_node)
+                                && job.might_inline(&compiler.ast, can_continue_after_errors)),
+                            "CLOSURE_RS_PARALLEL_ANALYSIS=verify: FlowSensitiveInlineVariables screened out %s",
+                            job.fn_node.to_string(&compiler.ast)
+                        );
                         let fn_scope = ensure_ancestor_scope(
                             compiler,
                             &mut scope_creator,
@@ -783,7 +996,13 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                 );
                 let mut survivors = Vec::new();
                 for (job, flag) in jobs.into_iter().zip(might_inline) {
-                    if flag.into_inner() {
+                    let flag = flag.into_inner();
+                    check_state!(
+                        !(verify && flag && screened.contains(&job.fn_node)),
+                        "CLOSURE_RS_PARALLEL_ANALYSIS=verify: FlowSensitiveInlineVariables screened out %s",
+                        job.fn_node.to_string(&compiler.ast)
+                    );
+                    if flag {
                         survivors.push((
                             job.fn_node,
                             job.body,

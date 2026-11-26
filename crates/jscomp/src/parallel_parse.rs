@@ -40,7 +40,7 @@ use closure_parsing::{config::Config, parser_runner::ParseResult, parser_runner:
 use closure_rhino::{
     fast_hash::IndexMap,
     js_string::JsString,
-    node::Ast,
+    node::{Ast, NodeId},
     static_source_file::{SourceKind, StaticSourceFile},
 };
 use std::collections::VecDeque;
@@ -57,13 +57,41 @@ const THREAD_NAME: &str = "closure-preparse";
 static PARALLEL_ENABLED: std::sync::LazyLock<bool> =
     std::sync::LazyLock::new(|| std::env::var("CLOSURE_RS_PARALLEL").as_deref() != Ok("off"));
 
+/// Rust-only (performance divergence): `CLOSURE_RS_PARALLEL_ANALYSIS` for the read-only analyses
+/// that passes run on worker threads before they do their work serially (`off`: never; `verify`:
+/// also do the work the analysis lets them skip, and check that it changes nothing).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ParallelAnalysisMode {
+    Off,
+    On,
+    Verify,
+}
+
+pub(crate) static PARALLEL_ANALYSIS: std::sync::LazyLock<ParallelAnalysisMode> =
+    std::sync::LazyLock::new(
+        || match std::env::var("CLOSURE_RS_PARALLEL_ANALYSIS").as_deref() {
+            Ok("off") => ParallelAnalysisMode::Off,
+            Ok("verify") => ParallelAnalysisMode::Verify,
+            _ => ParallelAnalysisMode::On,
+        },
+    );
+
+/// Rust-only (performance divergence): `std::thread::available_parallelism`, asked once per
+/// process (on Linux it reads the process's affinity and cgroup quota files each time, and the
+/// parallel sections ask before each pass).
+fn available_cpus() -> usize {
+    static CPUS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *CPUS
+        .get_or_init(|| std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get))
+}
+
 /// Rust-only (performance divergence): whether spawning one background helper thread is permitted
 /// by `CLOSURE_RS_PARALLEL`, CPU count, and the busy-machine guard.
 pub(crate) fn can_spawn_background_worker() -> bool {
     if !*PARALLEL_ENABLED {
         return false;
     }
-    let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    let cpus = available_cpus();
     cpus >= 2 && !machine_is_busy(cpus)
 }
 
@@ -77,7 +105,7 @@ pub(crate) fn parallel_thread_count(
     if !*PARALLEL_ENABLED || min_per_thread == 0 || work_items < min_per_thread.saturating_mul(2) {
         return 1;
     }
-    let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    let cpus = available_cpus();
     let threads = cpus.min(max_threads).min(work_items / min_per_thread);
     if threads < 2 || machine_is_busy(cpus) {
         1
@@ -143,6 +171,78 @@ pub(crate) fn run_scoped_indexed<T: Sync, R: Send>(
 /// Rust-only (performance divergence): executes `work(index, item)` across up to `threads` scoped
 /// worker threads with atomic work stealing and `COMPILER_STACK_SIZE` stacks. Falls back to inline
 /// execution when `threads < 2` or `items.len() < 2`.
+/// Rust-only (performance divergence): the statements below `root` (a ROOT, SCRIPT or
+/// MODULE_BODY) in traversal order: the children of each SCRIPT, or of its MODULE_BODY. Walking
+/// them in this order walks every node below `root` other than ROOT, SCRIPT and MODULE_BODY nodes
+/// in the order a walk of `root` would.
+pub(crate) fn statement_units(ast: &Ast, root: NodeId) -> Vec<NodeId> {
+    fn push_children(ast: &Ast, n: NodeId, out: &mut Vec<NodeId>) {
+        let mut child = n.get_first_child(ast);
+        while let Some(c) = child {
+            out.push(c);
+            child = c.get_next(ast);
+        }
+    }
+    fn script(ast: &Ast, script: NodeId, out: &mut Vec<NodeId>) {
+        match script.get_first_child(ast) {
+            Some(body) if body.is_module_body(ast) => push_children(ast, body, out),
+            _ => push_children(ast, script, out),
+        }
+    }
+    let mut units = Vec::new();
+    if root.is_root(ast) {
+        let mut child = root.get_first_child(ast);
+        while let Some(c) = child {
+            if c.is_script(ast) {
+                script(ast, c, &mut units);
+            } else {
+                units.push(c);
+            }
+            child = c.get_next(ast);
+        }
+    } else if root.is_script(ast) {
+        script(ast, root, &mut units);
+    } else if root.is_module_body(ast) {
+        push_children(ast, root, &mut units);
+    } else {
+        units.push(root);
+    }
+    units
+}
+
+/// Rust-only (performance divergence): runs `walk(unit, out)` for the `units` on up to `threads`
+/// worker threads, in runs of consecutive units, and returns what the walks pushed, in the order
+/// of the units (the order one thread walking them one after another would push it). `None` when
+/// a walk panicked: the caller then walks on the compiler thread, where the panic surfaces.
+pub(crate) fn collect_in_unit_order<R: Send>(
+    thread_name: &str,
+    threads: usize,
+    units: &[NodeId],
+    walk: impl Fn(NodeId, &mut Vec<R>) + Sync,
+) -> Option<Vec<R>> {
+    let runs: Vec<&[NodeId]> = units
+        .chunks(units.len().div_ceil((threads * 4).max(1)).max(1))
+        .collect();
+    let mut outputs: Vec<Option<Vec<R>>> = (0..runs.len()).map(|_| None).collect();
+    let batches = run_scoped_indexed(thread_name, threads, &runs, |_, run| {
+        Some(catch_unwind_quietly(|| {
+            let mut out = Vec::new();
+            for &unit in *run {
+                walk(unit, &mut out);
+            }
+            out
+        }))
+    });
+    for (idx, out) in batches.into_iter().flatten() {
+        outputs[idx] = Some(out?);
+    }
+    let mut all = Vec::new();
+    for out in outputs {
+        all.extend(out?);
+    }
+    Some(all)
+}
+
 pub(crate) fn run_scoped_for_each<T: Sync>(
     thread_name: &str,
     threads: usize,
@@ -383,7 +483,7 @@ pub(crate) fn start(compiler: &mut AbstractCompiler, inputs: &[CompilerInput]) {
     if !*PARALLEL_ENABLED {
         return;
     }
-    let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    let cpus = available_cpus();
     let threads = cpus.min(MAX_THREADS);
     // ASTs that come from a TypedAST filesystem are not parsed.
     if threads < 2
@@ -595,11 +695,30 @@ fn silence_worker_panics() {
     ONCE.call_once(|| {
         let previous = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
-            if std::thread::current().name() != Some(THREAD_NAME) {
+            if std::thread::current().name() != Some(THREAD_NAME)
+                && !QUIET_PANICS.with(std::cell::Cell::get)
+            {
                 previous(info);
             }
         }));
     });
+}
+
+thread_local! {
+    /// Whether the current thread is inside `catch_unwind_quietly`.
+    static QUIET_PANICS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Rust-only (performance divergence): runs `f` and returns `None` if it panics, without the
+/// panic hook printing anything. For read-only work on the worker threads of an intra-pass
+/// parallel section whose caller then does that work itself on the compiler thread (where the
+/// same panic surfaces as usual, at the point the Java pass would throw).
+pub(crate) fn catch_unwind_quietly<R>(f: impl FnOnce() -> R) -> Option<R> {
+    silence_worker_panics();
+    let was_quiet = QUIET_PANICS.with(|quiet| quiet.replace(true));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+    QUIET_PANICS.with(|quiet| quiet.set(was_quiet));
+    result.ok()
 }
 
 #[cfg(test)]

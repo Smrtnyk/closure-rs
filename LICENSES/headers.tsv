@@ -242,7 +242,7 @@ crates/jscomp/src/find_exportable_nodes.rs	4a5755ba9d9e9fca	Apache-2.0	closure:s
 crates/jscomp/src/find_module_dependencies.rs	f9deaa2be8056172	Apache-2.0	closure:src/com/google/javascript/jscomp/FindModuleDependencies.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
 crates/jscomp/src/flag_usage_exception.rs	3cb52024ee6d8e2b	Apache-2.0	closure:src/com/google/javascript/jscomp/FlagUsageException.java
 crates/jscomp/src/flow_scope.rs	5c15bdbf1e74c1da	Apache-2.0	closure:src/com/google/javascript/jscomp/type/FlowScope.java
-crates/jscomp/src/flow_sensitive_inline_variables.rs	aeee5839d441a47a	Apache-2.0	closure:src/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java
+crates/jscomp/src/flow_sensitive_inline_variables.rs	85631597802e3872	Apache-2.0	closure:src/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java; closure:src/com/google/javascript/jscomp/AbstractScope.java
 crates/jscomp/src/forbid_dynamic_import_usage.rs	ebdb73245c8d822a	Apache-2.0	closure:src/com/google/javascript/jscomp/ForbidDynamicImportUsage.java
 crates/jscomp/src/forbidden_change.rs	3d0f94ef61059559	Apache-2.0	closure:src/com/google/javascript/jscomp/ForbiddenChange.java
 crates/jscomp/src/function_argument_injector.rs	e97cb258815cb11d	Apache-2.0	closure:src/com/google/javascript/jscomp/FunctionArgumentInjector.java
@@ -250,6 +250,7 @@ crates/jscomp/src/function_injector.rs	1925fcb951ae3475	Apache-2.0	closure:src/c
 crates/jscomp/src/function_rewriter.rs	4d2c5feeccb651fb	Apache-2.0	closure:src/com/google/javascript/jscomp/FunctionRewriter.java
 crates/jscomp/src/function_to_block_mutator.rs	d7baf6fb36187951	Apache-2.0	closure:src/com/google/javascript/jscomp/FunctionToBlockMutator.java
 crates/jscomp/src/function_type_builder.rs	5d4124bada744a2d	Apache-2.0	closure:src/com/google/javascript/jscomp/FunctionTypeBuilder.java
+crates/jscomp/src/function_vars.rs	e65bd920fda8b2fe	Apache-2.0	closure:src/com/google/javascript/jscomp/AbstractVar.java; closure:src/com/google/javascript/jscomp/DataFlowAnalysis.java; closure:src/com/google/javascript/jscomp/SyntacticScopeCreator.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
 crates/jscomp/src/gather_extern_properties.rs	354a859319a60a5f	Apache-2.0	closure:src/com/google/javascript/jscomp/GatherExternProperties.java
 crates/jscomp/src/gather_getter_and_setter_properties.rs	001aa00598f50ffc	Apache-2.0	closure:src/com/google/javascript/jscomp/GatherGetterAndSetterProperties.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
 crates/jscomp/src/gather_module_metadata.rs	46907c1139e86ab9	Apache-2.0	closure:src/com/google/javascript/jscomp/GatherModuleMetadata.java

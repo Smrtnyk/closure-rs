@@ -257,6 +257,81 @@ impl PreparedLiveness {
         }
     }
 
+    /// Rust-only (performance divergence): `new` for a function that
+    /// `crate::function_vars::FunctionVars::collect` handles, from the `Ast` alone, with the
+    /// stand-in ids of `vars` (for `run_borrowed` on a worker thread). `escaped` is what
+    /// `compute_escaped` finds (`FunctionVars::escaped`); `js_scope_child` whether `new` gets the
+    /// function block scope as `js_scope_child`. `None` for a parameter `new` would resolve
+    /// outside the function scope.
+    pub(crate) fn from_function_vars(
+        ast: &Ast,
+        function: NodeId,
+        vars: &crate::function_vars::FunctionVars,
+        escaped: &[usize],
+        js_scope_child: bool,
+    ) -> Option<Self> {
+        use crate::function_vars::FunctionVars;
+        let all_vars_in_fn = vars.all_vars_in_fn();
+        let ordered_vars = vars.ordered_ids();
+        let escaped: IndexSet<VarId> = escaped.iter().map(|&i| FunctionVars::id(i)).collect();
+        // Two variables of a function are equal (`AbstractVar#equals`: same name, same scope
+        // root) only if they are the same variable, so `is_escaped` is a lookup by id.
+        let mut scope_variables = IndexMap::<JsString, i32>::default();
+        scope_variables.reserve(ordered_vars.len());
+        let mut ordered_escaped_bits = BitSet::new(ordered_vars.len() as i32);
+        for (num, var) in vars.ordered.iter().enumerate() {
+            scope_variables.insert(var.name.clone(), num as i32);
+            if escaped.contains(&FunctionVars::id(num)) {
+                ordered_escaped_bits.set(num as i32);
+            }
+        }
+        // `new` finds every variable of `getAllVariables` local: it is declared in its own scope,
+        // which is the function block scope, the function scope (which is the parent of
+        // `js_scope_child`), or another scope that has it as an own slot.
+        let _ = js_scope_child;
+        let mut local_var_indices = IndexMap::<JsString, i32>::default();
+        local_var_indices.reserve(all_vars_in_fn.len());
+        let mut escaped_bits = BitSet::new(ordered_vars.len() as i32);
+        for (name, &var) in &all_vars_in_fn {
+            let idx = scope_variables[name];
+            local_var_indices.insert(name.clone(), idx);
+            if escaped.contains(&var) {
+                escaped_bits.set(idx);
+            }
+        }
+        let params = NodeUtil::get_function_parameters(ast, function);
+        let mut param_vars = Vec::new();
+        let mut child = params.get_first_child(ast);
+        while let Some(param) = child {
+            child = param.get_next(ast);
+            if param.is_name(ast) {
+                // `jsScope.getVar(param)`: the function scope declares every parameter name
+                // (`FunctionVars::collect` handles no `arguments`).
+                let name = param.get_string_ref(ast);
+                let index = vars
+                    .ordered
+                    .iter()
+                    .position(|var| var.scope == 0 && var.name == *name)?;
+                let param_var = FunctionVars::id(index);
+                let idx = local_var_indices
+                    .get(name)
+                    .copied()
+                    .filter(|_| all_vars_in_fn[name] == param_var);
+                param_vars.push((param_var, idx, Some(index as i32)));
+            }
+        }
+        Some(Self {
+            escaped,
+            scope_variables,
+            ordered_vars,
+            all_vars_in_fn,
+            local_var_indices,
+            escaped_bits,
+            ordered_escaped_bits,
+            param_vars,
+        })
+    }
+
     pub(crate) fn ordered_vars(&self) -> &[VarId] {
         &self.ordered_vars
     }

@@ -237,6 +237,7 @@ mod compiler_source_excerpt_provider;
 pub mod function_argument_injector;
 pub mod function_injector;
 pub mod function_to_block_mutator;
+pub(crate) mod function_vars;
 pub mod inline_functions;
 pub mod rename_labels;
 
