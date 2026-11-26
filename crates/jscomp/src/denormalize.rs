@@ -300,6 +300,12 @@ impl Callback for Denormalize {
 }
 
 impl Behavior for Denormalize {
+    // Rust-only (performance divergence): the exit of a function body's scope moves the `var` of a
+    // variable of that scope onto its first assignment there, inside the body.
+    fn scope_exits_change_only_their_scopes(&self) -> bool {
+        true
+    }
+
     /// Implements step 3 (inlining the var keyword).
     // port: Denormalize#afterExitScope
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap) {

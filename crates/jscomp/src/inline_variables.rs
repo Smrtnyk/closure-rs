@@ -61,6 +61,173 @@ use std::sync::{Arc, LazyLock};
 static INLINE_VARS_CACHE_ENABLED: LazyLock<bool> =
     LazyLock::new(|| std::env::var("CLOSURE_RS_INLINE_VARS_CACHE").as_deref() != Ok("off"));
 
+/// `CLOSURE_RS_IV_MOTION_MEMO`: `off` disables `MotionMemo`; `verify` walks again on every hit and
+/// checks that the walk still fails.
+static MOTION_MEMO_MODE: LazyLock<Option<bool>> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_IV_MOTION_MEMO").as_deref() {
+            Ok("off") => None,
+            Ok("verify") => Some(true),
+            _ => Some(false),
+        },
+    );
+
+/// Rust-only (performance divergence): a `canMoveModerately` walk (`LocalVarMotion`) from an
+/// initialization directly in a script that did not reach its reference. The walk visits the
+/// nodes after the initialization in post-order, through the following scripts, without entering
+/// functions, and stops at the reference, at a node it may not pass (a blocker), when it runs out
+/// of nodes or after `MAX_MODERATE_MOTION_STEPS` steps. What it reads lies in the statements it
+/// passes, apart from the settings of `AstAnalyzer` (part of `InlineVarsEnvKey`), and a statement's
+/// `subtree_stamp_with_flags` covers its nodes and the side-effect flags of its calls (functions
+/// are change scopes of their own, which the walk does not enter).
+/// A walk that stopped at a blocker fails again while the initialization's statement and the
+/// blocker's statement are unchanged (so the blocker blocks a walk with the same variable and
+/// value), the blocker's statement still follows the initialization's and the reference is not in
+/// a statement between them: a walk then stops at the blocker or earlier, whatever changed between
+/// them. Other walks fail again while the same statements follow each other unchanged (and the walk
+/// still runs out of nodes after them, when it did).
+pub(crate) struct MotionMemo {
+    statement: NodeId,
+    stamp: (u32, u32),
+    kind: MotionMemoKind,
+}
+
+enum MotionMemoKind {
+    Blocked {
+        unit: NodeId,
+        stamp: (u32, u32),
+    },
+    /// The units after `statement` up to where the walk stopped, a script whose end it passed
+    /// with a zero stamp (only its links are read).
+    Exact {
+        units: Box<[(NodeId, (u32, u32))]>,
+        exhausted: bool,
+    },
+}
+
+/// How a failed `canMoveModerately` walk ended.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MotionStop {
+    Blocked,
+    Exhausted,
+    StepLimit,
+}
+
+impl MotionMemo {
+    /// The unit after `unit`: the next statement of the script, the script itself after its last
+    /// statement, and after a script the first statement of the next script (or that script when
+    /// it is empty), as `FunctionlessLocalScope` moves through them.
+    fn next_unit(ast: &Ast, unit: NodeId) -> Option<NodeId> {
+        if unit.is_script(ast) {
+            let next = unit.get_next(ast)?;
+            Some(next.get_first_child(ast).unwrap_or(next))
+        } else {
+            unit.get_next(ast).or_else(|| unit.get_parent(ast))
+        }
+    }
+
+    /// The unit containing `node`, or `None` when `node` is not in a script.
+    fn unit_of(ast: &Ast, mut node: NodeId) -> Option<NodeId> {
+        loop {
+            if node.is_script(ast) {
+                return Some(node);
+            }
+            let parent = node.get_parent(ast)?;
+            if parent.is_script(ast) {
+                return Some(node);
+            }
+            node = parent;
+        }
+    }
+
+    fn stamp_of(compiler: &AbstractCompiler, unit: NodeId) -> (u32, u32) {
+        if unit.is_script(compiler) {
+            (0, 0)
+        } else {
+            SyntacticScopeCache::cached_subtree_stamp_with_flags(compiler, unit)
+        }
+    }
+
+    fn record(
+        compiler: &mut AbstractCompiler,
+        statement: NodeId,
+        furthest: NodeId,
+        stop: MotionStop,
+    ) -> Option<Self> {
+        let last = Self::unit_of(compiler, furthest)?;
+        let stamp = SyntacticScopeCache::subtree_stamp_with_flags(compiler, statement);
+        let kind = if stop == MotionStop::Blocked && !last.is_script(compiler) {
+            MotionMemoKind::Blocked {
+                unit: last,
+                stamp: Self::stamp_of(compiler, last),
+            }
+        } else {
+            let mut units = Vec::new();
+            let mut unit = statement;
+            while unit != last {
+                unit = Self::next_unit(compiler, unit)?;
+                units.push((unit, Self::stamp_of(compiler, unit)));
+                if units.len() > MAX_MOTION_MEMO_UNITS {
+                    return None;
+                }
+            }
+            MotionMemoKind::Exact {
+                units: units.into_boxed_slice(),
+                exhausted: stop == MotionStop::Exhausted,
+            }
+        };
+        Some(Self {
+            statement,
+            stamp,
+            kind,
+        })
+    }
+
+    fn is_current(&self, compiler: &mut AbstractCompiler, reference: NodeId) -> bool {
+        if SyntacticScopeCache::subtree_stamp_with_flags(compiler, self.statement) != self.stamp {
+            return false;
+        }
+        match &self.kind {
+            MotionMemoKind::Blocked { unit, stamp } => {
+                if Self::stamp_of(compiler, *unit) != *stamp {
+                    return false;
+                }
+                let reference_unit = Self::unit_of(compiler, reference);
+                let mut current = self.statement;
+                for _ in 0..MAX_MOTION_MEMO_UNITS {
+                    if current == *unit {
+                        return true;
+                    }
+                    if current != self.statement && Some(current) == reference_unit {
+                        return false;
+                    }
+                    let Some(next) = Self::next_unit(compiler, current) else {
+                        return false;
+                    };
+                    current = next;
+                }
+                false
+            }
+            MotionMemoKind::Exact { units, exhausted } => {
+                let mut current = self.statement;
+                for &(expected, stamp) in units.iter() {
+                    if Self::next_unit(compiler, current) != Some(expected)
+                        || Self::stamp_of(compiler, expected) != stamp
+                    {
+                        return false;
+                    }
+                    current = expected;
+                }
+                !*exhausted || Self::next_unit(compiler, current).is_none()
+            }
+        }
+    }
+}
+
+/// The most statement-level units a `MotionMemo` keeps or looks through (a walk takes at most
+/// `MAX_MODERATE_MOTION_STEPS` steps, each unit at least one).
+const MAX_MOTION_MEMO_UNITS: usize = 6000;
+
 /// Rust-only (performance divergence): environment signature invalidating `InlineVarsCleanCache`
 /// whenever mode, purity, accessor summary, or normalization state changes. Per-function edits to
 /// `JSDOC_INFO`, `SIDE_EFFECT_FLAGS`, `IS_CONSTANT_NAME`, or `CONSTANT_VAR_FLAGS` are tracked per
@@ -115,6 +282,9 @@ pub(crate) struct InlineVarsCleanCache {
     /// including `let`/`const` blocks and `try`/`catch`) known to perform no inlining in
     /// `Mode::LOCALS_ONLY`.
     pub(crate) clean_locals_only_global_fns: IndexMap<NodeId, DeepFunctionStamp>,
+    /// Rust-only (performance divergence): failed `canMoveModerately` walks by initialization
+    /// and reference NAME nodes (`MotionMemo`).
+    pub(crate) motion_memos: IndexMap<(NodeId, NodeId), MotionMemo>,
 }
 
 impl InlineVarsCleanCache {
@@ -122,6 +292,7 @@ impl InlineVarsCleanCache {
         if !self.env.as_ref().is_some_and(|prev| prev.matches(&key)) {
             self.clean_leaves.clear();
             self.clean_locals_only_global_fns.clear();
+            self.motion_memos.clear();
         }
         self.env = Some(key);
     }
@@ -189,6 +360,7 @@ impl CompilerPass for InlineVariables {
                 .inline_vars_clean_cache
                 .clean_locals_only_global_fns
                 .clear();
+            compiler.inline_vars_clean_cache.motion_memos.clear();
         }
         let mut scope_creator = SyntacticScopeCreator::new();
         let mut callback = ReferenceCollector::new_with_filter(
@@ -378,6 +550,12 @@ struct InliningBehavior {
 
 impl Behavior for InliningBehavior {
     fn can_reuse_function_reference_sites(&self) -> bool {
+        true
+    }
+
+    // Inlining a variable at the exit of its scope replaces its references and removes its
+    // declaration, all in the scope's subtree; so do the retried aliases, which reference it.
+    fn scope_exits_change_only_their_scopes(&self) -> bool {
         true
     }
 
@@ -1231,6 +1409,66 @@ impl InliningBehavior {
     ) -> bool {
         // Check if declaration can be inlined without passing
         // any side-effect causing nodes.
+        // Rust-only (performance divergence): see `MotionMemo`.
+        let memo = (*MOTION_MEMO_MODE).and_then(|verify| {
+            if !*INLINE_VARS_CACHE_ENABLED {
+                return None;
+            }
+            let parent = initialization.get_parent(compiler);
+            let statement = if parent.is_assign(compiler) {
+                initialization.get_grandparent(compiler)?
+            } else {
+                parent
+            };
+            statement
+                .get_parent(compiler)?
+                .is_script(compiler)
+                .then_some((statement, verify))
+        });
+        let key = (initialization.get_node(), reference.get_node());
+        let mut current = false;
+        if let Some((_, verify)) = memo
+            && let Some(kept) = compiler
+                .inline_vars_clean_cache
+                .motion_memos
+                .swap_remove(&key)
+        {
+            current = kept.is_current(compiler, reference.get_node());
+            if current {
+                compiler
+                    .inline_vars_clean_cache
+                    .motion_memos
+                    .insert(key, kept);
+                if !verify {
+                    return false;
+                }
+            }
+        }
+        let (moved, furthest, stop) = Self::walk_moderately(compiler, initialization, reference);
+        assert!(
+            !(current && moved),
+            "InlineVariables: a kept failed motion walk succeeds"
+        );
+        if !moved
+            && !current
+            && let Some((statement, _)) = memo
+            && let Some(kept) = MotionMemo::record(compiler, statement, furthest, stop)
+        {
+            compiler
+                .inline_vars_clean_cache
+                .motion_memos
+                .insert(key, kept);
+        }
+        moved
+    }
+
+    /// The walk of `can_move_moderately`: whether it reached the reference, the furthest node it
+    /// read and how it ended.
+    fn walk_moderately(
+        compiler: &mut AbstractCompiler,
+        initialization: &Reference,
+        reference: &Reference,
+    ) -> (bool, NodeId, MotionStop) {
         let mut it =
             if NodeUtil::is_name_declaration(compiler, Some(initialization.get_parent(compiler))) {
                 let name = initialization.get_node(); // NAME
@@ -1260,15 +1498,19 @@ impl InliningBehavior {
         while it.has_next() {
             let cur_node = it.next(compiler);
             if cur_node == Some(target_name) {
-                return true;
+                return (true, target_name, MotionStop::Blocked);
             }
             steps += 1;
             if steps > Self::MAX_MODERATE_MOTION_STEPS {
-                return false;
+                return (false, it.furthest_node(), MotionStop::StepLimit);
             }
         }
-
-        false
+        let stop = if it.traversal_exhausted(compiler) {
+            MotionStop::Exhausted
+        } else {
+            MotionStop::Blocked
+        };
+        (false, it.furthest_node(), stop)
     }
 
     /// Returns true if the reference is a normal VAR or FUNCTION declaration.

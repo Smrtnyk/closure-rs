@@ -115,12 +115,19 @@ impl PeepholeReplaceKnownMethods {
                         .unwrap()
                         .is_qualified_name(compiler)
                 {
-                    let qualified_name = call_target
-                        .get_first_child(compiler)
-                        .unwrap()
-                        .get_qualified_name(compiler)
-                        .unwrap();
-                    match qualified_name.to_string_lossy().as_str() {
+                    // Rust-only (performance divergence): only a NAME has one of these qualified
+                    // names, which is its string; it is compared in place instead of building the
+                    // qualified name (a lone surrogate matches none of them either way).
+                    let receiver = call_target.get_first_child(compiler).unwrap();
+                    let qualified_name = if receiver.is_name(compiler) {
+                        let name = receiver.get_string_ref(compiler);
+                        ["Array", "Math", "Number"]
+                            .into_iter()
+                            .find(|&known| name == known)
+                    } else {
+                        None
+                    };
+                    match qualified_name.unwrap_or_default() {
                         "Array" => {
                             return self.try_fold_known_array_methods(
                                 compiler,
@@ -452,14 +459,21 @@ impl PeepholeReplaceKnownMethods {
 
         let is_string_literal = string_node.is_string_lit(compiler);
         let function_name_string = call_target.get_string(compiler);
-        let function_name = function_name_string.to_string_lossy();
+        // Rust-only (performance divergence): the name is converted only for a call that can be
+        // folded (Java has the String already).
+        let function_name_cell = std::cell::OnceCell::new();
+        let function_name = || {
+            function_name_cell
+                .get_or_init(|| function_name_string.to_string_lossy())
+                .as_str()
+        };
         let first_arg = call_target.get_next(compiler);
         if is_string_literal {
-            if function_name == "split" {
+            if function_name() == "split" {
                 return self.try_fold_string_split(compiler, subtree, string_node, first_arg);
             } else if let Some(first_arg) = first_arg {
                 if NodeUtil::is_immutable_value(compiler, first_arg) {
-                    match function_name.as_str() {
+                    match function_name() {
                         "indexOf" | "lastIndexOf" => {
                             return self.try_fold_string_index_of(
                                 compiler,
@@ -553,7 +567,7 @@ impl PeepholeReplaceKnownMethods {
                     }
                 }
             } else {
-                match function_name.as_str() {
+                match function_name() {
                     "toLowerCase" => {
                         return self.try_fold_string_to_lower_case(compiler, subtree, string_node);
                     }
@@ -565,7 +579,7 @@ impl PeepholeReplaceKnownMethods {
                             compiler,
                             subtree,
                             string_node,
-                            &function_name,
+                            function_name(),
                         );
                     }
                     "at" => {
@@ -590,7 +604,7 @@ impl PeepholeReplaceKnownMethods {
                 let maybe_length_or_end =
                     self.get_side_effect_free_number_value(compiler, second_arg);
                 if let Some(maybe_length_or_end) = maybe_length_or_end {
-                    match function_name.as_str() {
+                    match function_name() {
                         "substr" => {
                             let length = maybe_length_or_end as i32;
                             if start >= 0 && length == 1 {

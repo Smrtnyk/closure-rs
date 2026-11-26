@@ -38,6 +38,11 @@ impl Behavior for InferConstsBehavior {
         true
     }
 
+    // The scope exits do nothing.
+    fn scope_exits_change_only_their_scopes(&self) -> bool {
+        true
+    }
+
     fn after_exit_scope(&mut self, _t: &mut NodeTraversal<'_>, _reference_map: &dyn ReferenceMap) {}
 }
 

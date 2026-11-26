@@ -520,11 +520,17 @@ struct ScopeExitBehavior {
     reuse_sites: bool,
     // On exit from this scope, change a name still to be visited in the calling function.
     change: Option<(NodeId, NodeId)>,
+    // Whether the behavior declares that its scope exits change only their own scopes.
+    scoped_exits: bool,
 }
 
 impl Behavior for ScopeExitBehavior {
     fn can_reuse_function_reference_sites(&self) -> bool {
         self.reuse_sites
+    }
+
+    fn scope_exits_change_only_their_scopes(&self) -> bool {
+        self.scoped_exits
     }
 
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, _: &dyn ReferenceMap) {
@@ -542,6 +548,16 @@ fn binding_sites(
     reuse_sites: bool,
     change: Option<(NodeId, NodeId)>,
 ) -> Vec<BindingSites> {
+    binding_sites_with(compiler, script, reuse_sites, change, false)
+}
+
+fn binding_sites_with(
+    compiler: &mut Compiler,
+    script: NodeId,
+    reuse_sites: bool,
+    change: Option<(NodeId, NodeId)>,
+    scoped_exits: bool,
+) -> Vec<BindingSites> {
     compiler.before_pass("referenceSitesTest");
     let mut creator = SyntacticScopeCreator::new();
     let mut collector = ReferenceCollector::new(
@@ -549,6 +565,7 @@ fn binding_sites(
         ScopeExitBehavior {
             reuse_sites,
             change,
+            scoped_exits,
         },
         &mut creator,
     );
@@ -630,6 +647,29 @@ fn ordered_sites_rebind_captures_and_invalidate_unreported_edits() {
         edited
             .iter()
             .all(|v| v.references.iter().all(|r| r.node != changed))
+    );
+}
+
+#[test]
+fn cached_body_jumps_to_a_new_forward_hoist_where_the_traversal_jumps() {
+    let mut c = Compiler::new();
+    let script = c.parse_test_code(
+        "var early, later; function target() { return early; } \
+         function caller() { if (early) { later = target() + early; } return later + target(); }",
+    );
+    let target = script.get_second_child(&c).unwrap();
+    let warm = binding_sites_with(&mut c, script, true, None, true);
+    assert_eq!(warm, binding_sites_with(&mut c, script, false, None, true));
+
+    // The cached caller is unchanged. Its target has moved after it, so the replay of the
+    // caller's body jumps to it at its first reference, inside a nested block, where the
+    // traversal jumps; the references keep their order and basic blocks.
+    target.detach(&mut c);
+    script.add_child_to_back(&mut c, target);
+    let replay = binding_sites_with(&mut c, script, true, None, true);
+    assert_eq!(
+        replay,
+        binding_sites_with(&mut c, script, false, None, true)
     );
 }
 

@@ -106,6 +106,13 @@ const NO_LEAF: u32 = u32::MAX;
 struct LeafFunctionSummary {
     stamp: (u32, u32),
     parent: Option<NodeId>,
+    /// Whether the function has a name and its value is used where it stands
+    /// (`NodeUtil::is_expression_result_used`), which depends on its ancestors.
+    name_value_used: bool,
+    /// Whether the function's name is its first outer var (`outer_vars[0]`) and the traversal
+    /// marked that var as having a non-local value (`setHasNonLocalOrNonLiteralValue`), as it
+    /// does for a function declaration directly in a script.
+    name_non_local: bool,
     flags: u16,
     polyfill_mask: u128,
     required_used_polyfills: u128,
@@ -174,6 +181,8 @@ impl RemoveUnusedCodeCache {
 struct LeafRecorder {
     function: NodeId,
     parent: Option<NodeId>,
+    name_value_used: bool,
+    name_non_local: bool,
     start_stamp: (u32, u32),
     fparam_depth: i32,
     polyfill_mask: u128,
@@ -805,6 +814,43 @@ impl RemoveUnusedCode {
             | (u16::from(self.disambiguate_properties) << 8)
     }
 
+    /// Whether `function` has a name and its value is used where it stands (the condition under
+    /// which `traverseFunction` marks the name's var as having a non-local value).
+    fn function_name_value_used(compiler: &AbstractCompiler, function: NodeId) -> bool {
+        !function
+            .get_first_child(compiler)
+            .unwrap()
+            .get_string_ref(compiler)
+            .is_empty()
+            && NodeUtil::is_expression_result_used(compiler, function)
+    }
+
+    /// Rust-only (performance divergence): `setHasNonLocalOrNonLiteralValue` on the var of the name
+    /// of the function whose recording is active, when that var lies outside the function (a
+    /// function declaration directly in a script, whose result counts as used) and is its first
+    /// outer var. Instead of ending the recording, the summary notes it and a hit replays it right
+    /// after that var (`traverse_function`). Returns whether it applied the flag.
+    fn record_function_name_non_local(&mut self, var_info: VarInfoId, name_node: NodeId) -> bool {
+        if self.active_leaf == NO_LEAF {
+            return false;
+        }
+        let rec = &mut self.leaf_recorders[self.active_leaf as usize];
+        let VarInfo::Real(real) = &mut self.var_infos[var_info.0] else {
+            return false;
+        };
+        if rec.aborted
+            || real.scope_depth >= rec.fparam_depth
+            || rec.outer_vars.len() != 1
+            || rec.outer_vars[0].0 != real.var_id
+            || rec.outer_vars[0].1 != name_node
+        {
+            return false;
+        }
+        rec.name_non_local = true;
+        real.has_non_local_or_non_literal_value = true;
+        true
+    }
+
     #[inline]
     fn abort_active_leaf(&mut self) {
         if self.active_leaf != NO_LEAF {
@@ -865,9 +911,7 @@ impl RemoveUnusedCode {
             let all_locals_stable = rec.local_var_infos.iter().all(|&vi| {
                 !self.var_info_is_removable(vi) || self.is_benign_unused_param(compiler, vi)
             }) && (!self.remove_globals
-                || NodeUtil::get_function_parameters(compiler, rec.function)
-                    .children(compiler)
-                    .all(|p| p.is_name(compiler) || p.is_unused_parameter(compiler)));
+                || !Self::trailing_parameter_is_empty_pattern(compiler, rec.function));
             if !all_locals_stable {
                 continue;
             }
@@ -898,6 +942,8 @@ impl RemoveUnusedCode {
             let summary = LeafFunctionSummary {
                 stamp: rec.start_stamp,
                 parent: rec.parent,
+                name_value_used: rec.name_value_used,
+                name_non_local: rec.name_non_local,
                 flags,
                 polyfill_mask: rec.polyfill_mask,
                 required_used_polyfills: rec.required_used_polyfills,
@@ -915,6 +961,27 @@ impl RemoveUnusedCode {
                 .summaries
                 .insert(rec.function, Arc::new(summary));
         }
+    }
+
+    /// Rust-only (performance divergence): whether `removeUnreferencedFunctionArgs` could delete
+    /// the last parameter of `function` whatever its vars: an empty destructuring pattern (under a
+    /// default value or rest). A hit on a summary skips `removeUnreferencedFunctionArgs`, which
+    /// changes nothing for a function whose parameter vars are not removable (or are marked
+    /// unused and followed by another parameter): it stops at the last parameter (a default
+    /// value with side effects, a pattern with children or a var it may not remove), and marks
+    /// no parameter. Getting the var of a parameter there has no effect on the pass any more.
+    fn trailing_parameter_is_empty_pattern(ast: &Ast, function: NodeId) -> bool {
+        let Some(mut param) = NodeUtil::get_function_parameters(ast, function).get_last_child(ast)
+        else {
+            return false;
+        };
+        if param.is_default_value(ast) {
+            param = param.get_first_child(ast).unwrap();
+        }
+        if param.is_rest(ast) {
+            param = param.get_first_child(ast).unwrap();
+        }
+        param.is_destructuring_pattern(ast) && !param.has_children(ast)
     }
 
     fn collect_guarded_usages(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
@@ -2644,6 +2711,7 @@ impl RemoveUnusedCode {
             && (self.current_polyfill_mask & !summary.polyfill_mask) == 0
             && (self.removable_polyfill_mask & summary.required_used_polyfills) == 0
             && summary.parent == function.get_parent(compiler)
+            && summary.name_value_used == Self::function_name_value_used(compiler, function)
             && summary.stamp == SyntacticScopeCache::subtree_stamp_with_flags(compiler, function)
             && summary
                 .nested_stamps
@@ -2678,7 +2746,7 @@ impl RemoveUnusedCode {
                     }
                 }
             }
-            for &(name_node, mark_not_removable) in &summary.outer_vars {
+            for (index, &(name_node, mark_not_removable)) in summary.outer_vars.iter().enumerate() {
                 let var = self.get_var_for_name_node(compiler, name_node, parent_scope);
                 let var_info = self.traverse_var(compiler, var);
                 if self.active_leaf != NO_LEAF {
@@ -2697,6 +2765,12 @@ impl RemoveUnusedCode {
                     self.var_info_set_is_explicitly_not_removable(compiler, var_info, |_| {
                         String::new()
                     });
+                }
+                if index == 0 && summary.name_non_local {
+                    // The flag is only ever set and is read when a removable is added to the var,
+                    // which no event inside the function does (that would end the recording), so
+                    // setting it after the var was marked not removable gives the same state.
+                    self.var_info_set_has_non_local_or_non_literal_value(var_info);
                 }
             }
             if self.active_leaf != NO_LEAF {
@@ -2733,6 +2807,8 @@ impl RemoveUnusedCode {
             self.leaf_recorders.push(LeafRecorder {
                 function,
                 parent: function.get_parent(compiler),
+                name_value_used: Self::function_name_value_used(compiler, function),
+                name_non_local: false,
                 start_stamp,
                 fparam_depth: fparam_scope.get_depth(compiler),
                 polyfill_mask: self.current_polyfill_mask,
@@ -2757,7 +2833,9 @@ impl RemoveUnusedCode {
             if NodeUtil::is_expression_result_used(compiler, function) {
                 // var f = function g() {};
                 // The f is an alias for g, so g escapes from the scope where it is defined.
-                self.var_info_set_has_non_local_or_non_literal_value(var_info);
+                if !self.record_function_name_non_local(var_info, name_node) {
+                    self.var_info_set_has_non_local_or_non_literal_value(var_info);
+                }
             }
         }
 

@@ -186,7 +186,7 @@ impl ScopeContext {
 struct Entry {
     /// The `scan_round` when the scope was scanned.
     scanned_at: u32,
-    /// The pass (`Compiler::current_pass_index`) that last received the scope.
+    /// The pass, or round of a pass (`Compiler::scope_handout_round`), that last received the scope.
     handed_out_in: i32,
     /// `cache.round.wrapping_add(1)` when `script` and `change_root` were last verified; 0 = none.
     context_tag: u32,
@@ -260,6 +260,13 @@ impl SyntacticScopeCache {
     /// since the last call with a new round number. Every change to the tree goes through the
     /// AST, so unlike the compiler's change reports this misses none.
     fn record_changes(compiler: &mut AbstractCompiler) {
+        // Rust-only (performance divergence): most calls find nothing new to record.
+        if compiler
+            .ast
+            .no_changes_since(&compiler.syntactic_scope_cache.cursor)
+        {
+            return;
+        }
         let mut changed = std::mem::take(&mut compiler.syntactic_scope_cache.changed);
         let mut changed_flags = std::mem::take(&mut compiler.syntactic_scope_cache.changed_flags);
         let continuous = compiler
@@ -498,7 +505,7 @@ impl SyntacticScopeCache {
         let slot = *cache.by_root.get(root.arena_index())?;
         let scope = ScopeId(NonZeroU32::new(slot)?);
         let entry = cache.entries[scope.index()];
-        if entry.handed_out_in == compiler.current_pass_index()
+        if entry.handed_out_in == compiler.scope_handout_round()
             || entry.script != context.script
             || entry.change_root != context.change_root
             || entry.kind != context.kind
@@ -528,7 +535,7 @@ impl SyntacticScopeCache {
             }
             scope.set_parent(compiler, parent);
         }
-        let pass_index = compiler.current_pass_index();
+        let pass_index = compiler.scope_handout_round();
         let current_tag = compiler.syntactic_scope_cache.round.wrapping_add(1);
         let entry = &mut compiler.syntactic_scope_cache.entries[scope.index()];
         entry.handed_out_in = pass_index;
@@ -547,7 +554,7 @@ impl SyntacticScopeCache {
         let context_tag = compiler.syntactic_scope_cache.round.wrapping_add(1);
         let entry = Entry {
             scanned_at,
-            handed_out_in: compiler.current_pass_index(),
+            handed_out_in: compiler.scope_handout_round(),
             context_tag,
             script: context.script,
             change_root: context.change_root,

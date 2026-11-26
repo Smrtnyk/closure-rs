@@ -203,6 +203,9 @@ pub struct Compiler {
     pub(crate) phase_optimizer:
         Option<Arc<std::sync::Mutex<crate::phase_optimizer::ScopeChangeState>>>,
     current_pass_index: i32,
+    /// Rust-only: the number of the running traversal that receives syntactic scopes from
+    /// `SyntacticScopeCache`; it advances with every pass and with `start_scope_handout_round`.
+    scope_handout_round: i32,
     last_pass_name: Option<String>,
     error_manager: Option<Arc<std::sync::Mutex<ThreadSafeDelegatingErrorManager>>>,
     /// Rust-only (performance divergence): the error manager's "no halting errors since last asked"
@@ -338,6 +341,7 @@ impl Compiler {
             stage: crate::abstract_compiler::LifeCycleStage::RAW,
             phase_optimizer: None,
             current_pass_index: -1,
+            scope_handout_round: -1,
             last_pass_name: None,
             error_manager: None,
             no_halting_errors: None,
@@ -869,10 +873,16 @@ impl Compiler {
     // port: Compiler#beforePass
     pub fn before_pass(&mut self, _pass_name: &str) {
         self.current_pass_index = self.current_pass_index.wrapping_add(1);
+        self.scope_handout_round = self.scope_handout_round.wrapping_add(1);
     }
-    /// Rust-only: the number of the running pass (see `SyntacticScopeCache`).
-    pub(crate) fn current_pass_index(&self) -> i32 {
-        self.current_pass_index
+    /// Rust-only: see `scope_handout_round`; `SyntacticScopeCache` hands a scope out once per round.
+    pub(crate) fn scope_handout_round(&self) -> i32 {
+        self.scope_handout_round
+    }
+    /// Rust-only (performance divergence): a pass that traversed with scopes it did not change
+    /// (a dry run) and traverses again may receive the same kept scopes again.
+    pub(crate) fn start_scope_handout_round(&mut self) {
+        self.scope_handout_round = self.scope_handout_round.wrapping_add(1);
     }
     // port: Compiler#afterPass
     pub fn after_pass(&mut self, pass_name: &str) {

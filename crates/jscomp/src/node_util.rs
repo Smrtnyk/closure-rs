@@ -100,11 +100,18 @@ impl NodeUtil {
             Token::NUMBER => Tri::for_boolean(n.get_double(ast) != 0.0),
             Token::BIGINT => Tri::for_boolean(*n.get_big_int(ast) != BigInt::from(0)),
             Token::NOT => Self::get_boolean_value(ast, n.get_last_child(ast).unwrap()).not(),
-            Token::NAME => match n.get_string(ast).to_string_lossy().as_str() {
-                "undefined" | "NaN" => Tri::FALSE,
-                "Infinity" => Tri::TRUE,
-                _ => Tri::UNKNOWN,
-            },
+            // Rust-only (performance divergence): the name is compared in place (Java switches on
+            // the String); a name with a lone surrogate equals none of these either way.
+            Token::NAME => {
+                let name = n.get_string_ref(ast);
+                if name == "undefined" || name == "NaN" {
+                    Tri::FALSE
+                } else if name == "Infinity" {
+                    Tri::TRUE
+                } else {
+                    Tri::UNKNOWN
+                }
+            }
             Token::BITNOT | Token::POS | Token::NEG => {
                 if let Some(double_val) = Self::get_number_value(ast, n) {
                     let is_falsey =
@@ -250,18 +257,24 @@ impl NodeUtil {
                     None
                 }
             }
-            Token::NAME => match n.get_string(ast).to_string_lossy().as_str() {
-                "undefined" => {
+            // Rust-only (performance divergence): the name is compared in place (see
+            // `get_boolean_value`).
+            Token::NAME => {
+                let name = n.get_string_ref(ast);
+                if name == "undefined" {
                     if number_conversions {
                         Some(f64::NAN)
                     } else {
                         None
                     }
+                } else if name == "NaN" {
+                    Some(f64::NAN)
+                } else if name == "Infinity" {
+                    Some(f64::INFINITY)
+                } else {
+                    None
                 }
-                "NaN" => Some(f64::NAN),
-                "Infinity" => Some(f64::INFINITY),
-                _ => None,
-            },
+            }
             // unary plus triggers numeric conversions only when numberConversions is true
             Token::POS => Self::do_get_number_value(ast, n.get_only_child(ast), number_conversions),
             Token::NEG => Self::do_get_number_value(ast, n.get_only_child(ast), number_conversions)

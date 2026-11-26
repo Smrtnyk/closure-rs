@@ -45,6 +45,25 @@ use std::sync::{Arc, LazyLock};
 static INLINE_OBJ_CACHE_ENABLED: LazyLock<bool> =
     LazyLock::new(|| std::env::var("CLOSURE_RS_INLINE_VARS_CACHE").as_deref() != Ok("off"));
 
+/// `CLOSURE_RS_IOL_DRY_RUN`: `off` disables the dry run of `InlineObjectLiterals` (see
+/// `process`); `verify` runs the pass in full after every dry run too and checks that it splits
+/// nothing when the dry run found nothing to split.
+static DRY_RUN_MODE: LazyLock<DryRunMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_IOL_DRY_RUN").as_deref() {
+            Ok("off") => DryRunMode::Off,
+            Ok("verify") => DryRunMode::Verify,
+            _ => DryRunMode::On,
+        },
+    );
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DryRunMode {
+    Off,
+    On,
+    Verify,
+}
+
 /// Rust-only (performance divergence): cross-round cache of unchanged top-level functions known
 /// to perform no object-literal splitting in `InlineObjectLiterals`.
 #[derive(Default)]
@@ -80,6 +99,11 @@ impl InlineObjectLiterals {
 struct CandidateNames {
     assigned_objects: IndexSet<JsString>,
     to_resolve: IndexSet<JsString>,
+    /// Rust-only (performance divergence): the spellings a dry run resolves (see
+    /// `InlineObjectLiterals::process`): `assigned_objects` and the names of the hoisted functions
+    /// not declared directly in a script. A dry run does not jump to a hoisted global function, so
+    /// it need not resolve their names.
+    dry_run_names: IndexSet<JsString>,
     /// Rust-only (performance divergence): all `FUNCTION` nodes that contain (directly or in a
     /// nested function) at least one candidate `OBJECTLIT` assignment. A `FUNCTION` absent from
     /// this set cannot declare any inlinable object variable.
@@ -161,13 +185,17 @@ impl CandidateNames {
                             if name.string_payload(ast).is_some_and(JsString::is_empty) {
                                 continue;
                             }
-                            if name
-                                .string_payload(ast)
-                                .is_some_and(|s| names.to_resolve.contains(s))
-                            {
+                            let in_script = node.get_parent(ast).is_some_and(|p| p.is_script(ast));
+                            if name.string_payload(ast).is_some_and(|s| {
+                                names.to_resolve.contains(s)
+                                    && (in_script || names.dry_run_names.contains(s))
+                            }) {
                                 continue;
                             }
                             if Self::is_in_scanned_tree(ast, node, scope_root, excluded) {
+                                if !in_script {
+                                    names.dry_run_names.insert(name.get_string(ast));
+                                }
                                 names.to_resolve.insert(name.get_string(ast));
                             }
                         }
@@ -179,6 +207,9 @@ impl CandidateNames {
         );
         names
             .to_resolve
+            .extend(names.assigned_objects.iter().cloned());
+        names
+            .dry_run_names
             .extend(names.assigned_objects.iter().cloned());
         Some(names)
     }
@@ -271,21 +302,67 @@ impl CompilerPass for InlineObjectLiterals {
                 .clean_fns
                 .clear();
         }
-        let behavior = InliningBehavior {
-            candidates,
-            use_cache,
-            referenced_scopes: IndexSet::default(),
-            safe_name_id_supplier: self.safe_name_id_supplier.clone(),
-            stale_vars: IndexSet::<_>::default(),
-            last_scope_enclosing_fn: None,
-            global_fn_stack: Vec::new(),
-        };
+        let mut candidates = candidates;
+        // Rust-only (performance divergence): the pass splits only local variables, and whether
+        // it splits one depends on the references inside the function that declares it, so as
+        // long as it splits nothing, the order in which it looks at functions does not matter.
+        // A dry run that changes nothing looks at every function that is not cached clean
+        // (`InlineObjectLiteralsCleanCache`), whatever it references, and when it finds nothing
+        // to split, neither would the pass: the pass would find the first split in some function,
+        // with the tree unchanged up to then, and the dry run looks at that function the same way
+        // or knows it clean. Only when the dry run finds something to split does the pass run
+        // (in Java's order, which decides the generated names).
+        let dry_run_mode = *DRY_RUN_MODE;
+        let mut dry_run_found_split = true;
+        if use_cache && dry_run_mode != DryRunMode::Off {
+            let behavior = self.behavior(candidates, use_cache, true);
+            let mut scope_creator = SyntacticScopeCreator::new();
+            let mut callback = ReferenceCollector::new(compiler, behavior, &mut scope_creator);
+            callback.reuse_reference_sites();
+            callback.skip_externs_when_unread();
+            callback.order_free_global_functions();
+            CompilerPass::process(&mut callback, compiler, externs, root);
+            let behavior = callback.into_behavior();
+            dry_run_found_split = behavior.found_split;
+            if !dry_run_found_split && dry_run_mode == DryRunMode::On {
+                return;
+            }
+            candidates = behavior.candidates;
+            // The dry run changed no scope it received.
+            compiler.start_scope_handout_round();
+        }
+        let behavior = self.behavior(candidates, use_cache, false);
         let mut scope_creator = SyntacticScopeCreator::new();
         let mut callback = ReferenceCollector::new(compiler, behavior, &mut scope_creator);
         // Rust-only (performance divergence): vars declared in the externs are never inlined.
         callback.reuse_reference_sites();
         callback.skip_externs_when_unread();
         CompilerPass::process(&mut callback, compiler, externs, root);
+        assert!(
+            dry_run_found_split || !callback.into_behavior().found_split,
+            "InlineObjectLiterals split an object after a dry run found nothing to split"
+        );
+    }
+}
+
+impl InlineObjectLiterals {
+    fn behavior(
+        &self,
+        candidates: Option<CandidateNames>,
+        use_cache: bool,
+        dry_run: bool,
+    ) -> InliningBehavior {
+        InliningBehavior {
+            candidates,
+            use_cache,
+            dry_run,
+            found_split: false,
+            referenced_scopes: IndexSet::default(),
+            safe_name_id_supplier: self.safe_name_id_supplier.clone(),
+            stale_vars: IndexSet::<_>::default(),
+            last_scope_enclosing_fn: None,
+            global_fn_stack: Vec::new(),
+        }
     }
 }
 
@@ -295,6 +372,11 @@ impl CompilerPass for InlineObjectLiterals {
 struct InliningBehavior {
     candidates: Option<CandidateNames>,
     use_cache: bool,
+    /// Rust-only (performance divergence): look for an object to split without splitting it
+    /// (see `InlineObjectLiterals::process`).
+    dry_run: bool,
+    /// Whether an object was split (or, in a dry run, found splittable).
+    found_split: bool,
     referenced_scopes: IndexSet<NodeId>,
     // Java: the outer class's safeNameIdSupplier, read by this inner class.
     safe_name_id_supplier: Arc<dyn Fn() -> String + Send + Sync>,
@@ -315,6 +397,12 @@ impl Behavior for InliningBehavior {
         true
     }
 
+    // Splitting an object rewrites the references and declaration of a variable of the scope,
+    // all in the scope's subtree.
+    fn scope_exits_change_only_their_scopes(&self) -> bool {
+        true
+    }
+
     fn can_skip_function_with_no_needed_names(&self, _ast: &Ast, fn_node: NodeId) -> bool {
         self.candidates
             .as_ref()
@@ -330,6 +418,7 @@ impl Behavior for InliningBehavior {
             .candidates
             .as_ref()
             .is_some_and(|names| !names.candidate_fns.contains(&fn_node))
+            || (self.dry_run && self.found_split)
         {
             return true;
         }
@@ -373,9 +462,14 @@ impl Behavior for InliningBehavior {
 
     fn needs_name(&self, ast: &Ast, node: NodeId) -> bool {
         let name = node.get_string_ref(ast);
-        self.candidates
-            .as_ref()
-            .is_none_or(|names| names.to_resolve.contains(name) || CandidateNames::generated(name))
+        self.candidates.as_ref().is_none_or(|names| {
+            let resolved = if self.dry_run {
+                &names.dry_run_names
+            } else {
+                &names.to_resolve
+            };
+            resolved.contains(name) || CandidateNames::generated(name)
+        })
     }
 
     fn needs_variable(&mut self, compiler: &AbstractCompiler, var: VarId) -> bool {
@@ -436,6 +530,11 @@ impl Behavior for InliningBehavior {
                 };
 
                 if self.is_inlinable_object(compiler, &reference_info.references) {
+                    self.found_split = true;
+                    did_split_here = true;
+                    if self.dry_run {
+                        break;
+                    }
                     // Skiplist the object itself, as well as any other values
                     // that it refers to, since they will have been moved around.
                     Self::add_stale_var(&mut self.stale_vars, compiler, Some(v));
@@ -445,7 +544,6 @@ impl Behavior for InliningBehavior {
                     // Split up the object into individual variables if the object
                     // is never referenced directly in full.
                     self.split_object(compiler, v, init, reference_info);
-                    did_split_here = true;
                 }
             }
         }

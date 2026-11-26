@@ -748,6 +748,11 @@ impl<'a> ReferenceCheckingBehavior<'a> {
 }
 
 impl Behavior for ReferenceCheckingBehavior<'_> {
+    // Rust-only (performance divergence): the scope exits report diagnostics and change no node.
+    fn scope_exits_change_only_their_scopes(&self) -> bool {
+        true
+    }
+
     fn skip_bundled_extern_prefixes(&mut self, scripts: &IndexSet<NodeId>) {
         self.bundled_scripts = scripts.clone();
         self.outer.skipped_bundled_scripts = scripts.len();
