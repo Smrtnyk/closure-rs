@@ -25,8 +25,13 @@ use crate::{
     js_error::JSError,
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
+    parallel_checks::{self, CheckContext, Collector, ReadOnlyCallback},
 };
-use closure_rhino::{node::NodeId, token::Token};
+use closure_rhino::{
+    js_string::JsString,
+    node::{Ast, NodeId},
+    token::Token,
+};
 
 // port: Es6CheckModule#ES6_MODULE_REFERENCES_THIS
 pub static ES6_MODULE_REFERENCES_THIS: DiagnosticType = DiagnosticType::warning(
@@ -75,59 +80,164 @@ impl Callback for Es6CheckModule {
     }
 
     // port: Es6CheckModule#visit
-    #[allow(clippy::collapsible_match)] // Retain Java control flow.
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        match n.get_token(t) {
-            Token::THIS => {
-                if t.in_module_hoist_scope() {
-                    t.report(n, &ES6_MODULE_REFERENCES_THIS, &[]);
-                }
+        if n.is_this(t) {
+            if t.in_module_hoist_scope() {
+                t.report(n, &ES6_MODULE_REFERENCES_THIS, &[]);
             }
+            return;
+        }
+        Self::visit_l_value(t, n, &mut |t, name| {
+            let scope = t.get_scope();
+            let var = scope.get_var(t.get_compiler(), name)?;
+            var.get_name_node(t.get_compiler())
+        });
+    }
+}
+
+impl Es6CheckModule {
+    // port: Es6CheckModule#visit
+    /// The GETPROP, GETELEM and NAME cases of `visit`; `name_node_of` is
+    /// `t.getScope().getVar(name)` followed by `getNameNode()` (None for no var or no name
+    /// node).
+    #[allow(clippy::collapsible_match)] // Retain Java control flow.
+    fn visit_l_value<C: CheckContext>(
+        t: &mut C,
+        n: NodeId,
+        name_node_of: &mut dyn FnMut(&mut C, &JsString) -> Option<NodeId>,
+    ) {
+        match n.get_token(t) {
             Token::GETPROP | Token::GETELEM => {
                 if NodeUtil::is_l_value(t, n)
                     && !NodeUtil::is_declaration_l_value(t, n)
                     && n.get_first_child(t).unwrap().is_name(t)
                 {
-                    let scope = t.get_scope();
                     let name = n.get_first_child(t).unwrap().get_string(t);
-                    let var = scope.get_var(t.get_compiler(), &name);
-                    if let Some(var) = var {
-                        let name_node = var.get_name_node(t.get_compiler());
-                        if let Some(name_node) = name_node
-                            && name_node.is_import_star(t)
-                        {
-                            // import * as M from '';
-                            // M.x = 2;
-                            let name = name_node.get_string(t).to_string();
-                            let error =
-                                JSError::make(t, n, &IMPORT_CANNOT_BE_REASSIGNED, &[name.as_str()]);
-                            t.get_compiler().report(error);
-                        }
+                    if let Some(name_node) = name_node_of(t, &name)
+                        && name_node.is_import_star(t)
+                    {
+                        let name = name_node.get_string(t).to_string();
+                        let error =
+                            JSError::make(t, n, &IMPORT_CANNOT_BE_REASSIGNED, &[name.as_str()]);
+                        t.report_error(error);
                     }
                 }
             }
             Token::NAME => {
                 if NodeUtil::is_l_value(t, n) && !NodeUtil::is_declaration_l_value(t, n) {
-                    let scope = t.get_scope();
                     let name = n.get_string(t);
-                    let var = scope.get_var(t.get_compiler(), &name);
-                    if let Some(var) = var {
-                        let name_node = var.get_name_node(t.get_compiler());
-                        if let Some(name_node) = name_node
-                            && name_node != n
-                            && NodeUtil::is_imported_name(t, name_node)
-                        {
-                            // import { x } from '';
-                            // x = 2;
-                            let name = name_node.get_string(t).to_string();
-                            let error =
-                                JSError::make(t, n, &IMPORT_CANNOT_BE_REASSIGNED, &[name.as_str()]);
-                            t.get_compiler().report(error);
-                        }
+                    if let Some(name_node) = name_node_of(t, &name)
+                        && name_node != n
+                        && NodeUtil::is_imported_name(t, name_node)
+                    {
+                        let name = name_node.get_string(t).to_string();
+                        let error =
+                            JSError::make(t, n, &IMPORT_CANNOT_BE_REASSIGNED, &[name.as_str()]);
+                        t.report_error(error);
                     }
                 }
             }
             _ => {}
         }
+    }
+
+    /// Rust-only: `NodeTraversal#inModuleHoistScope` for a node below a top-level statement, from
+    /// its ancestors: the hoist scope root the traversal has set when it visits `n` (the nearest
+    /// function, class static block, class field or MODULE_BODY around it, as the traversal's
+    /// handlers set it).
+    fn in_module_hoist_scope(ast: &Ast, n: NodeId) -> bool {
+        let mut child = n;
+        let mut hoist_root = None;
+        while let Some(parent) = child.get_parent(ast) {
+            match parent.get_token(ast) {
+                Token::FUNCTION => {
+                    hoist_root = Some(parent);
+                    break;
+                }
+                Token::BLOCK if NodeUtil::is_class_static_block(ast, parent) => {
+                    hoist_root = Some(parent);
+                    break;
+                }
+                Token::MEMBER_FIELD_DEF
+                    if parent
+                        .get_parent(ast)
+                        .is_some_and(|p| p.is_class_members(ast)) =>
+                {
+                    hoist_root = parent.get_parent(ast);
+                    break;
+                }
+                // The key of a computed field is traversed with the hoist scope root around the
+                // class, its value with the class members.
+                Token::COMPUTED_FIELD_DEF
+                    if parent
+                        .get_parent(ast)
+                        .is_some_and(|p| p.is_class_members(ast))
+                        && parent.has_two_children(ast)
+                        && parent.get_last_child(ast) == Some(child) =>
+                {
+                    hoist_root = parent.get_parent(ast);
+                    break;
+                }
+                Token::MODULE_BODY => {
+                    hoist_root = Some(parent);
+                    break;
+                }
+                Token::SCRIPT | Token::ROOT => break,
+                _ => {}
+            }
+            child = parent;
+        }
+        let Some(mut module_root) = hoist_root else {
+            return false;
+        };
+        if module_root.is_function(ast) {
+            module_root = module_root.get_last_child(ast).unwrap();
+        }
+        NodeUtil::is_module_scope_root(ast, module_root)
+    }
+}
+
+/// Rust-only (performance divergence): `Es6CheckModule` on a worker, for the statements below one
+/// SCRIPT or MODULE_BODY: a name can resolve to a var declared by an import only if the module
+/// imports that name (an import declares in the module scope alone), so the walk gives up only
+/// for an assigned name that the module imports.
+struct ReadOnlyEs6CheckModule {
+    imports: Option<std::sync::Arc<[JsString]>>,
+}
+
+impl ReadOnlyCallback for ReadOnlyEs6CheckModule {
+    fn should_traverse(&mut self, _cx: &mut Collector<'_>, _n: NodeId, _: Option<NodeId>) -> bool {
+        true
+    }
+
+    fn visit(&mut self, cx: &mut Collector<'_>, n: NodeId, _parent: Option<NodeId>) {
+        if n.is_this(cx) {
+            if Es6CheckModule::in_module_hoist_scope(cx, n) {
+                cx.report(n, &ES6_MODULE_REFERENCES_THIS, &[]);
+            }
+            return;
+        }
+        let imports = self.imports.clone();
+        Es6CheckModule::visit_l_value(cx, n, &mut |cx, name| {
+            if imports
+                .as_deref()
+                .is_some_and(|imports| imports.contains(name))
+            {
+                cx.give_up();
+            }
+            None
+        });
+    }
+}
+
+/// Rust-only (performance divergence): the read-only twin for `parallel_checks`.
+pub(crate) fn twin() -> parallel_checks::Twin {
+    parallel_checks::Twin {
+        make: |context, parent| {
+            Box::new(ReadOnlyEs6CheckModule {
+                imports: context.module_imports.get(&parent).cloned(),
+            })
+        },
+        resolve: None,
     }
 }

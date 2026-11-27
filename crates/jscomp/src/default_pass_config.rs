@@ -247,6 +247,9 @@ impl DefaultPassConfig {
             .set_internal_factory(Arc::new(|compiler| {
                 let mut shared_callbacks: Vec<Box<dyn crate::node_traversal::Callback>> =
                     Vec::new();
+                // Rust-only (performance divergence): the read-only twins of the callbacks, for
+                // `parallel_checks::ParallelCombinedPass` (None when one has none).
+                let mut twins = Some(Vec::new());
                 let options = compiler.get_options();
                 if options.get_check_suspicious_code() {
                     shared_callbacks.push(Box::new(
@@ -255,20 +258,32 @@ impl DefaultPassConfig {
                     shared_callbacks.push(Box::new(
                         crate::lint::check_duplicate_case::CheckDuplicateCase::new(),
                     ));
+                    if let Some(twins) = &mut twins {
+                        twins.push(crate::check_suspicious_code::twin());
+                        twins.push(crate::lint::check_duplicate_case::twin());
+                    }
                 }
 
                 if options.enables(&crate::diagnostic_groups::GLOBAL_THIS) {
                     shared_callbacks
                         .push(Box::new(crate::check_global_this::CheckGlobalThis::new()));
+                    if let Some(twins) = &mut twins {
+                        twins.push(crate::check_global_this::twin());
+                    }
                 }
 
                 if options.enables(&crate::diagnostic_groups::DEBUGGER_STATEMENT_PRESENT) {
                     shared_callbacks.push(Box::new(
                         crate::check_debugger_statement::CheckDebuggerStatement::new(),
                     ));
+                    twins = None;
                 }
 
-                Self::combine_checks(compiler, shared_callbacks)
+                Box::new(crate::parallel_checks::ParallelCombinedPass {
+                    name: "suspiciousCode",
+                    serial: Self::combine_checks(compiler, shared_callbacks),
+                    twins,
+                })
             }))
             .build();
         let extra_requires = PassFactory::builder()
@@ -300,13 +315,21 @@ impl DefaultPassConfig {
         let check_js_doc_and_es6_modules = PassFactory::builder()
             .set_name("checkJsDocAndEs6Modules")
             .set_internal_factory(Arc::new(|compiler| {
-                Self::combine_checks(
-                    compiler,
-                    vec![
-                        Box::new(crate::check_jsdoc::CheckJSDoc::new()),
-                        Box::new(crate::es6_check_module::Es6CheckModule::new()),
-                    ],
-                )
+                // Rust-only (performance divergence): with the callbacks' read-only twins.
+                Box::new(crate::parallel_checks::ParallelCombinedPass {
+                    name: "checkJsDocAndEs6Modules",
+                    serial: Self::combine_checks(
+                        compiler,
+                        vec![
+                            Box::new(crate::check_jsdoc::CheckJSDoc::new()),
+                            Box::new(crate::es6_check_module::Es6CheckModule::new()),
+                        ],
+                    ),
+                    twins: Some(vec![
+                        crate::check_jsdoc::twin(),
+                        crate::es6_check_module::twin(),
+                    ]),
+                })
             }))
             .build();
         let generate_exports = PassFactory::builder()

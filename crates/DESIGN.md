@@ -1542,3 +1542,32 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   the var info has no removables, and a summary's hit makes it the same way, while recording the
   mark ended the recording of every function whose first reference to an outer var made its var
   info (`CLOSURE_RS_RUC_CACHE=verify` found such a recording ending where the kept summary did not).
+- `jscomp/syntactic_scope_creator.rs` (`SyntacticScopeCreator::seed_input`, `keep_input`): a
+  creator remembers the script holding the root of the last scope it scanned, the input id of
+  that script and, once a scan looked it up, the input; a scope of the same creator in the same
+  script takes them over instead of reading the script's properties and looking the input up by
+  id (Java reads the id for every scope and looks the input up for every declared var).
+  `CLOSURE_RS_SCOPE_INPUT_MEMO=off` reads and looks up as before; `=verify` reads the id and looks
+  the input up on every hit and compares both.
+- `jscomp/parallel_checks.rs` (`Run::walk`, `Walked::report`), `strict_mode_check.rs`,
+  `check_super.rs`, `check_reg_exp.rs`: check passes that only read the AST walk the top-level
+  statements of the scripts (the children of each SCRIPT or MODULE_BODY) on worker threads, each
+  with a callback of its own in the state of a top-level statement, calling `shouldTraverse` and
+  `visit` in `NodeTraversal`'s order; ROOT, SCRIPT and MODULE_BODY nodes are visited on the
+  compiler thread. The diagnostics are collected with the call that found them and reported in
+  traversal order afterwards (a combined pass stops at the first call that starts with halting
+  errors), so the compiler gets the same diagnostics in the same order whatever the thread count
+  (Java traverses on the compiler thread and reports as it goes). A callback that needs a scope or
+  the type registry gives up and the pass traverses as in Java (CheckRegExp: a counted use of the
+  name `RegExp`; StrictModeCheck: `delete name`, `x.caller`/`x.arguments` on a typed node). The
+  callbacks' check code is shared through `CheckContext`. The `suspiciousCode` combined pass
+  (`ParallelCombinedPass`, CheckSuspiciousCode, CheckDuplicateCase, CheckGlobalThis) walks the same
+  way with `CombinedCompilerPass` semantics; a check that needs the type registry
+  (`checkLeftOperandOfLogicalOperator` when the types decide) or the code printer (a switch's
+  cases, CheckJSDoc's block comments of a script) is deferred and made on the compiler thread at
+  its place among the reports. Es6CheckModule's twin knows each module's imported names
+  (`TwinContext`): an assigned name the module does not import cannot resolve to an import, an
+  imported one makes the walk give up; its `this` check reads the hoist scope root from the
+  ancestors. CheckJSDoc's twin gives up where its type-name visitor would rename. Threads:
+  `parallel_thread_count(statements, 32, 8)`. `CLOSURE_RS_PARALLEL_CHECKS=off` traverses as in Java; `=verify` also traverses and
+  compares the errors given to `Compiler::report` (`report_tap`) with the collected ones.

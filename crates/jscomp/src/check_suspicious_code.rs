@@ -23,8 +23,8 @@ use crate::{
     js_error::JSError,
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
+    parallel_checks::{self, CheckContext, Collector, ReadOnlyCallback},
 };
-use closure_jstype::prelude::JSType;
 use closure_rhino::{check_state, jscomp_base::tri::Tri, node::NodeId, token::Token};
 
 // port: CheckSuspiciousCode#SUSPICIOUS_SEMICOLON
@@ -91,7 +91,7 @@ impl CheckSuspiciousCode {
     }
 
     // port: CheckSuspiciousCode#checkMissingSemicolon
-    fn check_missing_semicolon(&self, t: &mut NodeTraversal<'_>, n: NodeId) {
+    fn check_missing_semicolon<C: CheckContext>(&self, t: &mut C, n: NodeId) {
         match n.get_token(t) {
             Token::IF => {
                 let true_case = n.get_second_child(t).unwrap();
@@ -110,7 +110,7 @@ impl CheckSuspiciousCode {
     }
 
     // port: CheckSuspiciousCode#reportIfWasEmpty
-    fn report_if_was_empty(t: &mut NodeTraversal<'_>, block: NodeId) {
+    fn report_if_was_empty<C: CheckContext>(t: &mut C, block: NodeId) {
         check_state!(block.is_block(t));
 
         // A semicolon is distinguished from a block without children by
@@ -118,12 +118,12 @@ impl CheckSuspiciousCode {
         // usually intentional, especially with loops.
         if !block.has_children(t) && block.is_added_block(t) {
             let error = JSError::make(t, block, &SUSPICIOUS_SEMICOLON, &[]);
-            t.get_compiler().report(error);
+            t.report_error(error);
         }
     }
 
     // port: CheckSuspiciousCode#checkNaN
-    fn check_nan(&self, t: &mut NodeTraversal<'_>, n: NodeId) {
+    fn check_nan<C: CheckContext>(&self, t: &mut C, n: NodeId) {
         match n.get_token(t) {
             Token::EQ
             | Token::GE
@@ -143,16 +143,16 @@ impl CheckSuspiciousCode {
     }
 
     // port: CheckSuspiciousCode#reportIfNaN
-    fn report_if_nan(t: &mut NodeTraversal<'_>, n: NodeId) {
+    fn report_if_nan<C: CheckContext>(t: &mut C, n: NodeId) {
         if NodeUtil::is_nan(t, n) {
             let parent = n.get_parent(t).unwrap();
             let error = JSError::make(t, parent, &SUSPICIOUS_COMPARISON_WITH_NAN, &[]);
-            t.get_compiler().report(error);
+            t.report_error(error);
         }
     }
 
     // port: CheckSuspiciousCode#checkInvalidIn
-    fn check_invalid_in(&self, t: &mut NodeTraversal<'_>, n: NodeId) {
+    fn check_invalid_in<C: CheckContext>(&self, t: &mut C, n: NodeId) {
         if n.is_in(t) {
             let last = n.get_last_child(t).unwrap();
             Self::report_if_non_object(t, last, &SUSPICIOUS_IN_OPERATOR);
@@ -160,7 +160,7 @@ impl CheckSuspiciousCode {
     }
 
     // port: CheckSuspiciousCode#checkNonObjectInstanceOf
-    fn check_non_object_instance_of(&self, t: &mut NodeTraversal<'_>, n: NodeId) {
+    fn check_non_object_instance_of<C: CheckContext>(&self, t: &mut C, n: NodeId) {
         if n.is_instance_of(t) {
             let first = n.get_first_child(t).unwrap();
             Self::report_if_non_object(t, first, &SUSPICIOUS_INSTANCEOF_LEFT_OPERAND);
@@ -168,8 +168,8 @@ impl CheckSuspiciousCode {
     }
 
     // port: CheckSuspiciousCode#reportIfNonObject
-    fn report_if_non_object(
-        t: &mut NodeTraversal<'_>,
+    fn report_if_non_object<C: CheckContext>(
+        t: &mut C,
         n: NodeId,
         diagnostic_type: &'static DiagnosticType,
     ) -> bool {
@@ -182,7 +182,7 @@ impl CheckSuspiciousCode {
     }
 
     // port: CheckSuspiciousCode#checkNegatedLeftOperandOfInOperator
-    fn check_negated_left_operand_of_in_operator(&self, t: &mut NodeTraversal<'_>, n: NodeId) {
+    fn check_negated_left_operand_of_in_operator<C: CheckContext>(&self, t: &mut C, n: NodeId) {
         if n.is_in(t) && n.get_first_child(t).unwrap().is_not(t) {
             let first = n.get_first_child(t).unwrap();
             t.report(first, &SUSPICIOUS_NEGATED_LEFT_OPERAND_OF_IN_OPERATOR, &[]);
@@ -196,11 +196,15 @@ impl CheckSuspiciousCode {
     /// of legitimate use cases where we need to back off from using type information (see
     /// [`Self::get_boolean_value_with_types`] for more details on these back offs).
     // port: CheckSuspiciousCode#checkLeftOperandOfLogicalOperator
-    fn check_left_operand_of_logical_operator(&self, t: &mut NodeTraversal<'_>, n: NodeId) {
+    fn check_left_operand_of_logical_operator<C: CheckContext>(&self, t: &mut C, n: NodeId) {
         if n.is_or(t) || n.is_and(t) {
             let operator = if n.is_or(t) { "||" } else { "&&" };
             let first = n.get_first_child(t).unwrap();
-            let v = self.get_boolean_value_with_types(t, first);
+            let Some(v) = self.get_boolean_value_with_types(t, first) else {
+                // Rust-only: on a worker, when the types decide.
+                t.defer(DEFER_LEFT_OPERAND_OF_LOGICAL_OPERATOR, n);
+                return;
+            };
             if v != Tri::UNKNOWN {
                 let result = if v == Tri::TRUE { "truthy" } else { "falsy" };
                 t.report(
@@ -216,7 +220,7 @@ impl CheckSuspiciousCode {
     /// out of optional chains and doing so may cause a TypeError if `a` is nullish. Using `a?.b.c`
     /// is safer and will have the same effect when `a` is not nullish.
     // port: CheckSuspiciousCode#checkSuspiciousBreakingOutOfOptionalChain
-    fn check_suspicious_breaking_out_of_optional_chain(t: &mut NodeTraversal<'_>, n: NodeId) {
+    fn check_suspicious_breaking_out_of_optional_chain<C: CheckContext>(t: &mut C, n: NodeId) {
         if NodeUtil::is_opt_chain_node(t, n) {
             let parent = n.get_parent(t).unwrap();
             if n.is_first_child_of(t, Some(parent))
@@ -249,7 +253,7 @@ impl CheckSuspiciousCode {
     /// not back off from always-falsy function call results, since it provides a valuable check
     /// and lies in this direction are much less common.
     // port: CheckSuspiciousCode#getBooleanValueWithTypes
-    fn get_boolean_value_with_types(&self, t: &mut NodeTraversal<'_>, n: NodeId) -> Tri {
+    fn get_boolean_value_with_types<C: CheckContext>(&self, t: &mut C, n: NodeId) -> Option<Tri> {
         match n.get_token(t) {
             Token::ASSIGN | Token::COMMA => {
                 let last = n.get_last_child(t).unwrap();
@@ -257,45 +261,49 @@ impl CheckSuspiciousCode {
             }
             Token::NOT => {
                 let last = n.get_last_child(t).unwrap();
-                return self.get_boolean_value_with_types(t, last).not();
+                return self.get_boolean_value_with_types(t, last).map(Tri::not);
             }
             Token::AND => {
                 // Assume the left-hand side is unknown. If it's not then we'll report it
                 // elsewhere. This prevents revisiting deeper nodes repeatedly, which would result
                 // in O(n^2) performance.
                 let last = n.get_last_child(t).unwrap();
-                return Tri::UNKNOWN.and(self.get_boolean_value_with_types(t, last));
+                return self
+                    .get_boolean_value_with_types(t, last)
+                    .map(|value| Tri::UNKNOWN.and(value));
             }
             Token::OR => {
                 // Assume the left-hand side is unknown. If it's not then we'll report it
                 // elsewhere. This prevents revisiting deeper nodes repeatedly, which would result
                 // in O(n^2) performance.
                 let last = n.get_last_child(t).unwrap();
-                return Tri::UNKNOWN.or(self.get_boolean_value_with_types(t, last));
+                return self
+                    .get_boolean_value_with_types(t, last)
+                    .map(|value| Tri::UNKNOWN.or(value));
             }
             Token::HOOK => {
                 let second = n.get_second_child(t).unwrap();
-                let true_value = self.get_boolean_value_with_types(t, second);
+                let true_value = self.get_boolean_value_with_types(t, second)?;
                 let last = n.get_last_child(t).unwrap();
-                let false_value = self.get_boolean_value_with_types(t, last);
-                return if true_value == false_value {
+                let false_value = self.get_boolean_value_with_types(t, last)?;
+                return Some(if true_value == false_value {
                     true_value
                 } else {
                     Tri::UNKNOWN
-                };
+                });
             }
             Token::FUNCTION | Token::CLASS | Token::NEW | Token::ARRAYLIT | Token::OBJECTLIT => {
-                return Tri::TRUE;
+                return Some(Tri::TRUE);
             }
             Token::VOID => {
-                return Tri::FALSE;
+                return Some(Tri::FALSE);
             }
             Token::GETPROP | Token::GETELEM | Token::OPTCHAIN_GETELEM | Token::OPTCHAIN_GETPROP => {
                 // Assume that type information on getprops and getelems are likely to be wrong.
                 // This prevents spurious warnings from not including undefined in getelem's
                 // return value, from existence checks of symbols the externs define as certainly
                 // true, or from default initialization of globals (`x.y = x.y || {}`).
-                return Tri::UNKNOWN;
+                return Some(Tri::UNKNOWN);
             }
             _ => {}
         }
@@ -315,19 +323,20 @@ impl CheckSuspiciousCode {
             // If the truthiness is determinstic from the syntax then return that immediately.
             // Alternatively, NAME nodes also get a pass since we don't trust the type
             // information.
-            return literal_value;
+            return Some(literal_value);
         }
-        let type_ = n.get_jstype(t);
-        if let Some(type_) = type_ {
+        if n.get_jstype(t).is_some() {
             // Distrust types we think are always truthy, since sometimes the types lie, even for
             // results of function calls (e.g. Map.prototype.get), so it's still important to
             // check.  But always-falsy values are a little more obviously wrong and there should
             // be no reason for those type annotations to be lies.  ANDing with UNKNOWN ensures we
             // never return TRUE.
-            let registry = t.get_compiler().get_type_registry();
-            return Tri::UNKNOWN.and(type_.get_possible_to_boolean_outcomes(registry).to_tri());
+            // Rust-only: None on a worker, which defers the check to the compiler thread.
+            return t
+                .type_boolean_outcomes(n)
+                .map(|outcomes| Tri::UNKNOWN.and(outcomes));
         }
-        Tri::UNKNOWN
+        Some(Tri::UNKNOWN)
     }
 }
 
@@ -350,6 +359,16 @@ impl Callback for CheckSuspiciousCode {
 
     // port: CheckSuspiciousCode#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
+        self.visit_impl(t, n);
+    }
+}
+
+/// Rust-only: the kind of `CheckContext::defer` for `checkLeftOperandOfLogicalOperator`.
+const DEFER_LEFT_OPERAND_OF_LOGICAL_OPERATOR: u8 = 1;
+
+impl CheckSuspiciousCode {
+    // port: CheckSuspiciousCode#visit
+    fn visit_impl<C: CheckContext>(&self, t: &mut C, n: NodeId) {
         self.check_missing_semicolon(t, n);
         self.check_nan(t, n);
         self.check_invalid_in(t, n);
@@ -357,5 +376,27 @@ impl Callback for CheckSuspiciousCode {
         self.check_negated_left_operand_of_in_operator(t, n);
         self.check_left_operand_of_logical_operator(t, n);
         Self::check_suspicious_breaking_out_of_optional_chain(t, n);
+    }
+}
+
+impl ReadOnlyCallback for CheckSuspiciousCode {
+    fn should_traverse(&mut self, _cx: &mut Collector<'_>, _n: NodeId, _: Option<NodeId>) -> bool {
+        true
+    }
+
+    fn visit(&mut self, cx: &mut Collector<'_>, n: NodeId, _parent: Option<NodeId>) {
+        self.visit_impl(cx, n);
+    }
+}
+
+/// Rust-only (performance divergence): the read-only twin for `parallel_checks`.
+pub(crate) fn twin() -> parallel_checks::Twin {
+    parallel_checks::Twin {
+        make: |_, _| Box::new(CheckSuspiciousCode::new()),
+        resolve: Some(|cx, kind, n| {
+            if kind == DEFER_LEFT_OPERAND_OF_LOGICAL_OPERATOR {
+                CheckSuspiciousCode::new().check_left_operand_of_logical_operator(cx, n);
+            }
+        }),
     }
 }

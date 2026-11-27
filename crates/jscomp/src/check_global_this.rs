@@ -21,8 +21,12 @@ use crate::{
     js_error::JSError,
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
+    parallel_checks::{self, CheckContext, Collector, ReadOnlyCallback},
 };
-use closure_rhino::{node::NodeId, token::Token};
+use closure_rhino::{
+    node::{Ast, NodeId},
+    token::Token,
+};
 
 // port: CheckGlobalThis#GLOBAL_THIS
 pub static GLOBAL_THIS: DiagnosticType = DiagnosticType::warning(
@@ -75,7 +79,7 @@ impl CheckGlobalThis {
     }
 
     // port: CheckGlobalThis#shouldReportThis
-    fn should_report_this(&self, t: &NodeTraversal<'_>, n: NodeId) -> bool {
+    fn should_report_this(&self, t: &Ast, n: NodeId) -> bool {
         let parent = n.get_parent(t);
         if self.assign_lhs_child.is_some() {
             // Always report a THIS on the left side of an assign.
@@ -93,16 +97,11 @@ impl Default for CheckGlobalThis {
     }
 }
 
-impl Callback for CheckGlobalThis {
+impl CheckGlobalThis {
     /// Since this pass reports errors only when a global `this` keyword is encountered, there is
     /// no reason to traverse non global contexts.
     // port: CheckGlobalThis#shouldTraverse
-    fn should_traverse(
-        &mut self,
-        t: &mut NodeTraversal<'_>,
-        n: NodeId,
-        parent: Option<NodeId>,
-    ) -> bool {
+    fn should_traverse_impl(&mut self, t: &Ast, n: NodeId, parent: Option<NodeId>) -> bool {
         if n.is_function(t) {
             // Arrow functions automatically get the "this" value from the
             // enclosing scope. e.g. the "this" in
@@ -221,13 +220,51 @@ impl Callback for CheckGlobalThis {
     }
 
     // port: CheckGlobalThis#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
+    fn visit_impl<C: CheckContext>(&mut self, t: &mut C, n: NodeId) {
         if n.is_this(t) && self.should_report_this(t, n) {
             let error = JSError::make(t, n, &GLOBAL_THIS, &[]);
-            t.get_compiler().report(error);
+            t.report_error(error);
         }
         if Some(n) == self.assign_lhs_child {
             self.assign_lhs_child = None;
         }
+    }
+}
+
+impl Callback for CheckGlobalThis {
+    fn should_traverse(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        self.should_traverse_impl(t, n, parent)
+    }
+
+    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
+        self.visit_impl(t, n);
+    }
+}
+
+impl ReadOnlyCallback for CheckGlobalThis {
+    fn should_traverse(
+        &mut self,
+        cx: &mut Collector<'_>,
+        n: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        self.should_traverse_impl(cx, n, parent)
+    }
+
+    fn visit(&mut self, cx: &mut Collector<'_>, n: NodeId, _parent: Option<NodeId>) {
+        self.visit_impl(cx, n);
+    }
+}
+
+/// Rust-only (performance divergence): the read-only twin for `parallel_checks`.
+pub(crate) fn twin() -> parallel_checks::Twin {
+    parallel_checks::Twin {
+        make: |_, _| Box::new(CheckGlobalThis::new()),
+        resolve: None,
     }
 }

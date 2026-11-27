@@ -163,6 +163,9 @@ pub struct Compiler {
     type_registry: Option<closure_jstype::JSTypeRegistry>,
     /// Rust-only: the number of `report` calls (see `reports_made`).
     reports_made: u64,
+    /// Rust-only: while Some, `report` also records each error it is given, in order
+    /// (`CLOSURE_RS_PARALLEL_CHECKS=verify`, see `parallel_checks`).
+    pub(crate) report_tap: Option<Vec<JSError>>,
     /// Rust-only: the control of the typed externs restore (`typed_scope_creator::typed_externs`).
     pub(crate) typed_externs: crate::typed_scope_creator::TypedExternsControl,
     /// Rust-only: errors the type registry's reporter queued for `Compiler#report` (see
@@ -309,6 +312,7 @@ impl Compiler {
             index_providers_by_type: IndexMap::<_, _>::default(),
             type_registry: None,
             reports_made: 0,
+            report_tap: None,
             typed_externs: Default::default(),
             queued_type_registry_errors: Arc::default(),
             forward_declared_types: Arc::new(
@@ -677,6 +681,9 @@ impl Compiler {
 
     // port: Compiler#report(JSError)
     pub fn report(&mut self, error: JSError) {
+        if let Some(tap) = &mut self.report_tap {
+            tap.push(error.clone());
+        }
         self.report_queued_type_registry_errors();
         self.report_now(error);
     }

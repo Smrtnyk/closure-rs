@@ -24,6 +24,7 @@ use crate::{
     diagnostic_type::DiagnosticType,
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
+    parallel_checks::{self, CheckContext, Collector, ReadOnlyCallback},
 };
 use closure_regex::reg_exp_tree::RegExpTree;
 use closure_rhino::{js_string::JsString, node::NodeId, token::Token};
@@ -111,33 +112,60 @@ impl CheckRegExp {
     }
 }
 
-impl CompilerPass for CheckRegExp {
-    // port: CheckRegExp#process
-    fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
-        NodeTraversal::traverse(compiler, root, self);
-    }
-}
-
-impl Callback for CheckRegExp {
-    // port: NodeTraversal.AbstractPostOrderCallback#shouldTraverse
-    fn should_traverse(
-        &mut self,
-        _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
+impl CheckRegExp {
+    /// Rust-only (performance divergence): `process` with the statements walked on worker
+    /// threads (see `parallel_checks`); false when a walk gave up (a reference to `RegExp` whose
+    /// outcome depends on the scope), before anything was reported.
+    fn process_in_parallel(&mut self, compiler: &mut AbstractCompiler, root: NodeId) -> bool {
+        let fresh = || {
+            CheckRegExp::new(
+                self.assume_all_global_regexp_usages_visible,
+                self.report_errors,
+            )
+        };
+        let mut main = fresh();
+        let no_suffix = |_: &AbstractCompiler, _: NodeId| None;
+        let Some(mut walked) = (parallel_checks::Run {
+            main: &mut main,
+            script_suffix: &no_suffix,
+        })
+        .walk(compiler, &[root], |_| fresh()) else {
+            return false;
+        };
+        let used = main.global_reg_exp_properties_used
+            || walked
+                .take_unit_callbacks()
+                .iter()
+                .any(|unit| unit.global_reg_exp_properties_used);
+        if *parallel_checks::MODE == parallel_checks::Mode::Verify {
+            walked.verify(compiler, "CheckRegExp", false, |compiler| {
+                self.process_serially(compiler, root);
+            });
+            assert_eq!(
+                self.global_reg_exp_properties_used, used,
+                "CLOSURE_RS_PARALLEL_CHECKS=verify: CheckRegExp globalRegExpPropertiesUsed: \
+                 traversal {}, parallel walk {used}",
+                self.global_reg_exp_properties_used
+            );
+        } else {
+            walked.report(compiler, false);
+            self.global_reg_exp_properties_used |= used;
+        }
         true
     }
 
+    fn process_serially(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
+        NodeTraversal::traverse(compiler, root, self);
+    }
+
     // port: CheckRegExp#visit
+    /// Rust-only: the scope is asked whether it has `RegExp` only when the use of the name is one
+    /// that counts (Java asks first); the lookup has no effect on the result.
     #[allow(clippy::nonminimal_bool)] // Retain Java's condition.
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
+    fn visit_impl<C: CheckContext>(&mut self, t: &mut C, n: NodeId, parent: Option<NodeId>) {
         if NodeUtil::is_reference_name(t, n) {
             let name = n.get_string(t);
-            if name == "RegExp" && {
-                let scope = t.get_scope();
-                scope.get_var(t.get_compiler(), name.clone()).is_none()
-            } {
+            if name == "RegExp" {
                 let parent = parent.unwrap();
                 let parent_type = parent.get_token(t);
                 let first = Some(n) == parent.get_first_child(t);
@@ -155,6 +183,7 @@ impl Callback for CheckRegExp {
                             .iter()
                             .any(|skipped| parent_string == *skipped)
                     }))
+                    && t.has_var(&name) == Some(false)
                 {
                     if self.report_errors {
                         t.report(n, &REGEXP_REFERENCE, &[]);
@@ -179,5 +208,44 @@ impl Callback for CheckRegExp {
                 t.report(n, &MALFORMED_REGEXP, &[message.as_str()]);
             }
         }
+    }
+}
+
+impl CompilerPass for CheckRegExp {
+    // port: CheckRegExp#process
+    fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
+        if *parallel_checks::MODE != parallel_checks::Mode::Off
+            && self.process_in_parallel(compiler, root)
+        {
+            return;
+        }
+        self.process_serially(compiler, root);
+    }
+}
+
+impl Callback for CheckRegExp {
+    // port: NodeTraversal.AbstractPostOrderCallback#shouldTraverse
+    fn should_traverse(
+        &mut self,
+        _t: &mut NodeTraversal<'_>,
+        _n: NodeId,
+        _parent: Option<NodeId>,
+    ) -> bool {
+        true
+    }
+
+    // port: CheckRegExp#visit
+    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
+        self.visit_impl(t, n, parent);
+    }
+}
+
+impl ReadOnlyCallback for CheckRegExp {
+    fn should_traverse(&mut self, _cx: &mut Collector<'_>, _n: NodeId, _: Option<NodeId>) -> bool {
+        true
+    }
+
+    fn visit(&mut self, cx: &mut Collector<'_>, n: NodeId, parent: Option<NodeId>) {
+        self.visit_impl(cx, n, parent);
     }
 }

@@ -42,9 +42,32 @@ pub struct SyntacticScopeCreator<'a> {
     /// which has no effects. A creator with another handler reuses, and keeps, only scopes whose
     /// scan called no handler, so that its handler would not have been called either.
     default_handler: bool,
+    /// Rust-only (performance divergence): the script holding the root of the last scope this
+    /// creator scanned, the input id that script carries and `compiler.getInput` of that id (see
+    /// `seed_input`).
+    input_memo: Option<InputMemo>,
 }
 
 const ARGUMENTS: &str = "arguments";
+
+/// Rust-only (performance divergence): `CLOSURE_RS_SCOPE_INPUT_MEMO` for `input_memo` (`off`:
+/// look the input of every scanned scope up from its root; `verify`: look it up and compare it
+/// with the remembered one).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum InputMemoMode {
+    Off,
+    On,
+    Verify,
+}
+
+static INPUT_MEMO_MODE: std::sync::LazyLock<InputMemoMode> =
+    std::sync::LazyLock::new(
+        || match std::env::var("CLOSURE_RS_SCOPE_INPUT_MEMO").as_deref() {
+            Ok("off") => InputMemoMode::Off,
+            Ok("verify") => InputMemoMode::Verify,
+            _ => InputMemoMode::On,
+        },
+    );
 
 pub const DEFAULT_REDECLARATION_HANDLER: DefaultRedeclarationHandler = DefaultRedeclarationHandler;
 
@@ -81,8 +104,101 @@ impl<'a> SyntacticScopeCreator<'a> {
             reusable: !treat_provides_as_redeclarations
                 && *crate::syntactic_scope_cache::REDECLARATION_FREE_REUSE,
             default_handler: false,
+            input_memo: None,
         }
     }
+
+    /// The beginning of `ScopeScanner#populate`: the scanner's input id is
+    /// `NodeUtil.getInputId(root)`, the input id of the script holding `root`.
+    ///
+    /// Rust-only (performance divergence): Java reads the id from the script for every scope
+    /// and looks the input up by that id for every declared var. Here the id, and the input once
+    /// a scan of this creator looked it up (`keep_input`), are remembered for the script: the next
+    /// scope of this creator in the same script takes them over without reading the script's
+    /// properties or looking the input up again. A script's input id is set when it is parsed
+    /// and the inputs are not replaced while a pass runs, so the lookup would give the remembered
+    /// input again (`CLOSURE_RS_SCOPE_INPUT_MEMO=verify` checks this on every hit).
+    fn seed_input(
+        input_memo: &mut Option<InputMemo>,
+        compiler: &AbstractCompiler,
+        root: NodeId,
+        scanner: &mut ScopeScanner,
+    ) {
+        let mut script = Some(root);
+        while let Some(current) = script {
+            if current.is_script(compiler) {
+                break;
+            }
+            script = current.get_parent(compiler);
+        }
+        let Some(script) = script else {
+            scanner.input_id = None;
+            return;
+        };
+        if let Some(memo) = &*input_memo
+            && memo.script == script
+        {
+            if *INPUT_MEMO_MODE == InputMemoMode::Verify {
+                let fresh_id = script.get_input_id(compiler);
+                let fresh_input = fresh_id.as_deref().and_then(|id| compiler.get_input(id));
+                let same_id = match (&fresh_id, &memo.input_id) {
+                    (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                    (None, None) => true,
+                    _ => false,
+                };
+                let same_input = memo
+                    .input
+                    .as_ref()
+                    .is_none_or(|input| input.as_ref() == fresh_input);
+                assert!(
+                    same_id && same_input,
+                    "CLOSURE_RS_SCOPE_INPUT_MEMO=verify: script {script:?}: remembered input id \
+                     {:?} and input {:?}, now input id {:?} and input {:?}",
+                    memo.input_id.as_deref().map(InputId::get_id_name),
+                    memo.input
+                        .as_ref()
+                        .map(|input| input.as_ref().map(CompilerInput::get_name)),
+                    fresh_id.as_deref().map(InputId::get_id_name),
+                    fresh_input.map(CompilerInput::get_name),
+                );
+            }
+            if let (Some(input_id), Some(input)) = (&memo.input_id, &memo.input) {
+                scanner.input_cache = Some((Arc::clone(input_id), input.clone()));
+            }
+            scanner.input_id = memo.input_id.clone();
+            return;
+        }
+        let input_id = script.get_input_id(compiler);
+        scanner.input_id = input_id.clone();
+        *input_memo = Some(InputMemo {
+            script,
+            input_id,
+            input: None,
+        });
+    }
+
+    /// Rust-only (performance divergence): after a scan seeded by `seed_input`, remembers the
+    /// input the scanner looked up for the remembered id, if it looked one up.
+    fn keep_input(input_memo: &mut Option<InputMemo>, scanner: &ScopeScanner) {
+        if let Some(memo) = input_memo
+            && memo.input.is_none()
+            && let (Some(input_id), Some((cached_id, input))) =
+                (&memo.input_id, &scanner.input_cache)
+            && Arc::ptr_eq(input_id, cached_id)
+        {
+            memo.input = Some(input.clone());
+        }
+    }
+}
+
+/// Rust-only (performance divergence): see `SyntacticScopeCreator::seed_input`.
+struct InputMemo {
+    /// The script holding the root of the last scope the creator scanned.
+    script: NodeId,
+    /// The input id that script carries.
+    input_id: Option<Arc<InputId>>,
+    /// `compiler.getInput(input_id)`, once a scan looked it up.
+    input: Option<Option<CompilerInput>>,
 }
 
 impl ScopeCreator for SyntacticScopeCreator<'_> {
@@ -202,7 +318,15 @@ impl SyntacticScopeCreator<'_> {
             self.treat_provides_as_redeclarations,
         );
         scanner.replay_scripts = replay_scripts;
+        if *INPUT_MEMO_MODE == InputMemoMode::Off {
+            scanner.input_id = NodeUtil::get_input_id(compiler, n);
+        } else {
+            Self::seed_input(&mut self.input_memo, compiler, n, &mut scanner);
+        }
         scanner.populate(compiler);
+        if *INPUT_MEMO_MODE != InputMemoMode::Off {
+            Self::keep_input(&mut self.input_memo, &scanner);
+        }
         (scope, scanner.redeclared, scanner.script_lists)
     }
 }
@@ -289,9 +413,10 @@ impl<'a> ScopeScanner<'a> {
     }
 
     // port: SyntacticScopeCreator.ScopeScanner#populate
+    /// The caller has set `input_id` (Java's first statement, `inputId =
+    /// NodeUtil.getInputId(n)`), see `SyntacticScopeCreator::seed_input`.
     fn populate(&mut self, compiler: &mut AbstractCompiler) {
         let n = self.scope.get_root_node(compiler);
-        self.input_id = NodeUtil::get_input_id(compiler, n);
         match n.get_token(compiler) {
             Token::FUNCTION => {
                 let fn_name_node = check_not_null!(n.get_first_child(compiler));

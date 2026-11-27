@@ -407,6 +407,7 @@ crates/jscomp/src/optimize_parameters.rs	d8c6c7a77601b79c	Apache-2.0	closure:src
 crates/jscomp/src/optimize_returns.rs	4598d2538de09522	Apache-2.0	closure:src/com/google/javascript/jscomp/OptimizeReturns.java
 crates/jscomp/src/optional_chain_rewriter.rs	dfe3601f3795302e	Apache-2.0	closure:src/com/google/javascript/jscomp/OptionalChainRewriter.java
 crates/jscomp/src/output_charset_encoder.rs	8b249825192107a4	Apache-2.0	closure:src/com/google/javascript/jscomp/OutputCharsetEncoder.java
+crates/jscomp/src/parallel_checks.rs	d01c2862966b911a	Apache-2.0	closure:src/com/google/javascript/jscomp/CombinedCompilerPass.java
 crates/jscomp/src/parallel_parse.rs	5dd44e2974bae68b	Apache-2.0	closure:src/com/google/javascript/jscomp/CompilerInput.java
 crates/jscomp/src/pass_config.rs	9ea854df6f2fbbac	Apache-2.0	closure:src/com/google/javascript/jscomp/PassConfig.java
 crates/jscomp/src/pass_factory.rs	fe171e9fe11301ef	Apache-2.0	closure:src/com/google/javascript/jscomp/PassFactory.java

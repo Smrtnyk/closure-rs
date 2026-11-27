@@ -31,6 +31,7 @@ use crate::{
     js_error::JSError,
     node_traversal::{Callback, NodeTraversal},
     node_util::{NodeUtil, Visitor},
+    parallel_checks::{self, CheckContext, Collector, ReadOnlyCallback},
     type_check::ILLEGAL_IMPLICIT_CAST,
 };
 use closure_parsing::parser::trees::comment;
@@ -149,10 +150,14 @@ impl CheckJSDoc {
     // port: CheckJSDoc#checkJsDocInBlockComments
     /// Checks for block comments (e.g. starting with /*) that look like they are JsDoc, and thus
     /// should start with /**.
-    fn check_js_doc_in_block_comments(compiler: &mut AbstractCompiler, file_name: &str) {
+    /// Rust-only: returns the errors for the caller to report (a worker defers this check).
+    fn check_js_doc_in_block_comments(
+        compiler: &AbstractCompiler,
+        file_name: &str,
+    ) -> Vec<JSError> {
         if !compiler.get_options().preserves_detailed_source_info() {
             // Comments only available if preservesDetailedSourceInfo is true.
-            return;
+            return Vec::new();
         }
 
         let mut errors = Vec::new();
@@ -169,13 +174,11 @@ impl CheckJSDoc {
                 ));
             }
         }
-        for error in errors {
-            compiler.report(error);
-        }
+        errors
     }
 
     // port: CheckJSDoc#validateSuppress
-    fn validate_suppress(compiler: &mut AbstractCompiler, n: NodeId, info: Option<&JSDocInfo>) {
+    fn validate_suppress<C: CheckContext>(compiler: &mut C, n: NodeId, info: Option<&JSDocInfo>) {
         let Some(info) = info else {
             return;
         };
@@ -221,7 +224,7 @@ impl CheckJSDoc {
             return;
         }
         let error = JSError::make(compiler, n, &MISPLACED_SUPPRESS, &[]);
-        compiler.report(error);
+        compiler.report_error(error);
     }
 
     // port: CheckJSDoc#containsOnlySuppressionFor
@@ -231,7 +234,7 @@ impl CheckJSDoc {
     }
 
     // port: CheckJSDoc#validateTypedefs
-    fn validate_typedefs(compiler: &mut AbstractCompiler, n: NodeId, info: Option<&JSDocInfo>) {
+    fn validate_typedefs<C: CheckContext>(compiler: &mut C, n: NodeId, info: Option<&JSDocInfo>) {
         let Some(info) = info else {
             return;
         };
@@ -270,7 +273,7 @@ impl CheckJSDoc {
     }
 
     // port: CheckJSDoc#validateTemplates
-    fn validate_templates(compiler: &mut AbstractCompiler, n: NodeId, info: Option<&JSDocInfo>) {
+    fn validate_templates<C: CheckContext>(compiler: &mut C, n: NodeId, info: Option<&JSDocInfo>) {
         if let Some(info) = info
             && !info.get_template_type_names().is_empty()
             && !info.is_constructor_or_interface()
@@ -323,7 +326,7 @@ impl CheckJSDoc {
     }
 
     // port: CheckJSDoc#isClassDecl
-    fn is_class_decl(compiler: &AbstractCompiler, n: NodeId) -> bool {
+    fn is_class_decl<C: CheckContext>(compiler: &mut C, n: NodeId) -> bool {
         Self::is_class(compiler, n)
             || (n.is_assign(compiler)
                 && Self::is_class(compiler, n.get_last_child(compiler).unwrap()))
@@ -333,7 +336,7 @@ impl CheckJSDoc {
     }
 
     // port: CheckJSDoc#isNameInitializeWithClass
-    fn is_name_initialize_with_class(compiler: &AbstractCompiler, n: Option<NodeId>) -> bool {
+    fn is_name_initialize_with_class<C: CheckContext>(compiler: &mut C, n: Option<NodeId>) -> bool {
         n.is_some_and(|n| {
             n.is_name(compiler)
                 && n.has_children(compiler)
@@ -342,12 +345,8 @@ impl CheckJSDoc {
     }
 
     // port: CheckJSDoc#isClass
-    fn is_class(compiler: &AbstractCompiler, n: NodeId) -> bool {
-        n.is_class(compiler)
-            || (n.is_call(compiler)
-                && compiler
-                    .get_coding_convention()
-                    .is_class_factory_call(compiler, n))
+    fn is_class<C: CheckContext>(compiler: &mut C, n: NodeId) -> bool {
+        n.is_class(compiler) || (n.is_call(compiler) && compiler.is_class_factory_call(n))
     }
 
     // port: CheckJSDoc#isPrototypeOrInstanceDecl
@@ -365,8 +364,8 @@ impl CheckJSDoc {
     // port: CheckJSDoc#validateClassLevelJsDoc
     /// Checks that class-level annotations like @interface/@extends are not used on member
     /// functions.
-    fn validate_class_level_js_doc(
-        compiler: &mut AbstractCompiler,
+    fn validate_class_level_js_doc<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         info: Option<&JSDocInfo>,
     ) {
@@ -379,8 +378,8 @@ impl CheckJSDoc {
     }
 
     // port: CheckJSDoc#validateAbstractJsDoc
-    fn validate_abstract_js_doc(
-        compiler: &mut AbstractCompiler,
+    fn validate_abstract_js_doc<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         info: Option<&JSDocInfo>,
     ) {
@@ -515,7 +514,11 @@ impl CheckJSDoc {
     // port: CheckJSDoc#validateNoCollapse
     /// Warns when nocollapse annotations are present on nodes which are not eligible for property
     /// collapsing.
-    fn validate_no_collapse(compiler: &mut AbstractCompiler, n: NodeId, info: Option<&JSDocInfo>) {
+    fn validate_no_collapse<C: CheckContext>(
+        compiler: &mut C,
+        n: NodeId,
+        info: Option<&JSDocInfo>,
+    ) {
         let Some(info) = info else {
             return;
         };
@@ -556,8 +559,8 @@ impl CheckJSDoc {
 
     // port: CheckJSDoc#validateFunctionJsDoc
     /// Checks that JSDoc intended for a function is actually attached to a function.
-    fn validate_function_js_doc(
-        compiler: &mut AbstractCompiler,
+    fn validate_function_js_doc<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         info: Option<&JSDocInfo>,
     ) {
@@ -585,8 +588,8 @@ impl CheckJSDoc {
     /// Whether this node's JSDoc may apply to a function
     ///
     /// This has some false positive cases, to allow for patterns like goog.abstractMethod.
-    fn is_js_doc_on_function_node(
-        compiler: &AbstractCompiler,
+    fn is_js_doc_on_function_node<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         info: &JSDocInfo,
     ) -> bool {
@@ -634,7 +637,7 @@ impl CheckJSDoc {
     /// in the proper place, namely on names starting with MSG_ which indicates they should be
     /// extracted for translation. A later pass checks that the right side is a call to
     /// goog.getMsg.
-    fn validate_msg_js_doc(compiler: &mut AbstractCompiler, n: NodeId, info: Option<&JSDocInfo>) {
+    fn validate_msg_js_doc<C: CheckContext>(compiler: &mut C, n: NodeId, info: Option<&JSDocInfo>) {
         let Some(info) = info else {
             return;
         };
@@ -681,8 +684,8 @@ impl CheckJSDoc {
 
     // port: CheckJSDoc#validateTypeAnnotations
     /// Check that JSDoc with a `@type` annotation is in a valid place.
-    fn validate_type_annotations(
-        compiler: &mut AbstractCompiler,
+    fn validate_type_annotations<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         info: Option<&JSDocInfo>,
     ) {
@@ -758,30 +761,30 @@ impl CheckJSDoc {
     }
 
     // port: CheckJSDoc#reportMisplaced
-    fn report_misplaced(
-        compiler: &mut AbstractCompiler,
+    fn report_misplaced<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         annotation_name: &str,
         note: &str,
     ) {
         let error = JSError::make(compiler, n, &MISPLACED_ANNOTATION, &[annotation_name, note]);
-        compiler.report(error);
+        compiler.report_error(error);
     }
 
     // port: CheckJSDoc#report
-    fn report(
-        compiler: &mut AbstractCompiler,
+    fn report<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         type_: &'static DiagnosticType,
         arguments: &[&str],
     ) {
         let error = JSError::make(compiler, n, type_, arguments);
-        compiler.report(error);
+        compiler.report_error(error);
     }
 
     // port: CheckJSDoc#validateArrowFunction
     /// Check that an arrow function is not annotated with {@constructor}.
-    fn validate_arrow_function(compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_arrow_function<C: CheckContext>(compiler: &mut C, n: NodeId) {
         if n.is_arrow_function(compiler) {
             let info = NodeUtil::get_best_jsdoc_info(compiler, n);
             if let Some(info) = info
@@ -794,7 +797,7 @@ impl CheckJSDoc {
 
     // port: CheckJSDoc#validateRestParameter
     /// Check that a rest parameter has JSDoc marked as variadic.
-    fn validate_rest_parameter(compiler: &mut AbstractCompiler, rest_param: NodeId) {
+    fn validate_rest_parameter<C: CheckContext>(compiler: &mut C, rest_param: NodeId) {
         if !rest_param.is_rest(compiler)
             || !rest_param
                 .get_parent(compiler)
@@ -845,14 +848,14 @@ impl CheckJSDoc {
             && param_type_annotation.get_root().get_token(compiler) != Token::ITER_REST
         {
             let error = JSError::make(compiler, rest_param, &BAD_REST_PARAMETER_ANNOTATION, &[]);
-            compiler.report(error);
+            compiler.report_error(error);
         }
     }
 
     // port: CheckJSDoc#validateDefaultValue
     /// Check that a parameter with a default value is marked as optional. TODO(bradfordcsmith):
     /// This is redundant. We shouldn't require it.
-    fn validate_default_value(compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_default_value<C: CheckContext>(compiler: &mut C, n: NodeId) {
         if n.is_default_value(compiler) && n.get_parent(compiler).unwrap().is_param_list(compiler) {
             let target_node = n.get_first_child(compiler).unwrap();
             let info = target_node.get_jsdoc_info(compiler);
@@ -879,8 +882,8 @@ impl CheckJSDoc {
 
     // port: CheckJSDoc#validateNoSideEffects
     /// Check that @modifies annotations are only present in externs.
-    fn validate_no_side_effects(
-        compiler: &mut AbstractCompiler,
+    fn validate_no_side_effects<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         info: Option<&JSDocInfo>,
     ) {
@@ -900,8 +903,8 @@ impl CheckJSDoc {
 
     // port: CheckJSDoc#validateDefinesDeclaration
     /// Check that a let declaration is not used with {@defines}
-    fn validate_defines_declaration(
-        compiler: &mut AbstractCompiler,
+    fn validate_defines_declaration<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         info: Option<&JSDocInfo>,
     ) {
@@ -915,9 +918,9 @@ impl CheckJSDoc {
 
     // port: CheckJSDoc#validateImplicitCast
     /// Checks that an @implicitCast annotation is in the externs
-    fn validate_implicit_cast(
+    fn validate_implicit_cast<C: CheckContext>(
         &self,
-        compiler: &mut AbstractCompiler,
+        compiler: &mut C,
         n: NodeId,
         info: Option<&JSDocInfo>,
     ) {
@@ -931,8 +934,8 @@ impl CheckJSDoc {
 
     // port: CheckJSDoc#validateClosurePrimitive
     /// Checks that a @closurePrimitive {id} is on a function
-    fn validate_closure_primitive(
-        compiler: &mut AbstractCompiler,
+    fn validate_closure_primitive<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         info: Option<&JSDocInfo>,
     ) {
@@ -955,8 +958,8 @@ impl CheckJSDoc {
 
     // port: CheckJSDoc#validateReturnJsDoc
     /// Checks that there are no annotations on return.
-    fn validate_return_js_doc(
-        compiler: &mut AbstractCompiler,
+    fn validate_return_js_doc<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         info: Option<&JSDocInfo>,
     ) {
@@ -974,7 +977,7 @@ impl CheckJSDoc {
 
     // port: CheckJSDoc#validateTsType
     /// Checks that a @tsType is on a function in a supported file
-    fn validate_ts_type(compiler: &mut AbstractCompiler, n: NodeId, info: Option<&JSDocInfo>) {
+    fn validate_ts_type<C: CheckContext>(compiler: &mut C, n: NodeId, info: Option<&JSDocInfo>) {
         let Some(info) = info else {
             return;
         };
@@ -1000,23 +1003,30 @@ impl CheckJSDoc {
     }
 
     // port: CheckJSDoc#validateJsDocTypeNames
-    fn validate_js_doc_type_names(
+    fn validate_js_doc_type_names<C: CheckContext>(
         &mut self,
-        compiler: &mut AbstractCompiler,
+        compiler: &mut C,
         info: Option<&JSDocInfo>,
     ) {
         let Some(info) = info else {
             return;
         };
         for type_node in info.get_type_nodes() {
-            NodeUtil::visit_pre_order(compiler, type_node, &mut self.check_js_doc_types_visitor);
+            // Rust-only: a worker cannot change the AST; it gives up when the visitor would
+            // (see `CheckJsdocTypes::renames`).
+            if let Some(ast) = compiler.ast_mut() {
+                NodeUtil::visit_pre_order(ast, type_node, &mut self.check_js_doc_types_visitor);
+            } else if CheckJsdocTypes::renames(compiler, type_node) {
+                compiler.give_up();
+                return;
+            }
         }
     }
 
     // port: CheckJSDoc#validateIsUsedViaDotConstructor
     /// Checks that @usedViaDotConstructor is only used on constructors.
-    fn validate_is_used_via_dot_constructor(
-        compiler: &mut AbstractCompiler,
+    fn validate_is_used_via_dot_constructor<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         info: Option<&JSDocInfo>,
     ) {
@@ -1040,8 +1050,8 @@ impl CheckJSDoc {
 
     // port: CheckJSDoc#validateLegacyNamedTsExport
     /// Checks that @legacyNamedTsExport is only used on a goog.module or goog.provide call.
-    fn validate_legacy_named_ts_export(
-        compiler: &mut AbstractCompiler,
+    fn validate_legacy_named_ts_export<C: CheckContext>(
+        compiler: &mut C,
         n: NodeId,
         info: Option<&JSDocInfo>,
     ) {
@@ -1098,10 +1108,29 @@ impl Callback for CheckJSDoc {
 
     // port: CheckJSDoc#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        let compiler = t.get_compiler();
+        self.visit_impl(t, n, &mut |t, script| {
+            let file_name = script.get_source_file_name(t).unwrap();
+            let errors = Self::check_js_doc_in_block_comments(t.get_compiler(), &file_name);
+            for error in errors {
+                t.get_compiler().report(error);
+            }
+        });
+    }
+}
+
+/// Rust-only: the kind of `CheckContext::defer` for `checkJsDocInBlockComments`.
+const DEFER_BLOCK_COMMENTS: u8 = 3;
+
+impl CheckJSDoc {
+    // port: CheckJSDoc#visit
+    fn visit_impl<C: CheckContext>(
+        &mut self,
+        compiler: &mut C,
+        n: NodeId,
+        block_comments: &mut dyn FnMut(&mut C, NodeId),
+    ) {
         if n.is_script(compiler) {
-            let file_name = n.get_source_file_name(compiler).unwrap();
-            Self::check_js_doc_in_block_comments(compiler, &file_name);
+            block_comments(compiler, n);
         }
         let info = n.get_jsdoc_info(compiler);
         let info = info.as_deref();
@@ -1129,9 +1158,66 @@ impl Callback for CheckJSDoc {
     }
 }
 
+impl ReadOnlyCallback for CheckJSDoc {
+    fn should_traverse(&mut self, _cx: &mut Collector<'_>, _n: NodeId, _: Option<NodeId>) -> bool {
+        true
+    }
+
+    fn visit(&mut self, cx: &mut Collector<'_>, n: NodeId, _parent: Option<NodeId>) {
+        self.visit_impl(cx, n, &mut |cx, script| {
+            cx.defer(DEFER_BLOCK_COMMENTS, script)
+        });
+    }
+}
+
+/// Rust-only (performance divergence): the read-only twin for `parallel_checks` (the twin of a
+/// CheckJSDoc traversing code, not externs).
+pub(crate) fn twin() -> parallel_checks::Twin {
+    parallel_checks::Twin {
+        make: |_, _| Box::new(CheckJSDoc::new()),
+        resolve: Some(|cx, kind, script| {
+            if kind == DEFER_BLOCK_COMMENTS {
+                let file_name = script.get_source_file_name(cx).unwrap();
+                let errors = CheckJSDoc::check_js_doc_in_block_comments(cx.compiler, &file_name);
+                cx.errors.extend(errors);
+            }
+        }),
+    }
+}
+
 /// Ban any references to compiler internal implementation details
 // port: CheckJSDoc.CheckJsdocTypes
 struct CheckJsdocTypes;
+
+impl CheckJsdocTypes {
+    /// Rust-only: whether `visit_pre_order` of this visitor would rename a type name below
+    /// `type_node` (it changes nothing else).
+    fn renames(ast: &Ast, type_node: NodeId) -> bool {
+        let mut stack = vec![type_node];
+        while let Some(n) = stack.pop() {
+            if n.is_string_lit(ast) {
+                let type_name = n.get_string(ast);
+                let dot = type_name.index_of_char(b'.' as u16);
+                let root_of_type = if dot == -1 {
+                    type_name.clone()
+                } else {
+                    type_name.substring(0, dot as usize)
+                };
+                if ClosureRewriteModule::is_module_export(&root_of_type)
+                    || ClosureRewriteModule::is_module_content(&root_of_type)
+                {
+                    return true;
+                }
+            }
+            let mut child = n.get_first_child(ast);
+            while let Some(c) = child {
+                stack.push(c);
+                child = c.get_next(ast);
+            }
+        }
+        false
+    }
+}
 
 impl Visitor for CheckJsdocTypes {
     // port: CheckJSDoc.CheckJsdocTypes#visit

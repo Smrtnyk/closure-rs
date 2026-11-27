@@ -23,6 +23,7 @@ use crate::{
     compiler_pass::CompilerPass,
     diagnostic_type::DiagnosticType,
     node_traversal::{Callback, NodeTraversal},
+    parallel_checks::{self, CheckContext, Collector, ReadOnlyCallback},
 };
 use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{js_string::JsString, node::NodeId};
@@ -74,18 +75,54 @@ impl Callback for CheckDuplicateCase {
 
     // port: CheckDuplicateCase#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
+        Self::visit_impl(t, n);
+    }
+}
+
+/// Rust-only: the kind of `CheckContext::defer` for a switch.
+const DEFER_SWITCH: u8 = 2;
+
+impl CheckDuplicateCase {
+    // port: CheckDuplicateCase#visit
+    fn visit_impl<C: CheckContext>(t: &mut C, n: NodeId) {
         if n.is_switch(t) {
             let switch_body = n.get_second_child(t).unwrap();
             let mut cases: IndexSet<JsString> = IndexSet::<_>::default();
             let mut curr = switch_body.get_first_child(t);
             while let Some(c) = curr {
                 let first = c.get_first_child(t).unwrap();
-                let source = t.get_compiler().to_source_for_node_utf16(first);
+                let Some(source) = t.source_utf16(first) else {
+                    // Rust-only: a worker leaves the switch to the compiler thread, which prints.
+                    t.defer(DEFER_SWITCH, n);
+                    return;
+                };
                 if !cases.insert(source) {
                     t.report(c, &DUPLICATE_CASE, &[]);
                 }
                 curr = c.get_next(t);
             }
         }
+    }
+}
+
+impl ReadOnlyCallback for CheckDuplicateCase {
+    fn should_traverse(&mut self, _cx: &mut Collector<'_>, _n: NodeId, _: Option<NodeId>) -> bool {
+        true
+    }
+
+    fn visit(&mut self, cx: &mut Collector<'_>, n: NodeId, _parent: Option<NodeId>) {
+        Self::visit_impl(cx, n);
+    }
+}
+
+/// Rust-only (performance divergence): the read-only twin for `parallel_checks`.
+pub(crate) fn twin() -> parallel_checks::Twin {
+    parallel_checks::Twin {
+        make: |_, _| Box::new(CheckDuplicateCase::new()),
+        resolve: Some(|cx, kind, n| {
+            if kind == DEFER_SWITCH {
+                CheckDuplicateCase::visit_impl(cx, n);
+            }
+        }),
     }
 }

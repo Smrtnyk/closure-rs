@@ -23,8 +23,13 @@ use crate::{
     diagnostic_type::DiagnosticType,
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
+    parallel_checks::{self, CheckContext, Collector, ReadOnlyCallback},
 };
-use closure_rhino::{check_argument, check_not_null, check_state, node::NodeId, token::Token};
+use closure_rhino::{
+    check_argument, check_not_null, check_state,
+    node::{Ast, NodeId},
+    token::Token,
+};
 
 // For a derived class constructor that has neither a `super()` call nor a `return` with a value,
 // so it always throws. This can't be suppressed.
@@ -130,7 +135,7 @@ impl CheckSuper {
     // port: CheckSuper#getContextForFunctionNode
     fn get_context_for_function_node(
         &mut self,
-        t: &NodeTraversal<'_>,
+        t: &Ast,
         current_context: ContextId,
         fn_: NodeId,
     ) -> ContextId {
@@ -154,14 +159,14 @@ impl CheckSuper {
     }
 
     // port: CheckSuper#isSuperConstructorCall
-    fn is_super_constructor_call(t: &NodeTraversal<'_>, super_node: NodeId) -> bool {
+    fn is_super_constructor_call(t: &Ast, super_node: NodeId) -> bool {
         check_state!(super_node.is_super(t), "%s", super_node.to_string(t));
         let parent = super_node.get_parent(t).unwrap();
         parent.is_call(t) && super_node.is_first_child_of(t, Some(parent))
     }
 
     // port: CheckSuper#isSuperPropertyAccess
-    fn is_super_property_access(t: &NodeTraversal<'_>, super_node: NodeId) -> bool {
+    fn is_super_property_access(t: &Ast, super_node: NodeId) -> bool {
         check_state!(super_node.is_super(t), "%s", super_node.to_string(t));
         let parent = super_node.get_parent(t).unwrap();
         NodeUtil::is_normal_get(t, parent) && super_node.is_first_child_of(t, Some(parent))
@@ -217,10 +222,10 @@ impl CheckSuper {
 
     /// Handle a super constructor call.
     // port: CheckSuper.Context#visitSuperConstructorCall
-    fn visit_super_constructor_call(
+    fn visit_super_constructor_call<C: CheckContext>(
         &mut self,
         context: ContextId,
-        t: &mut NodeTraversal<'_>,
+        t: &mut C,
         super_node: NodeId,
     ) {
         let context_node = self.contexts[context].get_context_node();
@@ -300,10 +305,10 @@ impl CheckSuper {
 
     /// Handle a super property reference. (`super.prop` or `super[expr]`)
     // port: CheckSuper.Context#visitSuperPropertyAccess
-    fn visit_super_property_access(
+    fn visit_super_property_access<C: CheckContext>(
         &mut self,
         context: ContextId,
-        t: &mut NodeTraversal<'_>,
+        t: &mut C,
         super_node: NodeId,
     ) {
         match &mut self.contexts[context].kind {
@@ -354,7 +359,7 @@ impl CheckSuper {
     }
 
     // port: CheckSuper.Context#visitThis
-    fn visit_this(&mut self, context: ContextId, _t: &mut NodeTraversal<'_>, this_node: NodeId) {
+    fn visit_this<C: CheckContext>(&mut self, context: ContextId, _t: &mut C, this_node: NodeId) {
         match &mut self.contexts[context].kind {
             // port: CheckSuper.ConstructorContext#visitThis
             ContextKind::Constructor(constructor) => {
@@ -369,7 +374,12 @@ impl CheckSuper {
     }
 
     // port: CheckSuper.Context#visitReturn
-    fn visit_return(&mut self, context: ContextId, t: &mut NodeTraversal<'_>, return_node: NodeId) {
+    fn visit_return<C: CheckContext>(
+        &mut self,
+        context: ContextId,
+        t: &mut C,
+        return_node: NodeId,
+    ) {
         match &mut self.contexts[context].kind {
             // port: CheckSuper.ConstructorContext#visitReturn
             ContextKind::Constructor(constructor) => {
@@ -387,7 +397,7 @@ impl CheckSuper {
     }
 
     // port: CheckSuper.Context#visitContextNode
-    fn visit_context_node(&mut self, context: ContextId, t: &mut NodeTraversal<'_>) {
+    fn visit_context_node<C: CheckContext>(&mut self, context: ContextId, t: &mut C) {
         let context_node = self.contexts[context].get_context_node();
         match &self.contexts[context].kind {
             // port: CheckSuper.ConstructorContext#visitContextNode
@@ -456,9 +466,41 @@ impl Default for CheckSuper {
     }
 }
 
-impl CompilerPass for CheckSuper {
-    // port: CheckSuper#process
-    fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
+impl CheckSuper {
+    /// Rust-only (performance divergence): `process` with the statements walked on worker
+    /// threads (see `parallel_checks`); false when a walk gave up, before anything was reported.
+    fn process_in_parallel(&mut self, compiler: &mut AbstractCompiler, root: NodeId) -> bool {
+        let mut main = CheckSuper::new();
+        let no_suffix = |_: &AbstractCompiler, _: NodeId| None;
+        // At a top-level statement the only context is the one of the ROOT.
+        let unit = |_| {
+            let mut unit = CheckSuper::new();
+            let context = unit.new_context(Context::new(root, ContextKind::SuperNotAllowed));
+            unit.context_stack.push(context);
+            unit
+        };
+        let Some(mut walked) = (parallel_checks::Run {
+            main: &mut main,
+            script_suffix: &no_suffix,
+        })
+        .walk(compiler, &[root], unit) else {
+            return false;
+        };
+        check_state!(main.context_stack.is_empty());
+        for unit in walked.take_unit_callbacks() {
+            check_state!(unit.context_stack.len() == 1);
+        }
+        if *parallel_checks::MODE == parallel_checks::Mode::Verify {
+            walked.verify(compiler, "CheckSuper", false, |compiler| {
+                self.process_serially(compiler, root);
+            });
+        } else {
+            walked.report(compiler, false);
+        }
+        true
+    }
+
+    fn process_serially(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
         NodeTraversal::traverse(compiler, root, self);
         check_state!(
             self.context_stack.is_empty(),
@@ -466,16 +508,9 @@ impl CompilerPass for CheckSuper {
             format!("{:?}", self.context_stack)
         );
     }
-}
 
-impl Callback for CheckSuper {
     // port: CheckSuper#shouldTraverse
-    fn should_traverse(
-        &mut self,
-        t: &mut NodeTraversal<'_>,
-        n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
+    fn should_traverse_impl(&mut self, t: &Ast, n: NodeId) -> bool {
         match n.get_token(t) {
             Token::ROOT => {
                 check_state!(self.context_stack.is_empty());
@@ -508,7 +543,7 @@ impl Callback for CheckSuper {
     }
 
     // port: CheckSuper#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
+    fn visit_impl<C: CheckContext>(&mut self, t: &mut C, n: NodeId) {
         let current_context = *check_not_null!(self.context_stack.last());
 
         match n.get_token(t) {
@@ -540,6 +575,45 @@ impl Callback for CheckSuper {
             self.visit_context_node(current_context, t);
             self.context_stack.pop();
         }
+    }
+}
+
+impl CompilerPass for CheckSuper {
+    // port: CheckSuper#process
+    fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
+        if *parallel_checks::MODE != parallel_checks::Mode::Off
+            && self.process_in_parallel(compiler, root)
+        {
+            return;
+        }
+        self.process_serially(compiler, root);
+    }
+}
+
+impl Callback for CheckSuper {
+    // port: CheckSuper#shouldTraverse
+    fn should_traverse(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
+        _parent: Option<NodeId>,
+    ) -> bool {
+        self.should_traverse_impl(t, n)
+    }
+
+    // port: CheckSuper#visit
+    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
+        self.visit_impl(t, n);
+    }
+}
+
+impl ReadOnlyCallback for CheckSuper {
+    fn should_traverse(&mut self, cx: &mut Collector<'_>, n: NodeId, _: Option<NodeId>) -> bool {
+        self.should_traverse_impl(cx, n)
+    }
+
+    fn visit(&mut self, cx: &mut Collector<'_>, n: NodeId, _parent: Option<NodeId>) {
+        self.visit_impl(cx, n);
     }
 }
 
@@ -601,7 +675,7 @@ impl Context {
     }
 
     // port: CheckSuper.MethodContext#MethodContext
-    fn new_method_context(t: &NodeTraversal<'_>, function_node: NodeId) -> Self {
+    fn new_method_context(t: &Ast, function_node: NodeId) -> Self {
         check_argument!(
             function_node.is_function(t) && NodeUtil::is_method_declaration(t, function_node),
             "%s",
@@ -623,7 +697,7 @@ impl Context {
 
     /// Return the property name associated with the method, if any, otherwise NULL.
     // port: CheckSuper.MethodContext#getPropertyName
-    fn get_property_name(&self, t: &NodeTraversal<'_>) -> Option<String> {
+    fn get_property_name(&self, t: &Ast) -> Option<String> {
         let parent = check_not_null!(self.get_context_node().get_parent(t));
         // ```
         // class X {
@@ -641,7 +715,7 @@ impl Context {
     }
 
     // port: CheckSuper.ConstructorContext#ConstructorContext
-    fn new_constructor_context(t: &NodeTraversal<'_>, context_node: NodeId) -> Self {
+    fn new_constructor_context(t: &Ast, context_node: NodeId) -> Self {
         check_argument!(
             NodeUtil::is_es6_constructor(t, context_node),
             "%s",
