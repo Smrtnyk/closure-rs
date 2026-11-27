@@ -112,6 +112,8 @@ const SHARED_KINDS: usize = 9;
 pub struct Writer {
     body: Vec<u8>,
     strings: IndexSet<JsString>,
+    /// Whether some occurrence of each string of `strings` was a string pool entry.
+    pooled: Vec<bool>,
     rust_strings: IndexSet<String>,
     shared: IndexMap<(u8, usize), u32>,
     shared_counts: [u32; SHARED_KINDS],
@@ -157,6 +159,7 @@ impl Writer {
         Self {
             body: Vec::new(),
             strings: IndexSet::default(),
+            pooled: Vec::new(),
             rust_strings: IndexSet::default(),
             shared: IndexMap::default(),
             shared_counts: [0; SHARED_KINDS],
@@ -220,7 +223,7 @@ impl Writer {
 
     #[inline]
     pub fn js(&mut self, s: &JsString) {
-        let (index, _) = self.strings.insert_full(s.clone());
+        let index = self.string_index(s);
         self.u(index as u64);
     }
 
@@ -228,10 +231,22 @@ impl Writer {
         match s {
             None => self.u(0),
             Some(s) => {
-                let (index, _) = self.strings.insert_full(s.clone());
+                let index = self.string_index(s);
                 self.u(index as u64 + 1);
             }
         }
+    }
+
+    /// The index of `s` in the string table, noting whether it is a string pool entry.
+    fn string_index(&mut self, s: &JsString) -> usize {
+        let (index, new) = self.strings.insert_full(s.clone());
+        let pooled = RhinoStringPool::is_pool_entry(s);
+        if new {
+            self.pooled.push(pooled);
+        } else {
+            self.pooled[index] |= pooled;
+        }
+        index
     }
 
     pub fn rs(&mut self, s: &str) {
@@ -347,7 +362,7 @@ impl Writer {
     ) -> Vec<u8> {
         let mut out = Writer::new();
         out.u(self.strings.len() as u64);
-        for s in &self.strings {
+        for (s, &pooled) in self.strings.iter().zip(&self.pooled) {
             match node_string(s) {
                 Some((a, b)) => {
                     out.u(0);
@@ -355,10 +370,23 @@ impl Writer {
                     out.u(b);
                 }
                 None => {
+                    // Rust-only (performance divergence): an ASCII string (the common case) is
+                    // written as its bytes, which the reader widens without decoding a number per
+                    // code unit; other strings as one number per code unit. The low bit of the
+                    // length says which.
+                    // The second bit says whether the string was a string pool entry: the reader
+                    // interns only those, as the state it stands for holds the others as plain
+                    // strings (the qualified names of declarations, mostly).
                     let units = s.as_units();
-                    out.u(units.len() as u64 + 1);
-                    for &unit in units {
-                        out.u(u64::from(unit));
+                    let pooled = u64::from(pooled) << 1;
+                    if units.iter().all(|&unit| unit < 0x80) {
+                        out.u(((units.len() as u64) << 2 | pooled | 1) + 1);
+                        out.body.extend(units.iter().map(|&unit| unit as u8));
+                    } else {
+                        out.u(((units.len() as u64) << 2 | pooled) + 1);
+                        for &unit in units {
+                            out.u(u64::from(unit));
+                        }
                     }
                 }
             }
@@ -444,12 +472,23 @@ impl<'a> Reader<'a> {
                 r.strings.push(node_string(a, b));
                 continue;
             }
+            let (len, pooled, ascii) = ((len - 1) >> 2, (len - 1) & 2 != 0, (len - 1) & 1 != 0);
             units.clear();
-            for _ in 0..len - 1 {
-                units.push(r.u() as u16);
+            if ascii {
+                units.extend(r.bytes[r.pos..r.pos + len].iter().map(|&b| u16::from(b)));
+                r.pos += len;
+            } else {
+                for _ in 0..len {
+                    units.push(r.u() as u16);
+                }
             }
-            r.strings
-                .push(RhinoStringPool::add_or_get(JsString::from_slice(&units)));
+            // Rust-only (performance divergence): the pool entry `add_or_get` would return, found
+            // without a temporary string; a string that was no pool entry stays a plain string.
+            r.strings.push(if pooled {
+                RhinoStringPool::add_or_get_slice(&units)
+            } else {
+                JsString::from_slice(&units)
+            });
         }
         let count = r.u() as usize;
         for _ in 0..count {

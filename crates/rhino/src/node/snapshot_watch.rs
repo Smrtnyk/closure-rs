@@ -48,12 +48,30 @@ pub(super) struct Range {
     last_statement: Option<NodeId>,
     data: &'static (dyn Any + Send + Sync),
     changes: u8,
+    /// The properties the range's nodes were loaded with, when the loader recorded them.
+    pub(super) loaded: Option<Box<LoadedProps>>,
+}
+
+/// Rust-only (performance divergence): the property state a packed bundled snapshot gave the
+/// nodes of its range (see `Ast::prop_digest_range_since_load`). Property lists are immutable and
+/// replaced, never edited, and this record keeps the loaded lists alive, so a node whose list is
+/// still the loaded one (by address) and whose presence bits are the loaded ones has exactly the
+/// properties it was loaded with.
+#[derive(Debug)]
+pub(super) struct LoadedProps {
+    pub(super) start: u32,
+    /// The distinct lists with their presence bits; nodes refer to them by `index`.
+    pub(super) lists: Vec<(Option<std::sync::Arc<super::PropListItem>>, u64)>,
+    pub(super) index: Vec<u16>,
+    pub(super) source_name: String,
 }
 
 #[derive(Default, Debug)]
 pub(super) struct Watches {
     pub(super) ranges: Vec<Range>,
     end: u32,
+    /// What the last packed bundled load recorded, until its range is watched.
+    pub(super) pending_loaded: Option<Box<LoadedProps>>,
 }
 
 impl Watches {
@@ -91,6 +109,11 @@ impl Ast {
     ) {
         let end = self.node_count();
         assert!(self.snapshot_watches.end <= start && (start..end).contains(&(root.0.get() - 1)));
+        let loaded = self
+            .snapshot_watches
+            .pending_loaded
+            .take()
+            .filter(|loaded| loaded.start == start && loaded.index.len() == (end - start) as usize);
         self.snapshot_watches.ranges.push(Range {
             start,
             end,
@@ -98,6 +121,7 @@ impl Ast {
             last_statement: root.get_last_child(self),
             data,
             changes: 0,
+            loaded,
         });
         self.snapshot_watches.end = end;
     }
