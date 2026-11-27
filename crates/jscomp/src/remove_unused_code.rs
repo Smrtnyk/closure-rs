@@ -69,7 +69,7 @@ use crate::{
     node_util::NodeUtil,
     polyfill_usage_finder::{PolyfillUsageFinder, Polyfills},
     scope::ScopeId,
-    syntactic_scope_cache::SyntacticScopeCache,
+    syntactic_scope_cache::{ChangeMark, SyntacticScopeCache},
     syntactic_scope_creator::SyntacticScopeCreator,
     var::VarId,
 };
@@ -110,6 +110,33 @@ static ACCESSOR_KEYED_SUMMARIES: LazyLock<bool> =
 static VERIFY_GUARD_CACHE: LazyLock<bool> =
     LazyLock::new(|| std::env::var("CLOSURE_RS_RUC_CACHE").as_deref() == Ok("verify"));
 
+/// `CLOSURE_RS_RUC_CLEAN_SKIP=off`: every run of the pass traverses the program, also one that
+/// follows a run that changed nothing (`RemoveUnusedCode::try_skip_clean_run`); `=verify`: a run
+/// that would be skipped runs and must change nothing.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CleanSkip {
+    Off,
+    On,
+    Verify,
+}
+
+static CLEAN_SKIP: LazyLock<CleanSkip> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_RUC_CLEAN_SKIP").as_deref() {
+            Ok("off") => CleanSkip::Off,
+            Ok("verify") => CleanSkip::Verify,
+            _ => CleanSkip::On,
+        },
+    );
+
+/// The most functions changed since a run that changed nothing that the next run verifies
+/// instead of traversing the program (`RemoveUnusedCode::try_skip_clean_run`).
+const MAX_CLEAN_SKIP_FUNCTIONS: usize = 64;
+
+/// Rust-only (performance divergence): the key of the point in the compiler's change timeline
+/// where the last run that changed nothing ended (no pass of Java's uses it).
+const CLEAN_RUN_TIMELINE: &str = "RemoveUnusedCode (Rust-only): clean run";
+
 const NO_LEAF: u32 = u32::MAX;
 
 /// Rust-only (performance divergence): deduplicated semantic summary of an unchanged function
@@ -149,6 +176,24 @@ pub(crate) struct RemoveUnusedCodeCache {
     summaries: IndexMap<NodeId, Arc<LeafFunctionSummary>>,
     /// The guarded polyfill usages of unchanged functions (`collect_guarded_usages`).
     guarded_polyfill_usages: crate::polyfill_usage_finder::GuardedPolyfillUsageCache,
+    /// Rust-only (performance divergence): what the last run left when it changed nothing.
+    clean_run: Option<CleanRun>,
+}
+
+/// Rust-only (performance divergence): what a run of the pass that changed nothing leaves for the
+/// next run (`RemoveUnusedCode::try_skip_clean_run`).
+struct CleanRun {
+    /// The point in the changes of the tree when the run ended.
+    mark: ChangeMark,
+    /// `RemoveUnusedCode::flags_bits` of the run.
+    flags: u16,
+    accessor_summary: Option<Arc<AccessorSummary>>,
+    extern_properties: Arc<IndexSet<JsString>>,
+    /// The property names pinned when the run ended.
+    pinned: IndexSet<JsString>,
+    /// The functions whose summary the run replayed or made, with that summary: what each of
+    /// them contributed to the run.
+    covered: IndexMap<NodeId, Arc<LeafFunctionSummary>>,
 }
 
 impl RemoveUnusedCodeCache {
@@ -263,6 +308,9 @@ struct LeafRecorder {
     pinned_props: Vec<JsString>,
     required_pinned_props: Vec<JsString>,
     local_var_infos: Vec<VarInfoId>,
+    /// Rust-only (performance divergence): how many polyfills were registered (`polyfill_infos`)
+    /// when the recording started, for `CleanRun::covered`.
+    polyfills_at_start: usize,
 }
 
 const MAX_LEAF_NESTED_STAMPS: usize = 512;
@@ -511,6 +559,13 @@ pub struct RemoveUnusedCode {
     /// Dense pinned-property mirror indexed by `RemoveUnusedCodeCache::prop_universe` ID so
     /// leaf-summary cache hits check/replay pinned properties without string hashing.
     pinned_prop_ids: Vec<bool>,
+    /// Rust-only (performance divergence): whether this run may be skipped and may leave a
+    /// `CleanRun` (a single run of the pass in the optimizer, `process_once`).
+    clean_skip_context: bool,
+    /// Rust-only (performance divergence): the functions whose summary this run replayed or made,
+    /// with how many polyfills were registered (`polyfill_infos`) where the function was reached,
+    /// for `CleanRun::covered`.
+    covered: Vec<(NodeId, Arc<LeafFunctionSummary>, usize)>,
 }
 
 impl RemoveUnusedCode {
@@ -568,6 +623,8 @@ impl RemoveUnusedCode {
             removable_polyfill_mask: 0,
             polyfill_mask_overflow: false,
             pinned_prop_ids: Vec::new(),
+            clean_skip_context: false,
+            covered: Vec::new(),
         };
         // All Vars that are completely unremovable will share this VarInfo instance.
         this.canonical_unremovable_var_info = this.new_var_info(VarInfo::CanonicalUnremovable);
@@ -793,17 +850,63 @@ impl CompilerPass for RemoveUnusedCode {
         // tree the finder does no scope lookup, and the worklist only analyzes the AST.
         // All removals happen after the last lookup. A reusable pass keeps upstream's
         // accumulation of guarded nodes across calls to process.
-        if compiler.get_life_cycle_stage() == crate::abstract_compiler::LifeCycleStage::NORMALIZED
+        let single_run = compiler.get_life_cycle_stage()
+            == crate::abstract_compiler::LifeCycleStage::NORMALIZED
             && !compiler.get_options().has_custom_passes()
             && compiler.get_coding_convention().property_tests_are_pure()
             && root.is_root(compiler)
-            && root.children(compiler).all(|n| n.is_script(compiler))
-        {
+            && root.children(compiler).all(|n| n.is_script(compiler));
+        if single_run {
             self.pending_guard_scripts = Some(root.children(compiler).collect());
         }
         // A reused pass can have entries classified under an earlier convention.
         self.reuse_var_classification = self.var_info_map.order.is_empty()
             && compiler.get_coding_convention().export_tests_are_pure();
+        // Rust-only (performance divergence): a run that provably changes nothing is skipped
+        // (`try_skip_clean_run`).
+        self.clean_skip_context = single_run
+            && *CLEAN_SKIP != CleanSkip::Off
+            && *USE_LEAF_CACHE
+            && compiler.get_coding_convention().export_tests_are_pure();
+        if self.clean_skip_context
+            && let Some(verified) = self.try_skip_clean_run(compiler, root)
+        {
+            if *CLEAN_SKIP == CleanSkip::On {
+                return;
+            }
+            // `CLOSURE_RS_RUC_CLEAN_SKIP=verify`: the run must change nothing.
+            let mark = SyntacticScopeCache::change_mark(compiler);
+            let stamp = compiler.get_change_tracker_ref().get_change_stamp();
+            self.process(compiler, externs, root);
+            let changed = SyntacticScopeCache::nodes_changed_since(compiler, &mark, false).zip(
+                SyntacticScopeCache::nodes_changed_since(compiler, &mark, true),
+            );
+            let reported = compiler.get_change_tracker_ref().get_change_stamp() - stamp;
+            assert!(
+                reported == 0
+                    && changed
+                        .as_ref()
+                        .is_some_and(|(nodes, flags)| nodes.is_empty() && flags.is_empty()),
+                "RemoveUnusedCode: a run skipped as changing nothing changed the tree\n\
+                 skipped after verifying {:?}\nthe run reported {reported} changes, changed \
+                 nodes {:?}",
+                verified
+                    .iter()
+                    .map(|f| f.to_string(compiler))
+                    .collect::<Vec<_>>(),
+                changed.map(|(nodes, flags)| (
+                    nodes
+                        .iter()
+                        .map(|n| n.to_string(compiler))
+                        .collect::<Vec<_>>(),
+                    flags
+                        .iter()
+                        .map(|n| n.to_string(compiler))
+                        .collect::<Vec<_>>()
+                ))
+            );
+            return;
+        }
         self.process(compiler, externs, root);
     }
 
@@ -893,6 +996,38 @@ impl RemoveUnusedCode {
         self.polyfill_mask_overflow = false;
 
         self.worklist.push_back(Continuation::new(root, scope));
+        self.drain_worklist(compiler);
+
+        // Rust-only (performance divergence): whether this run changes the tree, for `CleanRun`.
+        let before_removals =
+            (self.clean_skip_context && self.can_use_leaf_cache && !self.polyfill_mask_overflow)
+                .then(|| {
+                    (
+                        SyntacticScopeCache::change_rounds(compiler),
+                        compiler.get_change_tracker_ref().get_change_stamp(),
+                    )
+                });
+        self.remove_unreferenced_vars_and_polyfills(compiler);
+        self.remove_independently_removable_properties(compiler);
+        for index in 0..self.all_function_param_scopes.len() {
+            self.remove_unreferenced_function_args(compiler, self.all_function_param_scopes[index]);
+        }
+        if self.can_use_leaf_cache && !self.polyfill_mask_overflow {
+            self.commit_leaf_summaries(compiler);
+        }
+        if let Some(before) = before_removals
+            && before
+                == (
+                    SyntacticScopeCache::change_rounds(compiler),
+                    compiler.get_change_tracker_ref().get_change_stamp(),
+                )
+        {
+            self.leave_clean_run(compiler);
+        }
+    }
+
+    /// Applies the continuations of the worklist until it is empty.
+    fn drain_worklist(&mut self, compiler: &mut AbstractCompiler) {
         while let Some(continuation) = self.worklist.pop_front() {
             let prev_leaf = self.active_leaf;
             // The continuation lies in the subtree of its owner and of the functions around it.
@@ -915,15 +1050,435 @@ impl RemoveUnusedCode {
             self.active_leaf = prev_leaf;
         }
         self.active_leaf = NO_LEAF;
+    }
 
-        self.remove_unreferenced_vars_and_polyfills(compiler);
-        self.remove_independently_removable_properties(compiler);
-        for index in 0..self.all_function_param_scopes.len() {
-            self.remove_unreferenced_function_args(compiler, self.all_function_param_scopes[index]);
+    /// Rust-only (performance divergence): keeps what this run, which changed nothing, leaves
+    /// for the next one (`try_skip_clean_run`).
+    fn leave_clean_run(&mut self, compiler: &mut AbstractCompiler) {
+        // A function reached before the last polyfill was registered is left out: a reference to
+        // a polyfill counts only once the polyfill is registered, so what a change in it can move
+        // in the order of the run could matter.
+        let registered = self.polyfill_infos.len();
+        let covered = std::mem::take(&mut self.covered)
+            .into_iter()
+            .filter(|&(_, _, polyfills)| polyfills == registered)
+            .map(|(function, summary, _)| (function, summary))
+            .collect();
+        let clean = CleanRun {
+            mark: SyntacticScopeCache::change_mark(compiler),
+            flags: self.flags_bits(),
+            accessor_summary: compiler.get_accessor_summary().cloned(),
+            extern_properties: Arc::clone(&self.extern_properties),
+            pinned: std::mem::take(&mut self.pinned_property_names),
+            covered,
+        };
+        compiler.remove_unused_code_cache.clean_run = Some(clean);
+        compiler
+            .get_change_tracker()
+            .get_changed_scope_nodes_for_pass(CLEAN_RUN_TIMELINE);
+    }
+
+    /// Rust-only (performance divergence): whether this run can be skipped because it would
+    /// change nothing, with the functions verified for that (Java traverses the program again).
+    ///
+    /// The previous run of the pass changed nothing (`CleanRun`): every var it found removable
+    /// had only removals that change nothing, every property assignment it could remove was
+    /// pinned, every polyfill was used. What a run removes is a function of the tree and of the
+    /// environment it reads: the options (`flags_bits`), the accessor summary and the extern
+    /// property names, kept and compared here, the coding convention, which does not change, and
+    /// the summaries, which give the same end state as a traversal. The vars a run marks, the
+    /// properties it pins and the removables it keeps at its end do not depend on the order of
+    /// its steps (summaries reorder them already), with one exception: a reference to a polyfill
+    /// counts only once the polyfill is registered. So this run changes nothing if every change
+    /// the tree took since (`SyntacticScopeCache::nodes_changed_since`, which misses no
+    /// structural change and no in-place change of the flags a run reads) lies in functions, and
+    /// the innermost function around each change whose contribution to the previous run was a
+    /// summary (replayed or made then, `CleanRun::covered`, which leaves out the functions reached
+    /// before the last polyfill was registered) contributes the same now: traversed and recorded
+    /// again, it must make a summary that passes the checks of `commit_leaf_summaries` (no local
+    /// var removable, nothing that ends a recording) and has the same outer vars with the same
+    /// marks, the same pinned and required properties, and the same name flags and parent
+    /// (`verify_contribution`). Everything outside these functions is the same tree, traversed
+    /// from the same state up to them, all polyfills registered by then, and the run then ends
+    /// in the end state of the previous one. A change at the top level of a script, in the
+    /// externs, to the scripts themselves, or in a function without such a summary around it
+    /// makes the run go ahead. A skipped run makes no change, reports none and records nothing
+    /// but the `CleanRun` it keeps.
+    fn try_skip_clean_run(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+    ) -> Option<Vec<NodeId>> {
+        let mut clean = compiler.remove_unused_code_cache.clean_run.take()?;
+        let extern_properties = compiler.get_extern_property_set_js()?;
+        let accessor_same = match (&clean.accessor_summary, compiler.get_accessor_summary()) {
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b) || a == b,
+            (None, None) => true,
+            _ => false,
+        };
+        if clean.flags != self.flags_bits()
+            || !Arc::ptr_eq(&clean.extern_properties, extern_properties)
+            || !accessor_same
+        {
+            return None;
         }
-        if self.can_use_leaf_cache && !self.polyfill_mask_overflow {
-            self.commit_leaf_summaries(compiler);
+        // The changes reported since are some of those made since: when one of them is in a
+        // script's top level or there are too many, the run goes ahead without listing them all.
+        let reported = compiler
+            .get_change_tracker()
+            .get_changed_scope_nodes_for_pass(CLEAN_RUN_TIMELINE)?;
+        if reported.len() > MAX_CLEAN_SKIP_FUNCTIONS
+            || reported.iter().any(|n| !n.is_function(compiler))
+        {
+            return None;
         }
+        let changed = Self::functions_changed_since(compiler, root, &clean.mark)?;
+        let mut verified: IndexSet<NodeId> = IndexSet::default();
+        for function in changed {
+            let mut node = Some(function);
+            let mut covering = None;
+            while let Some(n) = node {
+                if clean.covered.contains_key(&n) {
+                    covering = Some(n);
+                    break;
+                }
+                node = n.get_parent(compiler);
+            }
+            verified.insert(covering?);
+        }
+        if !verified.is_empty() {
+            let mut verifier = self.verifier(compiler, std::mem::take(&mut clean.pinned));
+            for &function in &verified {
+                let old = Arc::clone(&clean.covered[&function]);
+                if !verifier.verify_contribution(compiler, root, function, &old) {
+                    return None;
+                }
+            }
+            clean.pinned = std::mem::take(&mut verifier.pinned_property_names);
+            // The contribution of each verified function is the same as a whole, not that of
+            // each function in it: those are verified with the function around them from now on.
+            for &function in &verified {
+                let mut pending: Vec<NodeId> = function.children(compiler).collect();
+                while let Some(n) = pending.pop() {
+                    if n.is_function(compiler) {
+                        clean.covered.swap_remove(&n);
+                    }
+                    pending.extend(n.children(compiler));
+                }
+            }
+        }
+        clean.mark = SyntacticScopeCache::change_mark(compiler);
+        compiler.remove_unused_code_cache.clean_run = Some(clean);
+        Some(verified.into_iter().collect())
+    }
+
+    /// Rust-only (performance divergence): the functions whose change scope changed structurally
+    /// or in its flags since `mark`, or None when a change lies elsewhere (the top level of a
+    /// script, the externs, the scripts), the changes cannot be listed, or there are more than
+    /// `MAX_CLEAN_SKIP_FUNCTIONS`. A node no longer in the tree is passed over: its removal
+    /// changed its former parent, which is listed too.
+    fn functions_changed_since(
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        mark: &ChangeMark,
+    ) -> Option<IndexSet<NodeId>> {
+        let root_parent = root.get_parent(compiler)?;
+        let mut functions: IndexSet<NodeId> = IndexSet::default();
+        for flags in [false, true] {
+            let nodes = SyntacticScopeCache::nodes_changed_since(compiler, mark, flags)?;
+            for n in nodes {
+                let mut change_root = None;
+                let mut current = n;
+                // The child of the tree's root that `n` lies in, None when `n` is not in the tree.
+                let top = loop {
+                    if change_root.is_none()
+                        && (current.is_function(compiler) || current.is_script(compiler))
+                    {
+                        change_root = Some(current);
+                    }
+                    match current.get_parent(compiler) {
+                        Some(parent) if parent == root_parent => break Some(current),
+                        Some(parent) => current = parent,
+                        None => break None,
+                    }
+                };
+                match top {
+                    None if n == root_parent => return None,
+                    None => continue,
+                    // The externs.
+                    Some(top) if top != root => return None,
+                    Some(_) => {}
+                }
+                let change_root = change_root.filter(|r| r.is_function(compiler))?;
+                functions.insert(change_root);
+                if functions.len() > MAX_CLEAN_SKIP_FUNCTIONS {
+                    return None;
+                }
+            }
+        }
+        Some(functions)
+    }
+
+    /// Rust-only (performance divergence): a fresh pass with this one's options that records the
+    /// summaries of single functions for `verify_contribution`, with `pinned` pinned.
+    fn verifier(&self, compiler: &AbstractCompiler, pinned: IndexSet<JsString>) -> Self {
+        let mut verifier = Builder::new(compiler)
+            .remove_local_vars(self.remove_local_vars)
+            .remove_globals(self.remove_globals)
+            .preserve_function_expression_names(self.preserve_function_expression_names)
+            .remove_unused_prototype_properties(self.remove_unused_prototype_properties)
+            .remove_unused_this_properties(self.remove_unused_this_properties)
+            .remove_unused_object_define_properties_definitions(
+                self.remove_unused_object_define_properties_definitions,
+            )
+            .remove_unused_polyfills(self.remove_unused_polyfills)
+            .assume_getters_are_pure(self.assume_getters_are_pure)
+            .disambiguate_properties(self.disambiguate_properties)
+            .build();
+        verifier.extern_properties = Arc::clone(
+            compiler
+                .get_extern_property_set_js()
+                .expect("compiler.getExternProperties() is null"),
+        );
+        verifier.removal_log = Some(crate::diagnostic::log_file::create_no_op());
+        verifier.unremovable_log = Some(crate::diagnostic::log_file::create_no_op());
+        verifier.reuse_var_classification = self.reuse_var_classification;
+        verifier.can_use_leaf_cache = true;
+        let prop_universe = &compiler.remove_unused_code_cache.prop_universe;
+        verifier.pinned_prop_ids = vec![false; prop_universe.len()];
+        for prop in &pinned {
+            if let Some(idx) = prop_universe.get_index_of(prop) {
+                verifier.pinned_prop_ids[idx] = true;
+            }
+        }
+        verifier.pinned_property_names = pinned;
+        verifier
+    }
+
+    /// Rust-only (performance divergence): whether `function`, traversed and recorded again in
+    /// the scope a run gives it, contributes to the end state of a run what `old` contributed to
+    /// the previous run (see `try_skip_clean_run`). What the recording reads outside the
+    /// function: the scopes around it (made as a run makes them, `scope_for_function`), the vars
+    /// of outer names (their classification depends on the var alone; an outer var that would
+    /// get a removable or a non-local value ends the recording), the pinned properties (here
+    /// those pinned at the end of the previous run: an independently removable assignment to a
+    /// property pinned only later in a run is kept there too, once the property is pinned, and
+    /// one to a property that was not pinned at the end ends the recording), the accessor summary
+    /// and the extern properties (compared by `try_skip_clean_run`), the summaries of nested
+    /// functions (each replayed only where it holds, as in a run), and the registered polyfills.
+    /// No polyfill is registered here: every polyfill was used at the end of the previous run,
+    /// and the functions reached before its last polyfill was registered are not covered, so a
+    /// polyfill use in `function` neither keeps nor frees one (one it adds is used anyway, one it
+    /// drops was used before `function` was reached, or `old` would not have been recorded).
+    fn verify_contribution(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        function: NodeId,
+        old: &LeafFunctionSummary,
+    ) -> bool {
+        if old.flags != self.flags_bits()
+            || old.parent != function.get_parent(compiler)
+            || old.name_value_used != Self::function_name_value_used(compiler, function)
+        {
+            return false;
+        }
+        let Some(parent_scope) = self.scope_for_function(compiler, root, function) else {
+            return false;
+        };
+        let first = self.leaf_recorders.len();
+        self.traverse_function(compiler, function, parent_scope);
+        self.drain_worklist(compiler);
+        let Some(rec) = self.leaf_recorders.get(first) else {
+            // A hit: the kept summary holds for the function as it is now.
+            let Some(now) = compiler
+                .remove_unused_code_cache
+                .summaries
+                .get(&function)
+                .cloned()
+            else {
+                return false;
+            };
+            return Self::same_contribution(compiler, parent_scope, old, &now);
+        };
+        if rec.function != function || rec.aborted || rec.verify_failure(self, compiler).is_some() {
+            return false;
+        }
+        let mut outer: IndexSet<(VarId, bool)> = IndexSet::default();
+        for &(var, _, mark) in &rec.outer_vars {
+            outer.insert((var, mark));
+        }
+        let pinned: IndexSet<&JsString> = rec
+            .pinned_props
+            .iter()
+            .filter(|prop| !self.extern_properties.contains(*prop))
+            .collect();
+        let required: IndexSet<&JsString> = rec.required_pinned_props.iter().collect();
+        let prop_universe = &compiler.remove_unused_code_cache.prop_universe;
+        let old_pinned: IndexSet<&JsString> = old
+            .pinned_props
+            .iter()
+            .map(|&id| &prop_universe[id as usize])
+            .collect();
+        let old_required: IndexSet<&JsString> = old
+            .required_pinned_props
+            .iter()
+            .map(|&id| &prop_universe[id as usize])
+            .collect();
+        if rec.name_non_local != old.name_non_local
+            || pinned != old_pinned
+            || required != old_required
+        {
+            return false;
+        }
+        let first_var = rec.outer_vars.first().map(|e| e.0);
+        let name_non_local = rec.name_non_local;
+        Self::same_outer_vars(
+            compiler,
+            parent_scope,
+            old,
+            &outer,
+            first_var,
+            name_non_local,
+        )
+    }
+
+    /// Rust-only: whether the summaries `old` and `now` of a function have the same outer vars
+    /// (resolved where the function is) and pinned and required properties.
+    fn same_contribution(
+        compiler: &mut AbstractCompiler,
+        parent_scope: ScopeId,
+        old: &LeafFunctionSummary,
+        now: &LeafFunctionSummary,
+    ) -> bool {
+        let set = |ids: &[u32]| ids.iter().copied().collect::<IndexSet<u32>>();
+        if now.name_non_local != old.name_non_local
+            || set(&now.pinned_props) != set(&old.pinned_props)
+            || set(&now.required_pinned_props) != set(&old.required_pinned_props)
+        {
+            return false;
+        }
+        let mut outer: IndexSet<(VarId, bool)> = IndexSet::default();
+        for &(node, mark) in &now.outer_vars {
+            let Some(var) = parent_scope.get_var_of_node(compiler, node) else {
+                return false;
+            };
+            outer.insert((var, mark));
+        }
+        let first_var = match now.outer_vars.first() {
+            Some(&(node, _)) => parent_scope.get_var_of_node(compiler, node),
+            None => None,
+        };
+        Self::same_outer_vars(
+            compiler,
+            parent_scope,
+            old,
+            &outer,
+            first_var,
+            now.name_non_local,
+        )
+    }
+
+    /// Rust-only: whether the outer vars of `old`, resolved in `parent_scope`, are `outer` (vars
+    /// with whether each is marked not removable), with the same first var when the function's
+    /// name is marked as having a non-local value.
+    fn same_outer_vars(
+        compiler: &mut AbstractCompiler,
+        parent_scope: ScopeId,
+        old: &LeafFunctionSummary,
+        outer: &IndexSet<(VarId, bool)>,
+        first_var: Option<VarId>,
+        name_non_local: bool,
+    ) -> bool {
+        if old.outer_vars.len() != outer.len() {
+            return false;
+        }
+        for (index, &(node, mark)) in old.outer_vars.iter().enumerate() {
+            let Some(var) = parent_scope.get_var_of_node(compiler, node) else {
+                return false;
+            };
+            if !outer.contains(&(var, mark))
+                || (name_non_local && index == 0 && first_var != Some(var))
+            {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Rust-only (performance divergence): the scope a run hands `traverse_function` for
+    /// `function`: the scopes the traversal makes on the way down from the root to it
+    /// (`traverse_node`, `traverse_function`, `traverse_class*`, `traverse_*for`), made again (the
+    /// syntactic scope cache hands out the kept ones). None for a function in the externs, in the
+    /// heritage of a class (whose scope depends on the class) or in a static block of a class.
+    fn scope_for_function(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        function: NodeId,
+    ) -> Option<ScopeId> {
+        let root_parent = root.get_parent(compiler)?;
+        let mut path = Vec::new();
+        let mut node = function.get_parent(compiler);
+        while let Some(n) = node {
+            if n == root_parent {
+                break;
+            }
+            path.push(n);
+            node = n.get_parent(compiler);
+        }
+        if node.is_none() || path.last() != Some(&root) {
+            return None;
+        }
+        let mut scope = self.scope_creator.create_scope(compiler, root_parent, None);
+        if !scope.has_slot(compiler, NodeUtil::JSC_PROPERTY_NAME_FN) {
+            // As `traverse_and_remove_unused_references` does.
+            scope.declare(compiler, NodeUtil::JSC_PROPERTY_NAME_FN, None, None);
+        }
+        for index in (0..path.len()).rev() {
+            let n = path[index];
+            let child = if index == 0 {
+                function
+            } else {
+                path[index - 1]
+            };
+            match n.get_token(compiler) {
+                Token::FUNCTION => {
+                    let fparam_scope = self.scope_creator.create_scope(compiler, n, Some(scope));
+                    let body = n.get_last_child(compiler)?;
+                    scope = if child == body {
+                        self.scope_creator
+                            .create_scope(compiler, body, Some(fparam_scope))
+                    } else {
+                        fparam_scope
+                    };
+                }
+                Token::SWITCH_BODY | Token::BLOCK => {
+                    let parent = n.get_parent(compiler)?;
+                    if parent.is_function(compiler) {
+                        // The body: its scope is made with the function's.
+                    } else if parent.is_class_members(compiler) {
+                        return None;
+                    } else if NodeUtil::creates_block_scope(compiler, n) {
+                        scope = self.scope_creator.create_scope(compiler, n, Some(scope));
+                    }
+                }
+                Token::MODULE_BODY => {
+                    scope = self.scope_creator.create_scope(compiler, n, Some(scope));
+                }
+                Token::CLASS => {
+                    if Some(child) != n.get_last_child(compiler) {
+                        return None;
+                    }
+                    scope = self.scope_creator.create_scope(compiler, n, Some(scope));
+                }
+                Token::FOR | Token::FOR_IN | Token::FOR_OF | Token::FOR_AWAIT_OF => {
+                    scope = self.scope_creator.create_scope(compiler, n, Some(scope));
+                }
+                _ => {}
+            }
+        }
+        Some(scope)
     }
 
     #[inline]
@@ -1201,10 +1756,15 @@ impl RemoveUnusedCode {
             if let Some(expected) = verify {
                 Self::verify_same_summary(compiler, function, &expected, &summary);
             }
+            let summary = Arc::new(summary);
+            if self.clean_skip_context {
+                self.covered
+                    .push((function, Arc::clone(&summary), rec.polyfills_at_start));
+            }
             compiler
                 .remove_unused_code_cache
                 .summaries
-                .insert(function, Arc::new(summary));
+                .insert(function, summary);
         }
     }
 
@@ -3104,6 +3664,10 @@ impl RemoveUnusedCode {
             for &prop_id in &summary.pinned_props {
                 self.mark_property_name_as_pinned_by_id(compiler, prop_id);
             }
+            if self.clean_skip_context {
+                self.covered
+                    .push((function, summary, self.polyfill_infos.len()));
+            }
             return;
         }
         // Rust-only (performance divergence): the recorders of the functions around this one go
@@ -3174,6 +3738,7 @@ impl RemoveUnusedCode {
                 pinned_props: Vec::new(),
                 required_pinned_props: Vec::new(),
                 local_var_infos: Vec::new(),
+                polyfills_at_start: self.polyfill_infos.len(),
             });
             self.active_leaf = rec_idx;
         }

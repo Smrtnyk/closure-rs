@@ -1898,3 +1898,19 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   scope exit in another statement splits anything (Java traverses every statement in every run).
   `CLOSURE_RS_IOL_STATEMENTS=off` traverses them all, `=verify` has every statement the collector
   would skip traversed instead and panics at a split inside it.
+- `jscomp/remove_unused_code.rs` (`CleanRun`, `try_skip_clean_run`, `verify_contribution`): a run
+  of RemoveUnusedCode in the optimizer that follows a run that changed nothing is skipped (Java
+  traverses the program again) when every change the tree took since (structural or in the flags a
+  run reads, `SyntacticScopeCache::nodes_changed_since`; the compiler's reported changes only make
+  it give up early) lies in functions and the innermost function around each change that the
+  previous run replayed or recorded a summary for contributes the same: recorded again in the
+  scope a run gives it, with the properties pinned at the end of the previous run, its summary
+  passes the checks of a kept summary and has the same outer vars and marks, pinned and required
+  properties, name flags and parent. The end state of a run (marked vars, pinned properties, kept
+  removables) does not depend on the order of its steps except that a polyfill reference counts
+  only once the polyfill is registered, so functions reached before the last registration are not
+  covered. Options, accessor summary and extern properties must be those of the previous run; a
+  change at a script's top level, in the externs or in a function without such a summary around
+  it, or more than `MAX_CLEAN_SKIP_FUNCTIONS` (64) changed functions, make the run go ahead.
+  `CLOSURE_RS_RUC_CLEAN_SKIP=off` runs every time; `=verify` runs a skipped run and checks that it
+  changes nothing.
