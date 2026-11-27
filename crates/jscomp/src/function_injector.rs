@@ -73,6 +73,13 @@ pub struct FunctionInjector {
 
     /// Rust-only: how often an expression decomposer was made (`decomposer_uses`).
     decomposer_uses: std::sync::atomic::AtomicU64,
+
+    /// Rust-only (performance divergence): while set, the side-effected reads of every
+    /// decomposer `classify_call_site` makes (`ExpressionDecomposer::start_logging_side_effected_reads`),
+    /// in order, and how many decomposers were made with the log on (see
+    /// `start_logging_decomposer_reads`).
+    decomposer_reads: std::cell::RefCell<Option<Vec<(NodeId, bool)>>>,
+    logged_decomposer_uses: std::sync::atomic::AtomicU64,
 }
 
 impl FunctionInjector {
@@ -92,6 +99,8 @@ impl FunctionInjector {
             references_eval_cache: IndexMap::<_, _>::default(),
             inner_function_cache: IndexMap::<_, _>::default(),
             decomposer_uses: std::sync::atomic::AtomicU64::new(0),
+            decomposer_reads: std::cell::RefCell::new(None),
+            logged_decomposer_uses: std::sync::atomic::AtomicU64::new(0),
         }
     }
 }
@@ -303,6 +312,58 @@ impl CallSiteType {
     }
 }
 
+/// Rust-only (performance divergence): what the rest of `inliningLowersCost` reads besides the
+/// function's subtree, once the references and the chunk graph have been looked at
+/// (`FunctionInjector::cost_query`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct CostQuery {
+    fn_node: NodeId,
+    reference_count: i32,
+    references_using_direct_inlining: i32,
+    references_using_block_inlining: i32,
+    alias_count: i32,
+    is_removable: bool,
+    references_this: bool,
+}
+
+impl CostQuery {
+    pub(crate) fn fn_node(&self) -> NodeId {
+        self.fn_node
+    }
+
+    /// The rest of `inliningLowersCost`: it reads only the function's subtree.
+    // port: FunctionInjector#inliningLowersCost
+    pub(crate) fn lowers_cost(&self, ast: &Ast) -> bool {
+        let call_cost =
+            FunctionInjector::estimate_call_cost(ast, self.fn_node, self.references_this);
+        let overall_call_cost = call_cost * self.reference_count;
+
+        let cost_delta_direct = FunctionInjector::inline_cost_delta_for_aliases(
+            ast,
+            self.fn_node,
+            self.alias_count,
+            InliningMode::DIRECT,
+        );
+        let cost_delta_block = FunctionInjector::inline_cost_delta_for_aliases(
+            ast,
+            self.fn_node,
+            self.alias_count,
+            InliningMode::BLOCK,
+        );
+
+        FunctionInjector::does_lower_cost(
+            ast,
+            self.fn_node,
+            overall_call_cost,
+            self.references_using_direct_inlining,
+            cost_delta_direct,
+            self.references_using_block_inlining,
+            cost_delta_block,
+            self.is_removable,
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CanInlineResult {
     YES,
@@ -319,6 +380,16 @@ impl FunctionInjector {
     // port: FunctionInjector#doesFunctionMeetMinimumRequirements
     pub fn does_function_meet_minimum_requirements(
         &self,
+        ast: &Ast,
+        fn_name: &JsString,
+        fn_node: NodeId,
+    ) -> bool {
+        Self::function_meets_minimum_requirements(ast, fn_name, fn_node)
+    }
+
+    /// The body of `doesFunctionMeetMinimumRequirements`, which reads no injector state
+    /// (Rust-only: callable from worker threads, see `InlineFunctions::prefill_function_facts`).
+    pub(crate) fn function_meets_minimum_requirements(
         ast: &Ast,
         fn_name: &JsString,
         fn_node: NodeId,
@@ -623,8 +694,17 @@ impl FunctionInjector {
             // left-hand-side of the assignments and handling them as EXPRESSION?
             return CallSiteType::VAR_DECL_SIMPLE_ASSIGNMENT;
         } else {
-            let decomposer = self.get_decomposer(compiler, r#ref.scope);
-            match decomposer.can_expose_expression(compiler, call_node) {
+            let mut decomposer = self.get_decomposer(compiler, r#ref.scope);
+            let logging = self.decomposer_reads.borrow().is_some();
+            if logging {
+                self.logged_decomposer_uses.fetch_add(1, Ordering::Relaxed);
+                decomposer.start_logging_side_effected_reads();
+            }
+            let exposure = decomposer.can_expose_expression(compiler, call_node);
+            if logging && let Some(reads) = self.decomposer_reads.borrow_mut().as_mut() {
+                reads.extend(decomposer.take_side_effected_reads());
+            }
+            match exposure {
                 DecompositionType::MOVABLE => {
                     return CallSiteType::EXPRESSION;
                 }
@@ -658,6 +738,42 @@ impl FunctionInjector {
     /// whose computation made one.
     pub(crate) fn decomposer_uses(&self) -> u64 {
         self.decomposer_uses.load(Ordering::Relaxed)
+    }
+
+    /// Rust-only (performance divergence): logs, until `take_decomposer_reads`, what the
+    /// decomposers `classify_call_site` makes read beyond the call's statement: the answers of
+    /// `ExpressionDecomposer::is_side_effected_tree_unsafe`, which an `InlineFunctions` answer
+    /// kept under them asks again (`InlineFunctions` keeps no answer whose computation made a
+    /// decomposer without the log: `logged_decomposer_uses`).
+    pub(crate) fn start_logging_decomposer_reads(&self) {
+        *self.decomposer_reads.borrow_mut() = Some(Vec::new());
+    }
+
+    /// Rust-only: the reads logged since `start_logging_decomposer_reads`; the log is off again.
+    pub(crate) fn take_decomposer_reads(&self) -> Vec<(NodeId, bool)> {
+        self.decomposer_reads
+            .borrow_mut()
+            .take()
+            .unwrap_or_default()
+    }
+
+    /// Rust-only: how many of the `decomposer_uses` were made with the log on.
+    pub(crate) fn logged_decomposer_uses(&self) -> u64 {
+        self.logged_decomposer_uses.load(Ordering::Relaxed)
+    }
+
+    /// Rust-only: a decomposer with this injector's known constant functions that answers in
+    /// `scope`, for asking logged reads again (not counted in `decomposer_uses`).
+    pub(crate) fn decomposer_for_reads(
+        &self,
+        compiler: &mut AbstractCompiler,
+        scope: Scope,
+    ) -> ExpressionDecomposer {
+        compiler.create_expression_decomposer(
+            self.safe_name_id_supplier.clone(),
+            self.known_constant_functions.clone(),
+            scope,
+        )
     }
 
     /// If required, rewrite the statement containing the call expression.
@@ -1090,12 +1206,40 @@ impl FunctionInjector {
         fn_node: NodeId,
         refs: &[&Reference],
         names_to_alias: &IndexSet<JsString>,
-        mut is_removable: bool,
+        is_removable: bool,
         references_this: bool,
     ) -> bool {
+        match Self::cost_query(
+            compiler,
+            fn_chunk,
+            fn_node,
+            refs,
+            names_to_alias,
+            is_removable,
+            references_this,
+        ) {
+            Ok(answer) => answer,
+            Err(query) => query.lowers_cost(compiler),
+        }
+    }
+
+    /// Rust-only (performance divergence): the part of `inliningLowersCost` that reads the
+    /// references and the chunk graph: its answer where that decides, else the `CostQuery` the
+    /// rest of the method answers from the function's subtree alone (on a worker thread too,
+    /// see `InlineFunctions::prefill_costs`).
+    // port: FunctionInjector#inliningLowersCost
+    pub(crate) fn cost_query(
+        compiler: &AbstractCompiler,
+        fn_chunk: Option<&JSChunk>,
+        fn_node: NodeId,
+        refs: &[&Reference],
+        names_to_alias: &IndexSet<JsString>,
+        mut is_removable: bool,
+        references_this: bool,
+    ) -> Result<bool, CostQuery> {
         let reference_count = refs.len() as i32;
         if reference_count == 0 {
-            return true;
+            return Ok(true);
         }
 
         let mut references_using_block_inlining = 0;
@@ -1132,29 +1276,19 @@ impl FunctionInjector {
         // in additional assignments) or many parameters that need to be aliased
         // so use the cost estimating.
         if reference_count == 1 && is_removable && references_using_direct_inlining == 1 {
-            return true;
+            return Ok(true);
         }
 
-        let call_cost = Self::estimate_call_cost(compiler, fn_node, references_this);
-        let overall_call_cost = call_cost * reference_count;
-
-        let cost_delta_direct =
-            Self::inline_cost_delta(compiler, fn_node, names_to_alias, InliningMode::DIRECT);
-        let cost_delta_block =
-            Self::inline_cost_delta(compiler, fn_node, names_to_alias, InliningMode::BLOCK);
-
-        Self::does_lower_cost(
-            compiler,
+        Err(CostQuery {
             fn_node,
-            overall_call_cost,
+            reference_count,
             references_using_direct_inlining,
-            cost_delta_direct,
             references_using_block_inlining,
-            cost_delta_block,
+            alias_count: names_to_alias.len() as i32,
             is_removable,
-        )
+            references_this,
+        })
     }
-
     /// Returns whether inlining will lower cost.
     // port: FunctionInjector#doesLowerCost
     #[allow(clippy::too_many_arguments)]
@@ -1213,11 +1347,13 @@ impl FunctionInjector {
     }
 
     /// Returns the difference between the function definition cost and inline cost.
+    ///
+    /// Rust-only: takes the number of names to alias, the only thing Java reads of the set.
     // port: FunctionInjector#inlineCostDelta
-    fn inline_cost_delta(
+    fn inline_cost_delta_for_aliases(
         ast: &Ast,
         fn_node: NodeId,
-        names_to_alias: &IndexSet<JsString>,
+        alias_count: i32,
         mode: InliningMode,
     ) -> i32 {
         // The part of the function that is never inlined:
@@ -1238,8 +1374,6 @@ impl FunctionInjector {
             //    "return " (7)
             -(cost_delta_function_overhead + 7)
         } else {
-            let alias_count = names_to_alias.len() as i32;
-
             // Originally, we estimated purely base on the function code size, relying
             // on later optimizations. But that did not produce good results, so here
             // we try to estimate the something closer to the actual inlined coded.

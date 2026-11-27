@@ -95,6 +95,37 @@ pub fn iteration_order<T>(
     initial_capacity: i32,
 ) -> Vec<T> {
     let n = table_length_after(initial_capacity, entries.len());
+    // Rust-only (performance divergence): a counting sort by bucket, stable as the sort below,
+    // when the table is not much larger than the entries (the usual case: the table grows with
+    // them). It counts the bins for the tree-bin check without a map.
+    if (n as usize) <= entries.len().saturating_mul(4).saturating_add(64) {
+        let buckets: Vec<u32> = entries
+            .iter()
+            .map(|entry| (hash(hash_code(entry)) & (n - 1)) as u32)
+            .collect();
+        let mut starts = vec![0usize; n as usize + 1];
+        for &bucket in &buckets {
+            starts[bucket as usize + 1] += 1;
+        }
+        if n >= MIN_TREEIFY_CAPACITY {
+            assert!(
+                starts.iter().all(|count| *count <= TREEIFY_THRESHOLD),
+                "HashMap tree-bin iteration order is not ported"
+            );
+        }
+        for i in 1..starts.len() {
+            starts[i] += starts[i - 1];
+        }
+        let mut placed: Vec<Option<T>> = (0..entries.len()).map(|_| None).collect();
+        for (entry, &bucket) in entries.into_iter().zip(&buckets) {
+            placed[starts[bucket as usize]] = Some(entry);
+            starts[bucket as usize] += 1;
+        }
+        return placed
+            .into_iter()
+            .map(|entry| entry.expect("every slot is filled"))
+            .collect();
+    }
     let mut keyed: Vec<(i32, T)> = entries
         .into_iter()
         .map(|entry| (hash(hash_code(&entry)) & (n - 1), entry))
@@ -111,4 +142,37 @@ pub fn iteration_order<T>(
     }
     keyed.sort_by_key(|(index, _)| *index);
     keyed.into_iter().map(|(_, entry)| entry).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The stable sort by bucket that `iteration_order` stands for.
+    fn by_sort(entries: &[i32], initial_capacity: i32) -> Vec<i32> {
+        let n = table_length_after(initial_capacity, entries.len());
+        let mut keyed: Vec<(i32, i32)> = entries.iter().map(|&e| (hash(e) & (n - 1), e)).collect();
+        keyed.sort_by_key(|(index, _)| *index);
+        keyed.into_iter().map(|(_, e)| e).collect()
+    }
+
+    #[test]
+    fn counting_sort_keeps_the_stable_bucket_order() {
+        let mut seed: u32 = 12345;
+        for len in [0usize, 1, 5, 12, 13, 100, 1000, 5000] {
+            let entries: Vec<i32> = (0..len)
+                .map(|_| {
+                    seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12345);
+                    (seed >> 3) as i32
+                })
+                .collect();
+            for capacity in [16, 64, 1 << 12] {
+                assert_eq!(
+                    iteration_order(entries.clone(), |&e| e, capacity),
+                    by_sort(&entries, capacity),
+                    "{len} entries, initial capacity {capacity}"
+                );
+            }
+        }
+    }
 }

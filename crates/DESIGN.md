@@ -1758,3 +1758,48 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   only for `delete name`, keeps nothing after such a DELPROP. Nothing is kept when the traversal
   halts or changes the tree. `CLOSURE_RS_CHECK_LOOKAHEAD=off` traverses as before; `=verify` also
   makes every traversal and compares diagnostics and results.
+- `jscomp/inline_functions.rs` (`KeptSite::decomposer_reads`, `decomposer_reads_hold`),
+  `function_injector.rs` (`start_logging_decomposer_reads`, `decomposer_for_reads`),
+  `expression_decomposer.rs` (`start_logging_side_effected_reads`, `is_side_effected_tree_unsafe`):
+  a kept InlineFunctions answer may come from a computation that made an expression decomposer
+  (a call inside a larger expression). Such a decomposer reads, outside the call's statement, only
+  the known constant functions and the declarations of the names in the trees it asks
+  `isExpressionTreeUnsafe(tree, true)` about; each of those answers is logged with its tree, and
+  the kept answer holds while the stamps are current and every logged tree gets the same answer
+  again in the call's scope (one decomposer per run asks them). An answer whose computation made
+  a decomposer without the log is not kept. `CLOSURE_RS_INLINE_DECOMPOSER_READS=off` keeps no such
+  answer, `=verify` computes each of them again and compares.
+- `jscomp/pure_function_identifier.rs` (`ReferenceKey`, `populate_datastructures_for_analysis_traversal`,
+  `AmbiguatedFunctionSummary::name_is_prop`, `FunctionStackEntry::summaries`): the merged reference
+  multimap is not built: a variable name never starts with `.`, so Java's keys (names, and property
+  names prefixed with `.`) are disjoint and each key's list is that of its own map; the entries
+  borrow the lists and are put in Java's HashMap order by the hash code of the prefixed spelling,
+  computed without making it (`'.' * 31^length + hashCode`). A property summary keeps its name
+  without the prefix (added back for the diagnostic and `toString`). The summaries of the function
+  around a visited node are kept on its stack entry, as the map holds them once the traversal
+  entered it, instead of being copied out of the map for every node.
+- `jscomp/inline_functions.rs` (`prefill_function_facts`), `function_injector.rs`
+  (`function_meets_minimum_requirements`), `function_argument_injector.rs`
+  (`inspect_function_body`): before the candidate functions are replayed, the minimum
+  requirements and the parameter uses (`FunctionFacts`) of the declared candidates without current
+  kept facts are computed on worker threads in a few large batches and kept under the same key as
+  when the pass computes them; both read only the function's subtree and name and have no effect.
+  The parameter uses are prefilled only for functions without default values or destructuring
+  among their parameters (the pass never asks `inspectFunction` about the others). Thresholds:
+  `node_count() >= 20_000` and `parallel_thread_count(functions, 32, 8)`; without workers nothing
+  is prefilled. `CLOSURE_RS_INLINE_FACTS_PREFILL=off` prefills nothing, `=verify` computes each
+  prefilled fact again on the compiler thread and compares.
+- `jscomp/inline_functions.rs` (`prefill_costs`, `inlining_lowers_cost`), `function_injector.rs`
+  (`cost_query`, `CostQuery::lowers_cost`): `inliningLowersCost` runs in two steps, the references
+  and chunk graph first, then the part that prints the function to measure it, which reads only
+  its subtree; before `trimCandidatesUsingOnCost` the second step is answered on worker threads in
+  a few large batches for every function with references, and the retain loop takes an answer
+  only for the same query (a second question after block references are dropped is a new query).
+  Thresholds: `node_count() >= 20_000` and `parallel_thread_count(functions, 32, 8)`.
+  Under `CLOSURE_RS_INLINE_FACTS_PREFILL`: `=off` prefills nothing, `=verify` answers each
+  prefilled query again on the compiler thread and compares.
+- `rhino/java_lang/hash_map.rs` (`iteration_order`): Java's HashMap order (a stable sort of the
+  entries by bucket) is made by a counting sort when the table is at most about four times the
+  number of entries, which also counts the bins for the tree-bin check without a map (the
+  multimap of PureFunctionIdentifier holds every name and property the program and the externs
+  use).

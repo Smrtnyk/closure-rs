@@ -304,6 +304,15 @@ impl FunctionArgumentInjector {
         ast: &Ast,
         fn_node: NodeId,
     ) -> FunctionBodyFacts {
+        Self::inspect_function_body::<FOR_INLINING>(ast, fn_node)
+    }
+
+    /// `inspect_function`, which reads no injector state (Rust-only: callable from worker
+    /// threads, see `InlineFunctions::prefill_function_facts`).
+    pub(crate) fn inspect_function_body<const FOR_INLINING: bool>(
+        ast: &Ast,
+        fn_node: NodeId,
+    ) -> FunctionBodyFacts {
         let names = Self::get_function_parameter_set(ast, fn_node);
         let mut facts = FunctionBodyFacts::default();
         Self::inspect_body::<FOR_INLINING>(

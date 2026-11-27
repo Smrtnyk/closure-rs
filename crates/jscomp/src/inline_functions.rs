@@ -66,6 +66,30 @@ static FUNCTION_FACTS_MODE: LazyLock<Option<bool>> =
         },
     );
 
+/// `CLOSURE_RS_INLINE_DECOMPOSER_READS=off` keeps no answer whose computation made an expression
+/// decomposer; `=verify` computes every answer kept under decomposer reads again and compares
+/// (`KeptSite::decomposer_reads`).
+static DECOMPOSER_READS_MODE: LazyLock<Option<bool>> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_INLINE_DECOMPOSER_READS").as_deref() {
+            Ok("off") => None,
+            Ok("verify") => Some(true),
+            _ => Some(false),
+        },
+    );
+
+/// `CLOSURE_RS_INLINE_FACTS_PREFILL=off` computes every fact of `FunctionFacts` on the compiler
+/// thread when the pass asks for it; `=verify` also computes each prefilled fact there and
+/// compares (`InlineFunctions::prefill_function_facts`).
+static FACTS_PREFILL_MODE: LazyLock<Option<bool>> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_INLINE_FACTS_PREFILL").as_deref() {
+            Ok("off") => None,
+            Ok("verify") => Some(true),
+            _ => Some(false),
+        },
+    );
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum UnitCacheMode {
     Off,
@@ -117,8 +141,11 @@ pub(crate) struct FunctionFactsCache {
 /// and facts (`FunctionFacts`), so it holds while the root is the same node and both
 /// `DeepFunctionStamp`s are current. A
 /// statement of a script that moves stays outside loops and functions. An answer whose
-/// computation asked the compiler for a unique name is not kept (`supplier_calls`), nor one that
-/// needed an expression decomposer (`FunctionInjector::decomposer_uses`).
+/// computation asked the compiler for a unique name is not kept (`supplier_calls`). An answer
+/// whose computation needed an expression decomposer also read the declarations of names in the
+/// call's statement, which may lie outside the root, and the known constant functions (empty
+/// while the references are found): it is kept with what the decomposer read there
+/// (`decomposer_reads`) and holds only while each of those reads gives the same answer again.
 struct KeptSite {
     /// The root the answer was computed under (`site_root`). A call site that moved, with its
     /// node, out of the function around it (the function was inlined in place) has another
@@ -127,6 +154,13 @@ struct KeptSite {
     site: Arc<DeepFunctionStamp>,
     target: Arc<DeepFunctionStamp>,
     result: CanInlineResult,
+    /// Rust-only (performance divergence): the answers of
+    /// `ExpressionDecomposer::is_side_effected_tree_unsafe` the computation's decomposers gave,
+    /// in order, for trees in the call's statement (`FunctionInjector::take_decomposer_reads`).
+    /// Asked again in the call's scope, they read again every name declaration and known
+    /// constant the computation read outside the stamps; everything else they read lies in the
+    /// root's subtree.
+    decomposer_reads: Box<[(NodeId, bool)]>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -271,6 +305,15 @@ impl FunctionFacts {
     }
 }
 
+/// Rust-only: a top-level unit's stamps and `FindCandidateFunctions` events.
+type CandidateUnitEntry = (crate::unit_cache::UnitStamps, Box<[CandidateFnEvent]>);
+
+/// Rust-only: the minimum requirements and parameter uses `prefill_function_facts` computed.
+type PrefilledFacts = (Option<bool>, Option<BodyFacts>);
+
+/// Rust-only: the answers of `InlineFunctions::prefill_costs`, by function node.
+type PrefilledCosts = IndexMap<NodeId, (function_injector::CostQuery, bool)>;
+
 pub static MISSED_REQUIRED_INLINING: DiagnosticType = DiagnosticType::warning(
     "JSC_MISSED_REQUIRED_INLINING",
     "function {1} annotated @requireInlining could not be inlined here",
@@ -342,6 +385,178 @@ impl InlineFunctions {
                 != CompilerOptions::UNLIMITED_FUN_SIZE_AFTER_INLINING,
             max_size_after_inlining,
             supplier_calls,
+        }
+    }
+
+    /// Rust-only (performance divergence): the two costliest facts of `FunctionFacts` (the
+    /// minimum requirements and the parameter uses, `doesFunctionMeetMinimumRequirements` and
+    /// `inspectFunction`), computed on worker threads, in large batches, for the declared
+    /// candidate functions that the replay of `events` will consider and that have no current
+    /// kept facts, before the replay asks for them one by one on the compiler thread. Both read
+    /// only the function's subtree and its name, have no effect, and are kept under the same key
+    /// as when the pass computes them (`FunctionFacts::take`); a fact the pass would not have
+    /// asked for (the function fails an earlier test) is computed but changes nothing. Without
+    /// workers nothing is prefilled.
+    fn prefill_function_facts(
+        &self,
+        compiler: &mut AbstractCompiler,
+        entries: &[Option<CandidateUnitEntry>],
+    ) {
+        let Some(verify) = *FACTS_PREFILL_MODE else {
+            return;
+        };
+        // Written as `>=` so that the stress build finds the threshold.
+        let large = compiler.ast.node_count() >= 20_000;
+        if FUNCTION_FACTS_MODE.is_none() || !large {
+            return;
+        }
+        // Without workers for the declared candidates there is nothing to do here.
+        let named = entries
+            .iter()
+            .flatten()
+            .flat_map(|(_, events)| events.iter())
+            .filter(|event| matches!(event, CandidateFnEvent::Named { .. }))
+            .count();
+        if crate::parallel_parse::parallel_thread_count(named, 32, 8) < 2 {
+            return;
+        }
+        let max = self.max_size_after_inlining;
+        // The candidates `find_named_functions` makes from the events, with the name it gives.
+        let mut todo: Vec<(NodeId, JsString, bool, bool)> = Vec::new();
+        for (_, events) in entries.iter().flatten() {
+            for event in events.iter() {
+                let CandidateFnEvent::Named { node, .. } = *event else {
+                    continue;
+                };
+                let ast = &compiler.ast;
+                let (fn_node, name) = match node.get_token(ast) {
+                    Token::VAR | Token::LET | Token::CONST => {
+                        let Some(name_node) = node.get_first_child(ast) else {
+                            continue;
+                        };
+                        match name_node.get_first_child(ast) {
+                            Some(f) if name_node.is_name(ast) && f.is_function(ast) => {
+                                (f, name_node.get_string(ast))
+                            }
+                            _ => continue,
+                        }
+                    }
+                    Token::FUNCTION => (node, node.get_first_child(ast).unwrap().get_string(ast)),
+                    _ => continue,
+                };
+                let own = SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node);
+                let kept = compiler
+                    .inline_functions_facts
+                    .functions
+                    .get(&fn_node)
+                    .filter(|kept| {
+                        kept.name == name
+                            && kept.max_size_after_inlining == max
+                            && compiler
+                                .syntactic_scope_cache
+                                .deep_function_stamp_is_current(own, &kept.stamp)
+                    });
+                let need_minimum = kept.is_none_or(|k| k.meets_minimum_requirements.is_none());
+                // The pass asks for the parameter uses only of a function without default values
+                // or destructuring among its parameters, which `inspectFunction` does not handle.
+                let need_body = kept.is_none_or(|k| k.body.is_none())
+                    && !Self::has_non_inlinable_param(
+                        &compiler.ast,
+                        NodeUtil::get_function_parameters(&compiler.ast, fn_node),
+                    );
+                if need_minimum || need_body {
+                    todo.push((fn_node, name, need_minimum, need_body));
+                }
+            }
+        }
+        let threads = crate::parallel_parse::parallel_thread_count(todo.len(), 32, 8);
+        if threads < 2 {
+            return;
+        }
+        // Large pieces: a few batches per thread, merged in order.
+        let batch = todo.len().div_ceil(threads * 2);
+        let batches: Vec<&[(NodeId, JsString, bool, bool)]> = todo.chunks(batch).collect();
+        let mut computed: Vec<Option<Vec<PrefilledFacts>>> =
+            (0..batches.len()).map(|_| None).collect();
+        {
+            let ast = &compiler.ast;
+            for results in crate::parallel_parse::run_scoped_indexed(
+                "closure-inlinefacts",
+                threads,
+                &batches,
+                |_, items| {
+                    catch_unwind(AssertUnwindSafe(|| {
+                        items
+                            .iter()
+                            .map(|(fn_node, name, need_minimum, need_body)| {
+                                let minimum = need_minimum.then(|| {
+                                    FunctionInjector::function_meets_minimum_requirements(
+                                        ast, name, *fn_node,
+                                    )
+                                });
+                                let body = need_body.then(|| {
+                                    let facts = FunctionArgumentInjector::inspect_function_body::<
+                                        true,
+                                    >(ast, *fn_node);
+                                    BodyFacts {
+                                        modified_parameters: facts.modified_parameters,
+                                        references_receiver: facts.references_receiver,
+                                        has_inner_closures: facts.has_inner_closures,
+                                    }
+                                });
+                                (minimum, body)
+                            })
+                            .collect::<Vec<_>>()
+                    }))
+                    .ok()
+                },
+            ) {
+                for (index, result) in results {
+                    computed[index] = Some(result);
+                }
+            }
+        }
+        for (items, results) in batches.iter().zip(computed) {
+            // A batch whose computation failed is left to the pass, where the failure surfaces.
+            let Some(results) = results else {
+                continue;
+            };
+            for ((fn_node, name, _, _), (minimum, body)) in items.iter().zip(results) {
+                let Some(mut facts) = FunctionFacts::take(compiler, *fn_node, name, max) else {
+                    continue;
+                };
+                if verify {
+                    if let Some(minimum) = minimum {
+                        assert!(
+                            minimum
+                                == self.injector.does_function_meet_minimum_requirements(
+                                    compiler, name, *fn_node
+                                ),
+                            "InlineFunctions: the prefilled minimum requirements of {} differ",
+                            name.to_string_lossy()
+                        );
+                    }
+                    if let Some(body) = &body {
+                        let facts = self
+                            .function_argument_injector
+                            .inspect_function::<true>(compiler, *fn_node);
+                        assert!(
+                            body.modified_parameters == facts.modified_parameters
+                                && body.references_receiver == facts.references_receiver
+                                && body.has_inner_closures == facts.has_inner_closures,
+                            "InlineFunctions: the prefilled parameter uses of {} differ",
+                            name.to_string_lossy()
+                        );
+                    }
+                }
+                if facts.meets_minimum_requirements.is_none() {
+                    facts.meets_minimum_requirements = minimum;
+                }
+                if facts.body.is_none() {
+                    facts.body = body;
+                }
+                facts.keep(compiler, *fn_node);
+            }
         }
     }
 
@@ -711,6 +926,7 @@ impl InlineFunctions {
     /// Remove entries from the list of candidates that can't be inlined.
     // port: InlineFunctions#trimCandidatesUsingOnCost
     fn trim_candidates_using_on_cost(&mut self, compiler: &mut AbstractCompiler) {
+        let mut costs = self.prefill_costs(compiler);
         let injector = &self.injector;
         self.fns.retain(|_, function_state| {
             if function_state.has_references() {
@@ -722,7 +938,8 @@ impl InlineFunctions {
                     return false;
                 }
                 // Only inline function if it decreases the code size.
-                let lowers_cost = Self::minimize_cost(compiler, injector, function_state);
+                let lowers_cost =
+                    Self::minimize_cost(compiler, injector, function_state, &mut costs);
                 if !lowers_cost {
                     // It shouldn't be inlined; remove it from the list.
                     return false;
@@ -754,8 +971,9 @@ impl InlineFunctions {
         compiler: &mut AbstractCompiler,
         injector: &FunctionInjector,
         function_state: &mut FunctionState,
+        costs: &mut PrefilledCosts,
     ) -> bool {
-        if !Self::inlining_lowers_cost(compiler, injector, function_state) {
+        if !Self::inlining_lowers_cost(compiler, injector, function_state, costs) {
             // Try again without Block inlining references
             if function_state.has_block_inlining_references() {
                 function_state.set_remove(
@@ -766,7 +984,7 @@ impl InlineFunctions {
                 );
                 function_state.remove_block_inlining_references();
                 if !function_state.has_references()
-                    || !Self::inlining_lowers_cost(compiler, injector, function_state)
+                    || !Self::inlining_lowers_cost(compiler, injector, function_state, costs)
                 {
                     return false;
                 }
@@ -781,24 +999,113 @@ impl InlineFunctions {
     // port: InlineFunctions#inliningLowersCost
     fn inlining_lowers_cost(
         compiler: &AbstractCompiler,
-        injector: &FunctionInjector,
+        _injector: &FunctionInjector,
         function_state: &mut FunctionState,
+        costs: &mut PrefilledCosts,
     ) -> bool {
         function_state.require_inlining(compiler)
             || function_state.encourage_inlining(compiler)
             || {
-                let refs: Vec<&function_injector::Reference> =
-                    function_state.get_references().map(|r| &r.base).collect();
-                injector.inlining_lowers_cost(
-                    compiler,
-                    function_state.get_chunk(),
-                    function_state.get_fn().get_function_node(compiler),
-                    &refs,
-                    &function_state.get_names_to_alias(),
-                    function_state.can_remove(),
-                    function_state.get_references_this(),
-                )
+                // Rust-only (performance divergence): `injector.inliningLowersCost` in two
+                // steps, the second one answered by `prefill_costs` where it has the same query.
+                match Self::cost_query(compiler, function_state) {
+                    Ok(answer) => answer,
+                    Err(query) => match costs.swap_remove(&query.fn_node()) {
+                        Some((prefilled, answer)) if prefilled == query => {
+                            if *FACTS_PREFILL_MODE == Some(true) {
+                                assert!(
+                                    answer == query.lowers_cost(compiler),
+                                    "InlineFunctions: the prefilled cost answer for {:?} differs",
+                                    query
+                                );
+                            }
+                            answer
+                        }
+                        _ => query.lowers_cost(compiler),
+                    },
+                }
             }
+    }
+
+    /// Rust-only: `FunctionInjector::cost_query` for a function's state.
+    fn cost_query(
+        compiler: &AbstractCompiler,
+        function_state: &FunctionState,
+    ) -> Result<bool, function_injector::CostQuery> {
+        let refs: Vec<&function_injector::Reference> =
+            function_state.get_references().map(|r| &r.base).collect();
+        FunctionInjector::cost_query(
+            compiler,
+            function_state.get_chunk(),
+            function_state.get_fn().get_function_node(compiler),
+            &refs,
+            &function_state.get_names_to_alias(),
+            function_state.can_remove(),
+            function_state.get_references_this(),
+        )
+    }
+
+    /// Rust-only (performance divergence): the answers `trim_candidates_using_on_cost` will need
+    /// from the function subtrees (`CostQuery::lowers_cost`, which prints each function to
+    /// measure it), computed on worker threads in a few large batches for every function with
+    /// references whose first question reaches them. The retain loop takes an answer only for
+    /// the same query (it changes nothing in another function's state before it asks).
+    /// Thresholds: `node_count() >= 20_000` and `parallel_thread_count(functions, 32, 8)`;
+    /// without workers nothing is prefilled.
+    fn prefill_costs(&mut self, compiler: &mut AbstractCompiler) -> PrefilledCosts {
+        let mut costs = PrefilledCosts::default();
+        let large = compiler.ast.node_count() >= 20_000;
+        if FACTS_PREFILL_MODE.is_none() || !large {
+            return costs;
+        }
+        let referenced = self.fns.values().filter(|f| f.has_references()).count();
+        if crate::parallel_parse::parallel_thread_count(referenced, 32, 8) < 2 {
+            return costs;
+        }
+        let mut queries = Vec::new();
+        for function_state in self.fns.values_mut() {
+            if !function_state.has_references()
+                || function_state.require_inlining(compiler)
+                || function_state.encourage_inlining(compiler)
+            {
+                continue;
+            }
+            if let Err(query) = Self::cost_query(compiler, function_state) {
+                queries.push(query);
+            }
+        }
+        let threads = crate::parallel_parse::parallel_thread_count(queries.len(), 32, 8);
+        if threads < 2 {
+            return costs;
+        }
+        let batch = queries.len().div_ceil(threads * 2);
+        let batches: Vec<&[function_injector::CostQuery]> = queries.chunks(batch).collect();
+        let ast = &compiler.ast;
+        let mut answers: Vec<Option<Vec<bool>>> = (0..batches.len()).map(|_| None).collect();
+        for results in crate::parallel_parse::run_scoped_indexed(
+            "closure-inlinecost",
+            threads,
+            &batches,
+            |_, items| {
+                catch_unwind(AssertUnwindSafe(|| {
+                    items.iter().map(|q| q.lowers_cost(ast)).collect::<Vec<_>>()
+                }))
+                .ok()
+            },
+        ) {
+            for (index, result) in results {
+                answers[index] = Some(result);
+            }
+        }
+        for (items, answers) in batches.iter().zip(answers) {
+            let Some(answers) = answers else {
+                continue;
+            };
+            for (query, answer) in items.iter().zip(answers) {
+                costs.insert(query.fn_node(), (*query, answer));
+            }
+        }
+        costs
     }
 
     /// Size base inlining calculations are thrown off when a function that is being inlined also
@@ -870,8 +1177,12 @@ impl InlineFunctions {
                             DisallowInliningReason::TAGGED_TEMPLATE_LITERAL,
                             ShouldWarnWhenRequireInliningCannotInline::NO,
                         );
-                    } else if !Self::minimize_cost(compiler, &self.injector, fs_called)
-                        && !fs_called.require_inlining(compiler)
+                    } else if !Self::minimize_cost(
+                        compiler,
+                        &self.injector,
+                        fs_called,
+                        &mut PrefilledCosts::default(),
+                    ) && !fs_called.require_inlining(compiler)
                         && !fs_called.encourage_inlining(compiler)
                     {
                         // It can't be inlined remove it from the list.
@@ -1121,6 +1432,7 @@ impl InlineFunctions {
             };
             entries.push(entry);
         }
+        self.prefill_function_facts(compiler, &entries);
         let mut finder = FindCandidateFunctions::new(self, compiler, root);
         let res = catch_unwind(AssertUnwindSafe(|| {
             for (unit, entry) in units.iter().zip(&entries) {
@@ -2712,9 +3024,42 @@ struct FindCandidatesReferences<'a> {
     stamps_checked: IndexMap<NodeId, (Arc<DeepFunctionStamp>, bool)>,
     /// Rust-only: `InlineFunctions::supplier_calls`.
     supplier_calls: Arc<std::sync::atomic::AtomicU64>,
+    /// Rust-only (performance divergence): the decomposer that asks kept decomposer reads again
+    /// (`KeptSite::decomposer_reads`), made at the first such hit of the run.
+    read_checker: Option<crate::expression_decomposer::ExpressionDecomposer>,
 }
 
 impl<'a> FindCandidatesReferences<'a> {
+    /// Rust-only (performance divergence): whether every kept decomposer read gives the same
+    /// answer again in the call's scope (made as the computation would make it).
+    fn decomposer_reads_hold(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        reads: &[(NodeId, bool)],
+        scope_root: NodeId,
+    ) -> bool {
+        if reads.is_empty() {
+            return true;
+        }
+        let scope = ensure_ancestor_scope(
+            compiler,
+            &mut self.scope_creator,
+            &mut self.scope_memo,
+            self.root,
+            scope_root,
+        );
+        let checker = match &mut self.read_checker {
+            Some(checker) => checker,
+            None => self
+                .read_checker
+                .insert(self.injector.decomposer_for_reads(compiler, scope)),
+        };
+        checker.set_scope(scope);
+        reads
+            .iter()
+            .all(|&(tree, answer)| checker.is_side_effected_tree_unsafe(compiler, tree) == answer)
+    }
+
     /// Rust-only (performance divergence): the root whose `DeepFunctionStamp` covers what
     /// `maybeAddReferenceUsingMode` reads around `call_node`: the function around it, else the
     /// statement of the script it is in (`None` elsewhere).
@@ -2796,6 +3141,7 @@ impl<'a> FindCandidatesReferences<'a> {
             stamps_now: IndexMap::default(),
             stamps_checked: IndexMap::default(),
             supplier_calls,
+            read_checker: None,
             current_script,
             current_chunk,
             current_node: None,
@@ -3259,11 +3605,34 @@ impl<'a> FindCandidatesReferences<'a> {
                         Arc::clone(&kept.site),
                         Arc::clone(&kept.target),
                         kept.result,
+                        kept.decomposer_reads.clone(),
                     )
                 })
             && self.is_current(compiler, root, &kept.0)
             && self.is_current(compiler, fn_node, &kept.1)
+            && self.decomposer_reads_hold(compiler, &kept.3, scope_root)
         {
+            if !kept.3.is_empty() && *DECOMPOSER_READS_MODE == Some(true) {
+                let result = self.add_reference_using_mode(
+                    compiler,
+                    fn_key,
+                    call_node,
+                    chunk,
+                    mode,
+                    enclosing_fn,
+                    scope_root,
+                );
+                assert!(
+                    result == kept.2,
+                    "InlineFunctions: the answer {:?} kept under decomposer reads {:?} for the call \
+                     site {} differs from a new computation {:?}",
+                    kept.2,
+                    kept.3,
+                    call_node.to_string(compiler),
+                    result
+                );
+                return result != CanInlineResult::NO;
+            }
             if verify {
                 let result = self.add_reference_using_mode(
                     compiler,
@@ -3293,6 +3662,11 @@ impl<'a> FindCandidatesReferences<'a> {
             .supplier_calls
             .load(std::sync::atomic::Ordering::Relaxed);
         let decomposers_before = self.injector.decomposer_uses();
+        let logged_before = self.injector.logged_decomposer_uses();
+        let log_reads = site.is_some() && DECOMPOSER_READS_MODE.is_some();
+        if log_reads {
+            self.injector.start_logging_decomposer_reads();
+        }
         let result = self.add_reference_using_mode(
             compiler,
             fn_key,
@@ -3307,8 +3681,15 @@ impl<'a> FindCandidatesReferences<'a> {
             .load(std::sync::atomic::Ordering::Relaxed)
             != calls_before;
         // An expression decomposer reads the candidate names of the whole program and the
-        // declarations of the names around the call.
-        let read_the_program = self.injector.decomposer_uses() != decomposers_before;
+        // declarations of the names around the call: an answer is kept with what the decomposers
+        // read there when all of them logged it.
+        let decomposer_reads = if log_reads {
+            self.injector.take_decomposer_reads()
+        } else {
+            Vec::new()
+        };
+        let read_the_program = self.injector.decomposer_uses() - decomposers_before
+            != self.injector.logged_decomposer_uses() - logged_before;
         if !asked_for_names
             && !read_the_program
             && let Some((root, fn_node, key, _)) = site
@@ -3318,6 +3699,7 @@ impl<'a> FindCandidatesReferences<'a> {
                 site: self.stamp_now(compiler, root),
                 target: self.stamp_now(compiler, fn_node),
                 result,
+                decomposer_reads: decomposer_reads.into_boxed_slice(),
             };
             compiler.inline_functions_facts.kept_sites.insert(key, kept);
         }
