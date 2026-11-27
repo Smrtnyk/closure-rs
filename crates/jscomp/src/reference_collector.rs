@@ -18,8 +18,11 @@
 
 //! Port of `ReferenceCollector.java`.
 
+mod clean_subtree;
 mod function_body;
 
+pub(crate) use clean_subtree::{CacheOf, CleanSubtreeCache as KeptCleanSubtrees};
+use clean_subtree::{CleanSubtreeCache, Frame, FreeSites, FunctionFrame};
 use function_body::SiteKind;
 pub(crate) use function_body::{FunctionReferenceCache, Site};
 
@@ -152,6 +155,25 @@ pub struct CollectorCallback<'a, B: Behavior> {
     bundled_prefixes: BundledPrefixes,
     /// Rust-only (performance divergence): see `order_free_global_functions`.
     order_free_global_functions: bool,
+    /// Rust-only (performance divergence): where the behavior keeps clean function subtrees
+    /// (`clean_subtree`), unless `CLOSURE_RS_CLEAN_SUBTREES=off`.
+    subtree_cache: Option<CacheOf>,
+    /// Rust-only: the frames of the functions being traversed (`clean_subtree`).
+    frames: Vec<Frame>,
+    /// Rust-only: with `CLOSURE_RS_CLEAN_SUBTREES=verify`, a kept function about to be traversed
+    /// anyway and its kept free references.
+    verify_next: Option<(NodeId, std::sync::Arc<FreeSites>)>,
+}
+
+/// Rust-only (performance divergence): what a behavior's scope exit did, for the collector's
+/// clean function subtrees (`Behavior::take_scope_exit_report`).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ScopeExitReport {
+    /// Whether the scope exit changed the tree.
+    pub changed: bool,
+    /// The depth of the least deep scope declaring a variable that the scope exit looked up by
+    /// name, 0 when a name resolved to no variable.
+    pub read_depth: Option<i32>,
 }
 
 /// Rust-only: whether the traversal leaves out the original statements of the bundled externs
@@ -233,6 +255,11 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
         var_filter: VarFilter<'a>,
         collect_hoisted_functions_in_reference_order: bool,
     ) -> Self {
+        let subtree_cache = if *clean_subtree::MODE == clean_subtree::Mode::Off {
+            None
+        } else {
+            behavior.clean_subtree_cache()
+        };
         Self {
             callback: CollectorCallback {
                 reference_map: IndexMap::<_, _>::default(),
@@ -257,6 +284,9 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
                 externs_refer_only_to_externs: None,
                 bundled_prefixes: BundledPrefixes::Traverse,
                 order_free_global_functions: false,
+                subtree_cache,
+                frames: Vec::new(),
+                verify_next: None,
             },
             scope_creator: creator,
         }
@@ -650,6 +680,15 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             }
         }
 
+        // Rust-only (performance divergence): while the jumped-to function is traversed, only the
+        // frames of the functions around its declaration see what happens (`clean_subtree`).
+        let jump_frame = !self.frames.is_empty();
+        if jump_frame {
+            let depth = var_scope.get_depth(t.get_compiler());
+            clean_subtree::note_jump(&mut self.frames, depth);
+            self.frames.push(Frame::Jump(depth));
+        }
+
         // Record the function declaration reference explicitly because it is a bleeding name.
         // The reference must be recorded with the containing scope, and traverseAtScope skips
         // bleeding function NAME nodes
@@ -660,6 +699,10 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         let fn_scope = scope_creator.create_scope(compiler, fn_node, Some(var_scope));
         create_traversal_builder(compiler, self, scope_creator).traverse_at_scope(fn_scope);
         self.block_stack = old_block_stack;
+        if jump_frame {
+            let frame = self.frames.pop();
+            check_state!(matches!(frame, Some(Frame::Jump(_))));
+        }
     }
 
     /// Rebind every spelling against this traversal's actual scope. A name of a pending hoisted
@@ -704,6 +747,10 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             }
             let scope = *scope.get_or_insert_with(|| t.get_scope());
             let var = scope.get_var_of_node(t.get_compiler(), name);
+            // A name declared in a nested scope is resolved at its first site.
+            if var.is_none() && !body.declares_in_nested_scopes && !body.has_delegates {
+                self.note_unresolved(name);
+            }
             if self.collect_hoisted_functions_in_reference_order
                 && var.is_some_and(|v| self.pending_hoisted_function(t.get_compiler(), v).is_some())
             {
@@ -739,7 +786,8 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                 has_references = true;
             }
         }
-        if has_references {
+        // The frames note the free references the filter rejects too (`clean_subtree`).
+        if has_references || (!self.frames.is_empty() && scope.is_some()) {
             let root_scope = scope.expect("collected references have a scope");
             self.replay_body_sites(t, &body.sites, root_scope);
         }
@@ -779,6 +827,9 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                         if var.is_none() && self.needs_name(t, name) {
                             let scope = t.get_scope();
                             var = scope.get_var_of_node(t.get_compiler(), name);
+                            if var.is_none() {
+                                self.note_unresolved(name);
+                            }
                         }
                         let index = var
                             .filter(|&v| {
@@ -793,7 +844,18 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                             });
                         self.body_bindings[slot] = (var, index);
                     }
-                    if let Some(index) = self.body_bindings[slot].1 {
+                    let (var, index) = self.body_bindings[slot];
+                    if index.is_some() || (var.is_some() && !self.frames.is_empty()) {
+                        let block = Self::materialize_replay_block(
+                            t,
+                            &self.block_stack,
+                            &mut self.replay_block_stack,
+                        );
+                        if let Some(var) = var {
+                            self.note_reference(t.get_compiler(), var, name, &block);
+                        }
+                    }
+                    if let Some(index) = index {
                         let ref_scope = t.get_scope();
                         let block = Self::materialize_replay_block(
                             t,
@@ -840,6 +902,9 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                         ..
                     } = self;
                     behavior.after_exit_scope(t, &CollectedReferenceMap { reference_map });
+                    if let Some(cache) = self.subtree_cache {
+                        self.after_scope_exit_report(t, cache);
+                    }
                     t.pop_scope_root_quietly();
                 }
                 SiteKind::Delegate(n) => {
@@ -887,7 +952,20 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         for site in sites {
             match site.decode() {
                 SiteKind::Reference(name, binding) => {
-                    if let Some(index) = self.body_bindings[binding as usize].1 {
+                    let (var, index) = self.body_bindings[binding as usize];
+                    if index.is_none() && (var.is_none() || self.frames.is_empty()) {
+                        continue;
+                    }
+                    t.position_at_node(name);
+                    let block = Self::materialize_replay_block(
+                        t,
+                        &self.block_stack,
+                        &mut self.replay_block_stack,
+                    );
+                    if let Some(var) = var {
+                        self.note_reference(t.get_compiler(), var, name, &block);
+                    }
+                    if let Some(index) = index {
                         let ref_scope = if self.replay_scope_stack.is_empty() {
                             root_scope
                         } else {
@@ -897,12 +975,6 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                                 &mut self.replay_scope_stack,
                             )
                         };
-                        t.position_at_node(name);
-                        let block = Self::materialize_replay_block(
-                            t,
-                            &self.block_stack,
-                            &mut self.replay_block_stack,
-                        );
                         let references = Rc::make_mut(&mut self.reference_map[index]);
                         references.add(Reference::in_scope(name, t, block, ref_scope));
                         if observe {
@@ -970,7 +1042,16 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                     } else {
                         Self::materialize_replay_scope(t, root_scope, &mut self.replay_scope_stack)
                     };
-                    if let Some(index) = self.body_bindings[slot].1 {
+                    let index = self.body_bindings[slot].1;
+                    if index.is_some() || !self.frames.is_empty() {
+                        let block = Self::materialize_replay_block(
+                            t,
+                            &self.block_stack,
+                            &mut self.replay_block_stack,
+                        );
+                        self.note_reference(t.get_compiler(), var, name, &block);
+                    }
+                    if let Some(index) = index {
                         let block = Self::materialize_replay_block(
                             t,
                             &self.block_stack,
@@ -1090,6 +1171,9 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                     continue;
                 }
                 let var = enclosing_scope.get_var_of_node(t.get_compiler(), name);
+                if var.is_none() {
+                    self.note_unresolved(name);
+                }
                 jump_bindings.push((var, None));
                 if self.collect_hoisted_functions_in_reference_order
                     && var.is_some_and(|v| {
@@ -1121,10 +1205,13 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         if is_fn_decl {
             let fn_name = fn_node.get_first_child(t).unwrap();
             t.position_at_node(fn_name);
-            if self.needs_name(t, fn_name)
-                && let Some(v) = enclosing_scope.get_var_of_node(t.get_compiler(), fn_name)
-            {
-                self.add_reference(v, fn_name, t, enclosing_scope);
+            if self.needs_name(t, fn_name) {
+                match enclosing_scope.get_var_of_node(t.get_compiler(), fn_name) {
+                    Some(v) => {
+                        self.add_reference(v, fn_name, t, enclosing_scope);
+                    }
+                    None => self.note_unresolved(fn_name),
+                }
             }
         }
         if pending_jump {
@@ -1133,8 +1220,11 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             let (compiler, scope_creator) = t.get_compiler_and_scope_creator();
             let fn_scope = scope_creator.create_scope(compiler, fn_node, Some(enclosing_scope));
             let body_scope = scope_creator.create_scope(compiler, body, Some(fn_scope));
+            // The blocks of the function's scope and of its body's, both hoist scopes.
             self.push_new_block(t, fn_node);
+            self.push_new_block(t, body);
             self.replay_body_sites_with_jumps(t, &free.sites, body_scope);
+            self.pop_last_block(t, body);
             self.pop_last_block(t, fn_node);
         } else if has_free_refs {
             let free = free.as_ref().expect("free refs imply free sites");
@@ -1152,11 +1242,16 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             let fn_scope = scope_creator.create_scope(compiler, fn_node, Some(enclosing_scope));
             let body_scope = scope_creator.create_scope(compiler, body, Some(fn_scope));
             self.push_new_block(t, fn_node);
+            self.push_new_block(t, body);
             self.replay_body_sites(t, &free.sites, body_scope);
+            self.pop_last_block(t, body);
             self.pop_last_block(t, fn_node);
         }
         if boundary && (is_fn_decl || has_free_refs) {
             self.pop_last_block(t, fn_node);
+        }
+        if !self.frames.is_empty() {
+            clean_subtree::note_nested(&mut self.frames, fn_node, stamp, &[]);
         }
         true
     }
@@ -1507,6 +1602,9 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                     && let Some(index) = self.body_bindings[slot as usize].1
                 {
                     t.position_at_node(name);
+                    if let Some(var) = self.body_bindings[slot as usize].0 {
+                        self.note_reference(t.get_compiler(), var, name, &fn_block);
+                    }
                     Rc::make_mut(&mut self.reference_map[index]).add(Reference::in_scope(
                         name,
                         t,
@@ -1669,6 +1767,257 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         true
     }
 
+    /// Rust-only (performance divergence): notes a reference to `var` in the frames of the
+    /// functions being traversed that do not declare it (`clean_subtree`).
+    #[inline]
+    fn note_reference(
+        &mut self,
+        compiler: &AbstractCompiler,
+        var: VarId,
+        name: NodeId,
+        block: &Rc<BasicBlock>,
+    ) {
+        if self.frames.is_empty() {
+            return;
+        }
+        let depth = var.get_scope(compiler).get_depth(compiler);
+        clean_subtree::note_reference(&mut self.frames, depth, name, block);
+    }
+
+    /// Rust-only (performance divergence): a name that resolved to no variable, which a scope
+    /// around the functions being traversed may declare later (`clean_subtree`).
+    #[inline]
+    fn note_unresolved(&mut self, name: NodeId) {
+        if !self.frames.is_empty() {
+            clean_subtree::note_absent(&mut self.frames, name);
+        }
+    }
+
+    /// Rust-only (performance divergence): a function skipped without noting its nested functions
+    /// and free references: no function around it is kept (`clean_subtree`).
+    fn note_unrecorded_skip(&mut self) {
+        if !self.frames.is_empty() {
+            clean_subtree::mark_dirty_deeper_than(&mut self.frames, i32::MIN, "unrecorded skip");
+        }
+    }
+
+    /// Rust-only (performance divergence): starts the frame of `fn_node`, whose function scope the
+    /// traversal enters (`clean_subtree`).
+    fn push_function_frame(&mut self, t: &mut NodeTraversal<'_>, fn_node: NodeId) {
+        let verify = match self.verify_next.take() {
+            Some((kept, free)) if kept == fn_node => Some(free),
+            other => {
+                self.verify_next = other;
+                None
+            }
+        };
+        // Only a function of a known source input outside the externs, in a traversal of the
+        // whole tree, may be kept.
+        let dirty = (!t.has_cached_source_input()
+            || self.narrow_scope.is_some()
+            || fn_node.is_from_externs(t))
+        .then_some("not keepable");
+        self.frames.push(Frame::Function(FunctionFrame {
+            fn_node,
+            depth: t.get_scope_depth(),
+            base: self.block_stack.back().expect("getLast").clone(),
+            refs: Vec::new(),
+            absent: Vec::new(),
+            nested: Vec::new(),
+            jumped: false,
+            dirty,
+            verify,
+        }));
+    }
+
+    /// Rust-only (performance divergence): after the behavior's scope exit, marks the frames it
+    /// makes dirty, and finishes the frame of a function whose function scope is left
+    /// (`clean_subtree`).
+    fn after_scope_exit_report(&mut self, t: &mut NodeTraversal<'_>, cache: CacheOf) {
+        let report = self.behavior.take_scope_exit_report();
+        if self.frames.is_empty() {
+            return;
+        }
+        if report.changed {
+            clean_subtree::mark_dirty_deeper_than(&mut self.frames, i32::MIN, "changed tree");
+        } else if let Some(depth) = report.read_depth {
+            clean_subtree::mark_dirty_deeper_than(&mut self.frames, depth, "outer lookup");
+        }
+        let root = t.get_scope_root().expect("a scope root");
+        if root.is_function(t)
+            && matches!(self.frames.last(), Some(Frame::Function(f)) if f.fn_node == root)
+        {
+            let Some(Frame::Function(frame)) = self.frames.pop() else {
+                unreachable!("checked above");
+            };
+            let (stamp, nested) = clean_subtree::finish_frame(t.get_compiler(), cache, frame);
+            clean_subtree::note_nested(&mut self.frames, root, stamp, &nested);
+        }
+    }
+
+    /// Rust-only (performance divergence): skips `fn_node` when it is kept as clean and unchanged
+    /// (`clean_subtree`): adds its declaration's name and its free references as its traversal
+    /// would, with the basic block around it if it is a block boundary.
+    fn try_skip_clean_subtree(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        fn_node: NodeId,
+        parent: Option<NodeId>,
+        cache: CacheOf,
+    ) -> bool {
+        let kept = CleanSubtreeCache::current(t.get_compiler(), cache, fn_node).or_else(|| {
+            // Rust-only (performance divergence): without jumps, a kept function of a behavior
+            // whose traversal jumps serves too, if it was traversed without jumping inside it.
+            self.behavior
+                .clean_subtree_fallback()
+                .filter(|_| !self.collect_hoisted_functions_in_reference_order)
+                .and_then(|fallback| {
+                    CleanSubtreeCache::current_jump_free(t.get_compiler(), fallback, fn_node)
+                })
+        });
+        let Some((free, nested)) = kept else {
+            return false;
+        };
+        // Every spelling resolves in the scope around the function: no scope in it declares one.
+        let enclosing_scope = t.get_scope();
+        // Per spelling: its variable, whether the filter accepts it, its entry in the reference
+        // map once made, and whether it may be a hoisted function the traversal jumps to.
+        let mut bindings: Vec<(VarId, bool, Option<usize>, bool)> =
+            Vec::with_capacity(free.first_names.len());
+        for &name in &free.first_names {
+            t.position_at_node(name);
+            if !self.needs_name(t, name) {
+                return false;
+            }
+            let Some(var) = enclosing_scope.get_var_of_node(t.get_compiler(), name) else {
+                return false;
+            };
+            let may_jump = self.collect_hoisted_functions_in_reference_order
+                && var
+                    .get_parent_node(t.get_compiler())
+                    .is_some_and(|f| NodeUtil::is_hoisted_function_declaration(t, f));
+            bindings.push((var, false, None, may_jump));
+        }
+        for binding in &mut bindings {
+            binding.1 = (self.var_filter)(t.get_compiler(), binding.0)
+                && self.behavior.needs_variable(t.get_compiler(), binding.0);
+        }
+        for &name in &free.absent_names {
+            if enclosing_scope
+                .get_var_of_node(t.get_compiler(), name)
+                .is_some()
+            {
+                return false;
+            }
+        }
+        if *clean_subtree::MODE == clean_subtree::Mode::Verify {
+            self.verify_next = Some((fn_node, free));
+            return false;
+        }
+
+        // What `should_traverse` and `visit` tell the behavior about the function itself.
+        self.behavior.before_traverse_node(t, fn_node, parent);
+        let is_fn_decl = parent.is_some() && NodeUtil::is_function_declaration(t, fn_node);
+        let boundary = BasicBlock::is_block_boundary(t, fn_node, parent);
+        let has_free_refs = !free.sites.is_empty();
+        if boundary && (is_fn_decl || has_free_refs) {
+            self.push_new_block(t, fn_node);
+        }
+        let observe = self.behavior.observes_replayed_references();
+        if is_fn_decl {
+            // The function is collected (`should_traverse`), so its name jumps nowhere.
+            let fn_name = fn_node.get_first_child(t).unwrap();
+            t.position_at_node(fn_name);
+            if self.needs_name(t, fn_name) {
+                match enclosing_scope.get_var_of_node(t.get_compiler(), fn_name) {
+                    Some(v) => {
+                        if let Some((entry, index)) =
+                            self.add_reference(v, fn_name, t, enclosing_scope)
+                            && observe
+                        {
+                            let reference = &self.reference_map[entry].references[index];
+                            self.behavior.after_replayed_reference(t, reference);
+                        }
+                    }
+                    None => self.note_unresolved(fn_name),
+                }
+            }
+        }
+        if has_free_refs {
+            let scope = ScopeId::create_child_scope(t.get_compiler(), enclosing_scope, fn_node);
+            let base = self.block_stack.back().expect("getLast").clone();
+            let mut blocks: Vec<Option<Rc<BasicBlock>>> = vec![None; free.blocks.len()];
+            for &(name, slot, block_index) in &free.sites {
+                let (var, accepted, index, may_jump) = bindings[slot as usize];
+                if accepted || !self.frames.is_empty() {
+                    t.position_at_node(name);
+                    let block = Self::materialize_kept_block(
+                        t,
+                        &free.blocks,
+                        &mut blocks,
+                        &base,
+                        block_index,
+                    );
+                    self.note_reference(t.get_compiler(), var, name, &block);
+                    if accepted {
+                        let index = match index {
+                            Some(index) => index,
+                            None => {
+                                let entry = self.reference_map.entry(var);
+                                let index = entry.index();
+                                entry.or_default();
+                                bindings[slot as usize].2 = Some(index);
+                                index
+                            }
+                        };
+                        let references = Rc::make_mut(&mut self.reference_map[index]);
+                        references.add(Reference::in_scope(name, t, block, scope));
+                        if observe {
+                            let reference = references.references.last().expect("just added");
+                            self.behavior.after_replayed_reference(t, reference);
+                        }
+                    }
+                }
+                if may_jump {
+                    t.position_at_node(name);
+                    self.maybe_jump_to_hoisted_function(var, t, scope);
+                }
+            }
+        }
+        t.position_at_node(fn_node);
+        self.behavior.after_visit_node(t, fn_node, parent, None);
+        if boundary && (is_fn_decl || has_free_refs) {
+            self.pop_last_block(t, fn_node);
+        }
+        if !self.frames.is_empty() {
+            let stamp =
+                SyntacticScopeCache::cached_subtree_stamp_with_flags(t.get_compiler(), fn_node);
+            clean_subtree::note_nested(&mut self.frames, fn_node, stamp, &nested);
+        }
+        true
+    }
+
+    /// Rust-only (performance divergence): the basic block `index` of a kept function's block
+    /// structure (`FreeSites::blocks`), made below `base` on first use.
+    fn materialize_kept_block(
+        ast: &Ast,
+        kept: &[(NodeId, u32)],
+        made: &mut [Option<Rc<BasicBlock>>],
+        base: &Rc<BasicBlock>,
+        index: u32,
+    ) -> Rc<BasicBlock> {
+        let Some(&(root, parent)) = kept.get(index as usize) else {
+            return base.clone();
+        };
+        if let Some(block) = &made[index as usize] {
+            return block.clone();
+        }
+        let parent = Self::materialize_kept_block(ast, kept, made, base, parent);
+        let block = BasicBlock::new(ast, Some(parent), root);
+        made[index as usize] = Some(block.clone());
+        block
+    }
+
     fn materialize_replay_scope(
         t: &mut NodeTraversal<'_>,
         root_scope: ScopeId,
@@ -1716,6 +2065,11 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         t: &mut NodeTraversal<'_>,
         scope: ScopeId,
     ) -> Option<(usize, usize)> {
+        // The frames note the free references the filter rejects too (`clean_subtree`).
+        if !self.frames.is_empty() {
+            let block = self.block_stack.back().expect("getLast").clone();
+            self.note_reference(t.get_compiler(), v, n, &block);
+        }
         if !(self.var_filter)(t.get_compiler(), v)
             || !self.behavior.needs_variable(t.get_compiler(), v)
         {
@@ -1908,10 +2262,11 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
         block: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
+        // The summary of the externs (`externs_refer_only_to_externs`) reads only NAMEs in the
+        // externs, which have no cached source input.
         (self.reuse_sites
             || (self.behavior.can_reuse_function_reference_sites()
                 && parent.is_some_and(|p| p.is_function(t))))
-            && self.externs_refer_only_to_externs != Some(true)
             && *REUSE_REFERENCE_SITES
             && block.has_children(t)
             && t.has_cached_source_input()
@@ -1946,7 +2301,9 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
         // `maybe_jump_to_hoisted_function`) has not looked up its input yet, nor has a script
         // whose names the behavior did not need so far (`Behavior::needs_name`). The lookup has
         // no other effect; without an input the ordinary visitor reports it at the first name,
-        // as before.
+        // as before. The externs have no cached source input, so a traversal that makes the summary
+        // of the externs (`externs_refer_only_to_externs`), which reads only their NAMEs, takes the
+        // shortcuts in the other scripts.
         if n.is_function(node_traversal)
             && (parent.is_some() || node_traversal.get_scope_root().is_some())
         {
@@ -1955,7 +2312,6 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
         if n.is_function(node_traversal)
             && (parent.is_some() || node_traversal.get_scope_root().is_some())
             && self.narrow_scope.is_none()
-            && self.externs_refer_only_to_externs != Some(true)
             && *REUSE_REFERENCE_SITES
             && node_traversal.has_cached_source_input()
         {
@@ -1964,6 +2320,12 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
                     .behavior
                     .can_skip_global_function_if_no_pending_hoist(node_traversal.get_compiler(), n)
                 && self.try_skip_global_function_if_no_pending_hoist(node_traversal, n, parent)
+            {
+                self.note_unrecorded_skip();
+                return false;
+            }
+            if let Some(cache) = self.subtree_cache
+                && self.try_skip_clean_subtree(node_traversal, n, parent, cache)
             {
                 return false;
             }
@@ -1975,6 +2337,7 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
             if self.behavior.infer_consts_leaf_fast_path()
                 && self.try_infer_consts_leaf_function(node_traversal, n, parent)
             {
+                self.note_unrecorded_skip();
                 return false;
             }
             if self
@@ -1982,6 +2345,7 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
                 .can_skip_function_with_no_needed_names(node_traversal, n)
                 && self.try_skip_function_with_no_needed_names(node_traversal, n, parent)
             {
+                self.note_unrecorded_skip();
                 return false;
             }
         }
@@ -2023,6 +2387,9 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
                 if self.collect_hoisted_functions_in_reference_order {
                     self.maybe_jump_to_hoisted_function(v, t, scope);
                 }
+            } else if !n.get_string_ref(t).is_empty() {
+                // The empty name of a function expression never resolves.
+                self.note_unresolved(n);
             }
         }
 
@@ -2054,6 +2421,9 @@ impl<B: Behavior> ScopedCallback for CollectorCallback<'_, B> {
         // BasicBlock are added in shouldTraverse() or processScope() and removed in visit().
         if t.is_hoist_scope() {
             let root = t.get_scope_root().unwrap();
+            if self.subtree_cache.is_some() && root.is_function(t) {
+                self.push_function_frame(t, root);
+            }
             self.push_new_block(t, root);
         }
     }
@@ -2073,6 +2443,9 @@ impl<B: Behavior> ScopedCallback for CollectorCallback<'_, B> {
             ..
         } = self;
         behavior.after_exit_scope(t, &CollectedReferenceMap { reference_map });
+        if let Some(cache) = self.subtree_cache {
+            self.after_scope_exit_report(t, cache);
+        }
     }
 }
 
@@ -2152,6 +2525,32 @@ pub trait Behavior {
     /// leaf functions via `AbstractCompiler::inline_vars_clean_cache`.
     fn use_inline_vars_clean_cache(&self) -> bool {
         false
+    }
+
+    /// Rust-only (performance divergence): where the collector keeps the clean functions of this
+    /// behavior and skips them while they are unchanged (`clean_subtree`), for a behavior that
+    /// observes only scope exits, needs every name and accepts every variable (in its filter and
+    /// `needs_variable`), reads the scope of a reference to a variable declared outside a function
+    /// in it only as `clean_subtree` describes, decides at a scope exit only from what lies in
+    /// the scope's subtree, the references collected and the variables it looks up by name,
+    /// and reports both in `take_scope_exit_report`.
+    fn clean_subtree_cache(&self) -> Option<CacheOf> {
+        None
+    }
+
+    /// Rust-only (performance divergence): for a behavior with `clean_subtree_cache` whose
+    /// traversal makes no jumps to hoisted functions, the kept clean functions of another
+    /// behavior whose traversal makes them, which this one may use as its own when they were
+    /// traversed without a jump inside: their free references and block structure depend on the
+    /// subtree alone, and the filter is applied when they are added.
+    fn clean_subtree_fallback(&self) -> Option<CacheOf> {
+        None
+    }
+
+    /// Rust-only (performance divergence): what the last `after_exit_scope` did, for a behavior
+    /// with `clean_subtree_cache`.
+    fn take_scope_exit_report(&mut self) -> ScopeExitReport {
+        ScopeExitReport::default()
     }
 
     /// Rust-only (performance divergence): opt in for `InferConsts` to evaluate simple-param leaf
@@ -2234,6 +2633,15 @@ impl<T: Behavior + ?Sized> Behavior for &mut T {
     }
     fn can_reuse_function_reference_sites(&self) -> bool {
         (**self).can_reuse_function_reference_sites()
+    }
+    fn clean_subtree_cache(&self) -> Option<CacheOf> {
+        (**self).clean_subtree_cache()
+    }
+    fn clean_subtree_fallback(&self) -> Option<CacheOf> {
+        (**self).clean_subtree_fallback()
+    }
+    fn take_scope_exit_report(&mut self) -> ScopeExitReport {
+        (**self).take_scope_exit_report()
     }
     fn scope_exits_change_only_their_scopes(&self) -> bool {
         (**self).scope_exits_change_only_their_scopes()

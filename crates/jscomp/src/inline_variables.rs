@@ -44,7 +44,10 @@ use crate::node_traversal::NodeTraversal;
 use crate::node_util::NodeUtil;
 use crate::reference::Reference;
 use crate::reference_collection::ReferenceCollection;
-use crate::reference_collector::{Behavior, FunctionReferenceCache, ReferenceCollector, Site};
+use crate::reference_collector::{
+    Behavior, CacheOf, FunctionReferenceCache, KeptCleanSubtrees, ReferenceCollector,
+    ScopeExitReport, Site,
+};
 use crate::reference_map::ReferenceMap;
 use crate::scope::ScopeId;
 use crate::syntactic_scope_cache::{DeepFunctionStamp, SyntacticScopeCache};
@@ -229,7 +232,8 @@ impl MotionMemo {
 const MAX_MOTION_MEMO_UNITS: usize = 6000;
 
 /// Rust-only (performance divergence): environment signature invalidating `InlineVarsCleanCache`
-/// whenever mode, purity, accessor summary, or normalization state changes. Per-function edits to
+/// whenever mode, purity, accessor summary (when getters are not assumed pure), or normalization
+/// state changes. Per-function edits to
 /// `JSDOC_INFO`, `SIDE_EFFECT_FLAGS`, `IS_CONSTANT_NAME`, or `CONSTANT_VAR_FLAGS` are tracked per
 /// subtree via `SyntacticScopeCache::subtree_stamp_with_flags`.
 #[derive(Clone, PartialEq, Eq)]
@@ -249,10 +253,13 @@ impl InlineVarsEnvKey {
             (None, None) => true,
             _ => false,
         };
+        // Rust-only (performance divergence): `AstAnalyzer` that assumes getters are pure never
+        // reads the accessor summary (`AstAnalyzer::get_property_kind`), which changes between
+        // the runs of the pass (`GatherGetterAndSetterProperties`).
         self.mode_tag == other.mode_tag
             && self.assume_getters_are_pure == other.assume_getters_are_pure
             && self.has_reg_exp_global_references == other.has_reg_exp_global_references
-            && accessor_same
+            && (self.assume_getters_are_pure || accessor_same)
             && self.has_goog_weak_usage == other.has_goog_weak_usage
             && self.is_normalized == other.is_normalized
     }
@@ -285,16 +292,25 @@ pub(crate) struct InlineVarsCleanCache {
     /// Rust-only (performance divergence): failed `canMoveModerately` walks by initialization
     /// and reference NAME nodes (`MotionMemo`).
     pub(crate) motion_memos: IndexMap<(NodeId, NodeId), MotionMemo>,
+    /// Rust-only (performance divergence): functions in which no scope exit inlined a variable or
+    /// looked up a variable declared outside them, in `Mode::ALL` (`InliningBehavior::
+    /// clean_subtree_cache`).
+    pub(crate) clean_subtrees: KeptCleanSubtrees,
 }
 
 impl InlineVarsCleanCache {
     fn sync_environment(&mut self, key: InlineVarsEnvKey) {
         if !self.env.as_ref().is_some_and(|prev| prev.matches(&key)) {
-            self.clean_leaves.clear();
-            self.clean_locals_only_global_fns.clear();
-            self.motion_memos.clear();
+            self.clear();
         }
         self.env = Some(key);
+    }
+
+    fn clear(&mut self) {
+        self.clean_leaves.clear();
+        self.clean_locals_only_global_fns.clear();
+        self.motion_memos.clear();
+        self.clean_subtrees.clear();
     }
 }
 
@@ -355,12 +371,7 @@ impl CompilerPass for InlineVariables {
             };
             compiler.inline_vars_clean_cache.sync_environment(env);
         } else {
-            compiler.inline_vars_clean_cache.clean_leaves.clear();
-            compiler
-                .inline_vars_clean_cache
-                .clean_locals_only_global_fns
-                .clear();
-            compiler.inline_vars_clean_cache.motion_memos.clear();
+            compiler.inline_vars_clean_cache.clear();
         }
         let mut scope_creator = SyntacticScopeCreator::new();
         let mut callback = ReferenceCollector::new_with_filter(
@@ -521,6 +532,9 @@ struct InliningBehavior {
     /// Rust-only (performance divergence): stack of active top-level functions in
     /// `Mode::LOCALS_ONLY` (`(fn_node, did_inline)`).
     global_fn_stack: Vec<(NodeId, bool)>,
+    /// Rust-only (performance divergence): what the scope exits since the collector last asked
+    /// did (`Behavior::take_scope_exit_report`).
+    exit_report: ScopeExitReport,
 
     /// Records the analyses of variables that have already been handled in the current scope.
     ///
@@ -561,6 +575,26 @@ impl Behavior for InliningBehavior {
 
     fn use_inline_vars_clean_cache(&self) -> bool {
         self.use_cache
+    }
+
+    // Rust-only (performance divergence): in `Mode::ALL` the filter accepts every variable. At a
+    // scope exit, the decisions read the references of the scope's variables, what lies in the
+    // scope's subtree, the settings in `InlineVarsEnvKey` and, through name lookups, only the
+    // variable an initial value aliases (`InitialValueAnalysis::get_aliased_var`), which an
+    // alias also waits for; those lookups and the inlining are reported. Of a reference to a
+    // variable declared outside a function, the decisions read the scope only to resolve its name
+    // (`Reference::get_symbol`), to compare its closest hoist scope with that of the declaring
+    // scope or of other references (`ReferenceCollection::is_assigned_once_in_lifetime`,
+    // `is_this_rebound`) and, after its basic block was found to be the declaration's, to ask
+    // whether the initialization's scope contains it (`can_inline`), which a reference in the
+    // function never reaches.
+    fn clean_subtree_cache(&self) -> Option<CacheOf> {
+        (self.use_cache && self.mode == Mode::ALL)
+            .then_some(|compiler| &mut compiler.inline_vars_clean_cache.clean_subtrees)
+    }
+
+    fn take_scope_exit_report(&mut self) -> ScopeExitReport {
+        std::mem::take(&mut self.exit_report)
     }
 
     fn can_skip_global_function_if_no_pending_hoist(
@@ -640,6 +674,7 @@ impl InliningBehavior {
             pending_leaf: None,
             nested_dirty_fns: IndexSet::default(),
             global_fn_stack: Vec::new(),
+            exit_report: ScopeExitReport::default(),
             current_scope_handled_var_analyses_map: HandledVarAnalyses::default(),
             var_to_alias_retry_handlers_map: IndexMap::<_, _>::default(),
             scope_vars: Vec::new(),
@@ -920,10 +955,18 @@ impl InliningBehavior {
             self.free_names_scratch.clear();
             for (idx, &first_name) in body_sites.first_names.iter().enumerate() {
                 let resolved = pending.body_scope.get_var_of_node(compiler, first_name);
-                let is_local_to_fn = resolved.is_some_and(|v| {
-                    let s = v.get_scope(compiler);
-                    s == pending.body_scope || s == scope
-                });
+                // A name no scope from the body outwards declares may be a `let` or `const` of a
+                // block in the body (unique in a normalized tree), which is no free name.
+                let is_local_to_fn = match resolved {
+                    Some(v) => {
+                        let s = v.get_scope(compiler);
+                        s == pending.body_scope || s == scope
+                    }
+                    None => {
+                        body_sites.declares_in_nested_scopes
+                            && body_sites.declares_slot(compiler, idx)
+                    }
+                };
                 if !is_local_to_fn {
                     self.free_slots_scratch.push(idx as u32);
                     self.free_names_scratch.push(first_name);
@@ -952,6 +995,9 @@ impl InliningBehavior {
             && let Some((_, dirty)) = self.global_fn_stack.last_mut()
         {
             *dirty = true;
+        }
+        if self.current_scope_did_inline {
+            self.exit_report.changed = true;
         }
         let scope_root = scope.get_root_node(compiler);
         if self
@@ -1059,32 +1105,43 @@ impl InliningBehavior {
     // port: InlineVariables.VarExpert#analyze
     // port: InlineVariables.NO_INLINE_SELF_OR_ALIASES_EXPERT#analyze
     // port: InlineVariables.NO_INLINE_SELF_ALIASES_OK_EXPERT#analyze
-    fn analyze(&self, compiler: &mut AbstractCompiler, expert: VarExpert) -> InlineVarAnalysis {
+    fn analyze(&mut self, compiler: &mut AbstractCompiler, expert: VarExpert) -> InlineVarAnalysis {
         match expert {
             VarExpert::NoInlineSelfOrAliases => InlineVarAnalysis::NoInlineSelfOrAliases,
             VarExpert::NoInlineSelfAliasesOk => InlineVarAnalysis::NoInlineSelfAliasesOk,
-            VarExpert::Standard(index) => self.experts[index].borrow_mut().analyze(compiler),
+            VarExpert::Standard(index) => {
+                let mut expert = self.experts[index].borrow_mut();
+                let analysis = expert.analyze(compiler);
+                expert.report_alias_lookup(&mut self.exit_report);
+                analysis
+            }
         }
     }
 
     /// Called for a Var that is an alias after the original variable is handled.
     // port: InlineVariables.VarExpert#reanalyzeAfterAliasedVar
     fn reanalyze_after_aliased_var(
-        &self,
+        &mut self,
         compiler: &mut AbstractCompiler,
         expert: VarExpert,
         aliased_var: VarId,
         aliased_var_analysis: InlineVarAnalysis,
     ) -> InlineVarAnalysis {
         match expert {
-            VarExpert::Standard(index) => self.experts[index]
-                .borrow_mut()
-                .reanalyze_after_aliased_var(
-                    compiler,
-                    aliased_var,
-                    aliased_var_analysis,
-                    &self.experts,
-                ),
+            VarExpert::Standard(index) => {
+                let analysis = self.experts[index]
+                    .borrow_mut()
+                    .reanalyze_after_aliased_var(
+                        compiler,
+                        aliased_var,
+                        aliased_var_analysis,
+                        &self.experts,
+                    );
+                self.experts[index]
+                    .borrow_mut()
+                    .report_alias_lookup(&mut self.exit_report);
+                analysis
+            }
             VarExpert::NoInlineSelfOrAliases | VarExpert::NoInlineSelfAliasesOk => {
                 panic!("not waiting for an aliased variable")
             }
@@ -1632,6 +1689,9 @@ struct StandardVarExpert {
     /// Rust-only: the outer `InlineVariables#mode` and this expert's arena index.
     mode: Mode,
     index: usize,
+    /// Rust-only (performance divergence): the depth of the scope declaring the variable the
+    /// initial value names (0: none), when an analysis since the last report looked it up.
+    alias_read_depth: Option<i32>,
 }
 
 impl StandardVarExpert {
@@ -1655,6 +1715,21 @@ impl StandardVarExpert {
             all_references_are_valid: InitiallyUnknown::new(),
             mode,
             index,
+            alias_read_depth: None,
+        }
+    }
+
+    /// Rust-only (performance divergence): adds the variable lookup of the last analyses to
+    /// `report` (`Behavior::take_scope_exit_report`).
+    fn report_alias_lookup(&mut self, report: &mut ScopeExitReport) {
+        if let Some(depth) = self.alias_read_depth.take() {
+            report.read_depth = Some(report.read_depth.map_or(depth, |d| d.min(depth)));
+        }
+    }
+
+    fn note_alias_lookup(&mut self, initial_value_analysis: &InitialValueAnalysis) {
+        if let Some(depth) = initial_value_analysis.read_depth {
+            self.alias_read_depth = Some(self.alias_read_depth.map_or(depth, |d| d.min(depth)));
         }
     }
 
@@ -1832,7 +1907,9 @@ impl StandardVarExpert {
             return self.get_negative_inline_var_analysis();
         }
 
-        if initial_value_analysis.is_alias(compiler, self.v) {
+        let is_alias = initial_value_analysis.is_alias(compiler, self.v);
+        self.note_alias_lookup(&initial_value_analysis);
+        if is_alias {
             return InlineVarAnalysis::VarIsAlias {
                 aliased_var: initial_value_analysis
                     .get_aliased_var(compiler, self.v)
@@ -1975,7 +2052,9 @@ impl StandardVarExpert {
             return self.create_inline_well_defined_var_analysis(init_value);
         }
 
-        if initial_value_analysis.is_alias(compiler, self.v)
+        let is_alias = initial_value_analysis.is_alias(compiler, self.v);
+        self.note_alias_lookup(&initial_value_analysis);
+        if is_alias
             && initial_value_analysis
                 .get_aliased_var(compiler, self.v)
                 .is_some_and(|other| aliased_var.equals(compiler, other))
@@ -2039,6 +2118,10 @@ struct InitialValueAnalysis {
     value: Option<NodeId>,
     is_immutable_value: InitiallyUnknown<bool>,
     aliased_var: InitiallyUnknown<VarId>,
+    /// Rust-only (performance divergence): the depth of the scope declaring the variable the
+    /// value names, 0 when no scope does, once it was looked up (`Behavior::
+    /// take_scope_exit_report`).
+    read_depth: Option<i32>,
 }
 
 impl InitialValueAnalysis {
@@ -2048,6 +2131,7 @@ impl InitialValueAnalysis {
             value,
             is_immutable_value: InitiallyUnknown::new(),
             aliased_var: InitiallyUnknown::new(),
+            read_depth: None,
         }
     }
 
@@ -2084,7 +2168,10 @@ impl InitialValueAnalysis {
                 let aliased = if aliased_name == v.get_name(compiler) {
                     None
                 } else {
-                    v.get_scope(compiler).get_var(compiler, aliased_name)
+                    let aliased = v.get_scope(compiler).get_var(compiler, aliased_name);
+                    self.read_depth =
+                        Some(aliased.map_or(0, |a| a.get_scope(compiler).get_depth(compiler)));
+                    aliased
                 };
                 return self.aliased_var.set_known_value_once(aliased);
             }

@@ -3208,6 +3208,57 @@ fn test_rerun_traverses_externs_that_refer_to_code() {
     ]);
 }
 
+// Rust-only (crates/DESIGN.md, "Performance divergences"): a later run skips a function in which
+// the previous run inlined nothing and looked up no variable declared outside it, and adds its
+// references to the variables around it again, in their order and with their basic blocks.
+#[test]
+fn test_rerun_adds_references_of_skipped_clean_function() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 3;
+    // Without the reference in the skipped function, x would be read once and inlined.
+    t.test_same("var x = foo(); function f() { return function() { return x; }; } use(x);");
+}
+
+#[test]
+fn test_rerun_jumps_from_skipped_clean_function_to_hoisted_function() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 3;
+    t.test_same(
+        "var x = foo(); function f() { return function() { return g(); }; } \
+         function g() { return x; } use(x);",
+    );
+}
+
+#[test]
+fn test_rerun_skipped_clean_function_with_jump_inside() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 3;
+    t.test_same(
+        "var x = foo(); function f() { return h() + h(); function h() { return x; } } \
+         use(x, f, f);",
+    );
+}
+
+#[test]
+fn test_rerun_skipped_clean_function_initializing_outer_var() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 3;
+    t.test_same("var x; function f() { if (c()) { x = foo(); } use(x); } f(); f();");
+}
+
+#[test]
+fn test_rerun_inlines_alias_after_skipped_functions() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 3;
+    // The functions around are kept clean after the first run; the alias in g waits for x.
+    t.test(
+        "var x = 1; function f() { return function() { return 2; }; } \
+         function g() { var y = x; return function() { return y; }; } use(f, f, g, g);",
+        "function f() { return function() { return 2; }; } \
+         function g() { return function() { return 1; }; } use(f, f, g, g);",
+    );
+}
+
 #[test]
 fn test_repeated_local_inlining_with_conditional_capture() {
     let mut t = InlineVariablesTest::set_up();

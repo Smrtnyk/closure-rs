@@ -1694,3 +1694,37 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   (the traversal changes nothing; an early return of Java's `visit` still leaves the context), and
   a GETPROP l-value whose owner is not a GETPROP `prototype` is rejected before its qualified name
   is built (the part before the last dot is the owner's qualified name).
+- `jscomp/reference_collector/clean_subtree.rs`, `reference_collector.rs` (frames,
+  `try_skip_clean_subtree`, `Behavior::clean_subtree_cache`, `take_scope_exit_report`),
+  `inline_variables.rs`, `cross_chunk_reference_collector.rs`, `reference_collector/function_body.rs`:
+  ReferenceCollector skips a function whose subtree is unchanged since a run of the same behavior
+  found it clean, and adds only the references that its traversal adds to variables declared
+  outside it (Java traverses every function on every run). While a function is traversed, a frame
+  notes every such free reference with its basic block (also those the filter rejects), the
+  names that resolve to nothing and the stamps of the nested functions; a jump to a hoisted
+  function hides the frames of the functions that do not contain its declaration. The behavior
+  reports what each scope exit did: InlineVariables (in `Mode::ALL`) whether it inlined and the
+  depth of the variable an initial value aliases (its only name lookup); a function is clean when
+  no scope exit in it inlined or looked up a variable declared outside it. A kept function is
+  skipped while its own and nested stamps (with flags), its kind (declaration, expression, arrow)
+  and the resolution of its free and absent spellings from the scope around it allow: each free
+  reference is added in order, with blocks made from the kept structure below the current block,
+  one empty child scope rooted at the function as its scope (InlineVariables and
+  CrossChunkCodeMotion read the scope of such a reference only to resolve its name, compare
+  closest hoist scopes and ask containment after a same-block check that fails), the filter
+  applied, the behavior told (`after_replayed_reference`, `before_traverse_node` and
+  `after_visit_node` of the function itself), and a jump made where a reference names a pending
+  hoisted function. CrossChunkCodeMotion, whose scope exits do nothing, keeps its own clean
+  functions and uses those of InlineVariables recorded without a jump inside (the order without
+  jumps is then the same). The clean-leaf replay of InlineVariables now adds the block of the
+  function body and leaves out the `let`/`const` names of the body's blocks, so that both record
+  the structure a traversal has. `CLOSURE_RS_CLEAN_SUBTREES=off` keeps and skips nothing, `=verify`
+  traverses every function a hit would skip and checks that it is clean with the kept free
+  references (names, blocks, sites, absent names).
+- `jscomp/reference_collector.rs` (`traverse_block_children`, `should_traverse`): while a
+  collector makes the summary of the externs (`externs_refer_only_to_externs`), it takes its
+  shortcuts (replayed bodies, skipped functions) in the other scripts; the summary reads only NAMEs
+  of the externs, which have no cached source input and are traversed as before.
+- `jscomp/inline_variables.rs` (`InlineVarsEnvKey::matches`): the caches of InlineVariables are
+  kept across a new accessor summary when getters are assumed pure, as `AstAnalyzer` then never
+  reads it (GatherGetterAndSetterProperties makes a new one between the first run and the loop).
