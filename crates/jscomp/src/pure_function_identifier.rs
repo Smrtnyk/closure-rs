@@ -1452,8 +1452,13 @@ impl<'a> FunctionBodyAnalyzer<'a> {
                 }
 
                 let compiler = traversal.get_compiler();
-                if compiler
-                    .get_ast_analyzer()
+                // Rust-only (performance divergence): Java asks `compiler.getAstAnalyzer()`, which
+                // makes a new analyzer for every node that reaches this branch; the one this pass
+                // made from the same options and compiler state (which the pass does not change)
+                // answers the same.
+                if self
+                    .pfi
+                    .ast_analyzer
                     .node_type_may_have_side_effects(compiler, node)
                 {
                     // Java: throw new IllegalArgumentException(...)

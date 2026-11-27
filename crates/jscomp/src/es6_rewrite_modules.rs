@@ -61,7 +61,7 @@ use closure_rhino::{
     js_string::JsString,
     js_type_expression::JSTypeExpression,
     jsdoc_info::JSDocInfo,
-    node::{Ast, NodeId},
+    node::{Ast, NodeId, WatchedName},
     qualified_name::QualifiedName,
     token::Token,
 };
@@ -158,7 +158,27 @@ pub struct Es6RewriteModules {
     /// Rust-only (performance divergence): true iff at least one ES6 module declared a Closure
     /// namespace; when false, `RewriteRequiresForEs6Modules` can never match any call.
     has_es6_goog_namespace: bool,
+    /// Rust-only (performance divergence): see `should_traverse_script`.
+    top_level_only: TopLevelMode,
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TopLevelMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_ES6_MODULES_TOP_LEVEL=off` traverses every module; `=verify` traverses them and
+/// checks that every import and export is at the top level of a module body.
+static TOP_LEVEL_MODE: LazyLock<TopLevelMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_ES6_MODULES_TOP_LEVEL").as_deref() {
+            Ok("off") => TopLevelMode::Off,
+            Ok("verify") => TopLevelMode::Verify,
+            _ => TopLevelMode::On,
+        },
+    );
 
 impl Es6RewriteModules {
     /// Creates a new Es6RewriteModules instance which can be used to rewrite ES6 modules to a
@@ -208,6 +228,7 @@ impl Es6RewriteModules {
             global_typed_scope,
             chunk_output_type,
             has_es6_goog_namespace: false,
+            top_level_only: TopLevelMode::Off,
         }
     }
 
@@ -1053,6 +1074,13 @@ impl CompilerPass for Es6RewriteModules {
             .get_modules_by_goog_namespace()
             .values()
             .any(|m| m.is_es6_module());
+        self.top_level_only = if compiler.has_seen_name(WatchedName::Goog)
+            || compiler.has_seen_token(Token::IMPORT_META)
+        {
+            TopLevelMode::Off
+        } else {
+            *TOP_LEVEL_MODE
+        };
         NodeTraversal::traverse_roots(compiler, self, externs, root);
         // It is unusual to call this NodeUtil method instead of the TranspilationPasses one. This
         // pass is included in the {@code dependency_resolution} BUILD target and does not have
@@ -1066,6 +1094,44 @@ impl CompilerPass for Es6RewriteModules {
 }
 
 impl Callback for Es6RewriteModules {
+    /// Rust-only (performance divergence): without a NAME `goog` in the arena (a
+    /// goog.declareModuleId call needs one) or an `import.meta`, `visit` acts only on scripts and
+    /// on imports and exports, which sit at the top level of a module body; the subtree of an
+    /// import or export is visited before it and its other nodes do nothing. So a module script
+    /// is walked only there, in the traversal's order (the next sibling read before a member is
+    /// visited), with the traversal at the script (its change scope, current script and input).
+    /// Java traverses every module.
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        if !self.should_traverse(t, script, parent) {
+            return false;
+        }
+        if self.top_level_only != TopLevelMode::On {
+            return true;
+        }
+        let mut child = script.get_first_child(t);
+        while let Some(c) = child {
+            let next = c.get_next(t);
+            if c.is_module_body(t) {
+                let mut statement = c.get_first_child(t);
+                while let Some(s) = statement {
+                    let next = s.get_next(t);
+                    if s.is_import(t) || s.is_export(t) {
+                        self.visit(t, s, Some(c));
+                    }
+                    statement = next;
+                }
+            }
+            child = next;
+        }
+        self.visit(t, script, parent);
+        false
+    }
+
     // port: Es6RewriteModules#shouldTraverse
     fn should_traverse(
         &mut self,
@@ -1096,6 +1162,16 @@ impl Callback for Es6RewriteModules {
 
     // port: Es6RewriteModules#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
+        if self.top_level_only == TopLevelMode::Verify && (n.is_import(t) || n.is_export(t)) {
+            let parent = parent.unwrap();
+            assert!(
+                parent.is_module_body(t) && parent.get_parent(t).is_some_and(|p| p.is_script(t)),
+                "CLOSURE_RS_ES6_MODULES_TOP_LEVEL=verify: {} is not at the top level of a module \
+                 body (parent {})",
+                n.to_string(t),
+                parent.to_string(t)
+            );
+        }
         if n.is_import(t) {
             self.maybe_warn_extern_module(t, n, parent.unwrap());
             self.visit_import(t, n, parent.unwrap());

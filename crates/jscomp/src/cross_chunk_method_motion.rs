@@ -206,7 +206,7 @@ impl CrossChunkMethodMotion {
         let symbol = &info.get_declarations()[prop];
         if symbol
             .get_root_var()
-            .is_none_or(|root_var| !root_var.is_global(compiler))
+            .is_none_or(|root_var| !root_var.is_global())
         {
             return;
         }
@@ -595,7 +595,7 @@ impl CrossChunkMethodMotion {
             unreachable!()
         };
         let root_var = member.get_root_var();
-        let Some(root_var) = root_var.filter(|root_var| root_var.is_global(compiler)) else {
+        let Some(root_var) = root_var.and_then(|root_var| root_var.global_var()) else {
             return;
         };
 

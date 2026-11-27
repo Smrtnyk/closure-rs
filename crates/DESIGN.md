@@ -1628,3 +1628,64 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   information of the same node; the others, never attached in Java either, are not made. Node
   ids are never printed, ordered or compared but for identity, and a built form holds each made
   node once, as in Java.
+- `jscomp/node_util.rs` (`try_collect_bundled_extern_variable_names`): the scan of the extern
+  scripts that are not unchanged bundled prefixes also takes a function with plain parameters and
+  an empty body (adding its name, never a parameter's) and a class (adding its name, scanning its
+  members), so a user externs file of such stubs no longer sends `collectExternVariableNames` to a
+  `ReferenceCollector` traversal of all externs. `CLOSURE_RS_EXTERN_NAMES=off` leaves both to the
+  traversal, `=verify` compares the names with it as sets (their users read them as a set).
+- `jscomp/inline_properties.rs` (`ReplaceCandidates::replace_in_traversal_order`): the second
+  traversal, which acts only on GETPROPs, is a loop over the GETPROPs the first traversal visited,
+  in its order: nothing changes the tree in between, and a replacement changes only the subtree of
+  the GETPROP it replaces (visited before it) and is itself not visited.
+  `CLOSURE_RS_INLINE_PROPERTIES_DIRECT=off` traverses again, `=verify` traverses and checks that it
+  visits the recorded GETPROPs in order.
+- `jscomp/rename_labels.rs` (`outermost_labels`, `ProcessLabels::walk`): only the subtrees of the
+  labels without a label above them are walked (found among the LABEL token candidates, put in
+  the traversal's order, computed keys of class members first), each from an empty namespace, with
+  changes reported to the innermost function or script; outside labels the callback does nothing.
+  More than 256 outermost labels go to the traversal. `CLOSURE_RS_RENAME_LABELS_DIRECT=off|verify`.
+- `jscomp/pure_function_identifier.rs` (`FunctionBodyAnalyzer::update_side_effects_for_node`): the
+  default branch asks the pass's own `AstAnalyzer` whether a node type has side effects (Java makes
+  a new one per node from the same options and compiler state, which the pass does not change).
+- `jscomp/analyze_prototype_properties.rs` (`PrototypePropertiesCache`, `UnitLog`, `RootVar`),
+  `cross_chunk_method_motion.rs`, `compiler.rs` (`prototype_properties_cache`): what the traversal
+  of each top-level statement does to the analysis is kept between runs as a log of operations
+  (name infos by index into a name table shared by the logs; a NAME that resolves to no local var
+  and a non-local property root var by name node, looked up in the global scope again; the chunk
+  from the script) and replayed while the statement and every function in it keep their change
+  stamps, its script and the in-place flags of its keys and class members (quoted, static,
+  computed method kinds). A statement starts with the same traversal state in every run (only the
+  `[global]` context, the global scope). A local root var is kept by its declaring name node,
+  which identifies it within a run as its handle would; an implicit one keeps its handle and the
+  statement is not logged. CrossChunkMethodMotion's second run in the chunk motion loop replays
+  almost everything. `CLOSURE_RS_PROTOTYPE_PROPERTIES_CACHE=off` traverses every statement,
+  `=verify` traverses and compares the log of every statement a replay would have used.
+- `jscomp/gather_module_metadata.rs` (`Finder::top_level_only`): without CommonJS processing, a
+  NAME `goog` in the arena (every goog call, goog.loadModule and toggle module needs one) or a
+  dynamic import, the callbacks act only on scripts and on imports and exports, which sit at the
+  top level of a script or of its module body, so only that level is walked (an unchanged bundled
+  extern prefix is still left unread first). `CLOSURE_RS_MODULE_METADATA_TOP_LEVEL=off` traverses
+  every script, `=verify` traverses and checks that every import and export is at that level.
+- `jscomp/inline_properties.rs` (`InlinePropertiesCache`, `GatherLog`), `compiler.rs`
+  (`inline_properties_cache`): the gathering traversal of each top-level statement is kept between
+  the runs of InlineProperties in the optimization loop as its candidate map updates (a property
+  name with a definition that is stored when the name is not in the map yet, or an invalidation;
+  whether a definition qualifies depends only on the statement's subtree) and its GETPROPs, and
+  replayed at the statement's place while the statement and every function in it keep their
+  change stamps with flags (structure and in-place JSDoc) and every color and static-member flag
+  the traversal read is the same. Not used while a JSType registry exists (`inConstructor` would
+  read JSTypes). `CLOSURE_RS_INLINE_PROPERTIES_CACHE=off` traverses every statement, `=verify`
+  traverses and compares the log of every statement a replay would have used.
+- `jscomp/es6_rewrite_modules.rs` (`Es6RewriteModules::should_traverse_script`): without a NAME
+  `goog` in the arena (goog.declareModuleId needs one) or an `import.meta`, `visit` acts only on
+  scripts and on the imports and exports at the top level of a module body, so a module script is
+  walked only there, in the traversal's order, with the traversal at the script (its change scope,
+  current script and input). `CLOSURE_RS_ES6_MODULES_TOP_LEVEL=off` traverses every module,
+  `=verify` traverses and checks that every import and export is at that level.
+- `jscomp/analyze_prototype_properties.rs` (`ProcessProperties::prototype_assign_nodes`,
+  `get_prototype_property_name_from_r_value`): `visit` pops the non-function prototype assignment
+  context its `shouldTraverse` pushed for the node instead of computing the property name again
+  (the traversal changes nothing; an early return of Java's `visit` still leaves the context), and
+  a GETPROP l-value whose owner is not a GETPROP `prototype` is rejected before its qualified name
+  is built (the part before the last dot is the owner's qualified name).

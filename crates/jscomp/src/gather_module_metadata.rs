@@ -41,7 +41,10 @@ use closure_parsing::parser::identifiers::Identifiers;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::SnapshotUse;
 use closure_rhino::{
-    check_not_null, check_state, js_string::JsString, node::NodeId, qualified_name::QualifiedName,
+    check_not_null, check_state,
+    js_string::JsString,
+    node::{Ast, NodeId, WatchedName},
+    qualified_name::QualifiedName,
     token::Token,
 };
 use std::sync::{Arc, LazyLock};
@@ -230,8 +233,10 @@ impl GatherModuleMetadata {
 impl CompilerPass for GatherModuleMetadata {
     // port: GatherModuleMetadata#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
-        NodeTraversal::traverse(compiler, externs, &mut Finder::new(self));
-        NodeTraversal::traverse(compiler, root, &mut Finder::new(self));
+        let mut finder = Finder::new(self, compiler);
+        NodeTraversal::traverse(compiler, externs, &mut finder);
+        let mut finder = Finder::new(self, compiler);
+        NodeTraversal::traverse(compiler, root, &mut finder);
         compiler.set_module_metadata_map(Arc::new(ModuleMetadataMap::new(
             self.modules_by_path.clone(),
             self.modules_by_goog_namespace.clone(),
@@ -378,15 +383,68 @@ struct Finder<'a> {
     toggle_module_names: IndexSet<JsString>,
     /// `Set<Var>` (a LinkedHashSet, null allowed) under Var's ScopedName equality.
     toggle_modules: Vec<Option<VarId>>,
+    /// Rust-only (performance divergence): see `top_level_only`.
+    top_level_only: TopLevelMode,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TopLevelMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_MODULE_METADATA_TOP_LEVEL=off` traverses every script; `=verify` traverses them and
+/// checks that only the script and its top-level imports and exports act.
+static TOP_LEVEL_MODE: LazyLock<TopLevelMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_MODULE_METADATA_TOP_LEVEL").as_deref() {
+            Ok("off") => TopLevelMode::Off,
+            Ok("verify") => TopLevelMode::Verify,
+            _ => TopLevelMode::On,
+        },
+    );
+
 impl<'a> Finder<'a> {
-    fn new(outer: &'a mut GatherModuleMetadata) -> Self {
+    fn new(outer: &'a mut GatherModuleMetadata, compiler: &AbstractCompiler) -> Self {
+        // Rust-only (performance divergence): without CommonJS processing, a NAME `goog` (every
+        // goog call and goog.loadModule, and so every toggle module, needs one) or a dynamic
+        // import, the callbacks act only on scripts and on imports and exports, which sit at the
+        // top level of a script or of its module body: a script is then walked only there
+        // (`should_traverse_script`). Java traverses every script.
+        let top_level_only = if outer.process_common_js_modules
+            || compiler.has_seen_name(WatchedName::Goog)
+            || compiler.has_seen_token(Token::DYNAMIC_IMPORT)
+        {
+            TopLevelMode::Off
+        } else {
+            *TOP_LEVEL_MODE
+        };
         Self {
             outer,
             toggle_module_names: IndexSet::<_>::default(),
             toggle_modules: Vec::new(),
+            top_level_only,
         }
+    }
+
+    /// Rust-only: the imports and exports at the top level of `script` or of its module body, in
+    /// the order the traversal reaches them.
+    fn top_level_imports_and_exports(ast: &Ast, script: NodeId) -> Vec<NodeId> {
+        let mut nodes = Vec::new();
+        for child in script.children(ast) {
+            let statements = if child.is_module_body(ast) {
+                child.children(ast).collect()
+            } else {
+                vec![child]
+            };
+            for statement in statements {
+                if statement.is_import(ast) || statement.is_export(ast) {
+                    nodes.push(statement);
+                }
+            }
+        }
+        nodes
     }
 
     fn current_module(&mut self) -> &mut ModuleMetadataBuilder {
@@ -851,7 +909,21 @@ impl Callback for Finder<'_> {
                 let path = input.get_path(t.get_compiler());
                 self.enter_module(t, n, Some(path));
             }
-            Token::IMPORT | Token::EXPORT => self.visit_import_or_export(t, n),
+            Token::IMPORT | Token::EXPORT => {
+                if self.top_level_only == TopLevelMode::Verify {
+                    let parent = n.get_parent(t).unwrap();
+                    assert!(
+                        parent.is_script(t)
+                            || (parent.is_module_body(t)
+                                && parent.get_parent(t).is_some_and(|p| p.is_script(t))),
+                        "CLOSURE_RS_MODULE_METADATA_TOP_LEVEL=verify: {} is not at the top level \
+                         of a script or its module body (parent {})",
+                        n.to_string(t),
+                        parent.to_string(t)
+                    );
+                }
+                self.visit_import_or_export(t, n)
+            }
             Token::CALL => {
                 if n.is_call(t) && GOOG_LOADMODULE.matches(t, n.get_first_child(t).unwrap()) {
                     self.outer.load_module_call = Some(n);
@@ -875,15 +947,21 @@ impl Callback for Finder<'_> {
         if self.outer.process_common_js_modules || !self.toggle_module_names.is_empty() {
             return true;
         }
-        let Some((facts, first)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames)
-        else {
-            return true;
-        };
-        if facts.may_have_module_syntax {
-            return true;
+        // The prefix of a bundled script is left as it is (it is not read at all).
+        if let Some((facts, first)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames)
+            && !facts.may_have_module_syntax
+        {
+            t.traverse_script_suffix(script, parent, first, self);
+            return false;
         }
-        t.traverse_script_suffix(script, parent, first, self);
-        false
+        if self.top_level_only == TopLevelMode::On {
+            for node in Self::top_level_imports_and_exports(t, script) {
+                self.visit_import_or_export(t, node);
+            }
+            self.visit(t, script, parent);
+            return false;
+        }
+        true
     }
 
     // port: GatherModuleMetadata.Finder#visit
