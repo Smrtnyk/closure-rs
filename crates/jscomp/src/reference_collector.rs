@@ -48,6 +48,11 @@ use std::sync::LazyLock;
 static REUSE_REFERENCE_SITES: LazyLock<bool> =
     LazyLock::new(|| std::env::var("CLOSURE_RS_REFERENCE_SITES").as_deref() != Ok("off"));
 
+/// `CLOSURE_RS_DELEGATING_SITES=off`: a block holding functions, classes, catch clauses or
+/// destructuring is collected by the ordinary visitor (`FunctionBodySites::collect_delegating`).
+static DELEGATING_SITES: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_DELEGATING_SITES").as_deref() != Ok("off"));
+
 /// `CLOSURE_RS_REPLAY_JUMPS=off`: a function body whose names include a pending hoisted function is
 /// collected by the ordinary visitor instead of `replay_body_sites_with_jumps`.
 static REPLAY_JUMPS: LazyLock<bool> =
@@ -664,10 +669,21 @@ impl<B: Behavior> CollectorCallback<'_, B> {
     /// this body, and the whole body is collected normally, before adding any reference or
     /// changing the block stack (also with `CLOSURE_RS_REPLAY_JUMPS=off`).
     fn collect_body_from_sites(&mut self, t: &mut NodeTraversal<'_>, body: NodeId) -> bool {
-        let Some(body) = FunctionReferenceCache::sites(t.get_compiler(), body) else {
-            return false;
+        let body = match FunctionReferenceCache::sites(t.get_compiler(), body) {
+            Some(sites) => sites,
+            // Rust-only (performance divergence): a body with nested functions, classes, catch
+            // clauses or destructuring is replayed with those nodes handed back to the traversal
+            // (`FunctionBodySites::collect_delegating`). Disabled by
+            // `CLOSURE_RS_DELEGATING_SITES=off`.
+            None if *DELEGATING_SITES => {
+                match FunctionReferenceCache::delegating_sites(t.get_compiler(), body) {
+                    Some(sites) if sites.has_delegates => sites,
+                    _ => return false,
+                }
+            }
+            None => return false,
         };
-        if body.first_names.is_empty() {
+        if body.first_names.is_empty() && !body.has_delegates {
             return true;
         }
         // A name declared in a nested scope is found by its spelling alone, which holds only
@@ -698,7 +714,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             }
             self.body_bindings.push((var, None));
         }
-        if body.declares_in_nested_scopes {
+        if body.declares_in_nested_scopes || body.has_delegates {
             self.replay_scoped_body_sites(t, &body, pending_jump);
             return true;
         }
@@ -826,6 +842,32 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                     behavior.after_exit_scope(t, &CollectedReferenceMap { reference_map });
                     t.pop_scope_root_quietly();
                 }
+                SiteKind::Delegate(n) => {
+                    // The traversal of the delegated node finds the scopes and basic blocks the
+                    // traversal of the body would have entered around it, and may replay other
+                    // bodies, so this replay's state is put aside.
+                    let parent = n.get_parent(t).expect("a delegated node has a parent");
+                    let depth = self.block_stack.len();
+                    if !self.replay_block_stack.is_empty() {
+                        Self::materialize_replay_block(
+                            t,
+                            &self.block_stack,
+                            &mut self.replay_block_stack,
+                        );
+                        for (_, block) in &self.replay_block_stack {
+                            self.block_stack
+                                .push_back(block.clone().expect("materialized block"));
+                        }
+                    }
+                    let bindings = std::mem::take(&mut self.body_bindings);
+                    let seen = std::mem::take(&mut self.body_names_seen);
+                    let blocks = std::mem::take(&mut self.replay_block_stack);
+                    t.traverse_replayed_child(n, parent, self);
+                    self.body_bindings = bindings;
+                    self.body_names_seen = seen;
+                    self.replay_block_stack = blocks;
+                    self.block_stack.truncate(depth);
+                }
             }
         }
     }
@@ -880,6 +922,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                 SiteKind::ExitEmptyScope | SiteKind::ExitScope => {
                     self.replay_scope_stack.pop();
                 }
+                SiteKind::Delegate(_) => unreachable!("sites of a leaf body delegate nothing"),
             }
         }
     }
@@ -966,6 +1009,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                 SiteKind::ExitEmptyScope | SiteKind::ExitScope => {
                     self.replay_scope_stack.pop();
                 }
+                SiteKind::Delegate(_) => unreachable!("sites of a leaf body delegate nothing"),
             }
         }
     }
@@ -1393,6 +1437,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                 | SiteKind::ExitEmptyScope
                 | SiteKind::EnterScope(_)
                 | SiteKind::ExitScope => {}
+                SiteKind::Delegate(_) => unreachable!("sites of a leaf body delegate nothing"),
             }
         }
 

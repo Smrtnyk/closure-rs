@@ -57,9 +57,10 @@
 //! `CLOSURE_RS_SCOPE_REDECLARATION_FREE_REUSE=off` keeps creators with a handler of their own out
 //! of the cache.
 
-use crate::{abstract_compiler::AbstractCompiler, node_util::NodeUtil, scope::ScopeId};
+use crate::{abstract_compiler::AbstractCompiler, node_util::NodeUtil, scope::ScopeId, var::VarId};
 use closure_rhino::{
-    fast_hash::IndexMap,
+    fast_hash::{IndexMap, IndexSet},
+    js_string::JsString,
     node::{Ast, AstChangeCursor, NodeId},
     token::Token,
 };
@@ -384,6 +385,7 @@ struct Entry {
 
 /// A declaration that a scan of the top level of a script makes in a global scope (see
 /// `ScopeScanner::scan_script`).
+#[derive(PartialEq, Eq)]
 pub(crate) enum ScriptDeclaration {
     /// `declareVar(scope, name)`; `parent` is the name node's parent when scanned.
     Name {
@@ -440,7 +442,18 @@ pub(crate) struct SyntacticScopeCache {
     entries: Vec<Entry>,
     /// The scripts below the root of each kept scope rooted at a ROOT node.
     global_scripts: IndexMap<ScopeId, Box<[NodeId]>>,
+    /// Rust-only (performance divergence): for each kept scope rooted at a ROOT node, the
+    /// declarations made for each of its scripts (`None` when not recorded), in script order.
+    global_declarations: IndexMap<ScopeId, GlobalDeclarations>,
 }
+
+/// The declarations made for the scripts of a global scope, in script order.
+type GlobalDeclarations = Box<[Option<Arc<[ScriptDeclaration]>>]>;
+
+/// Makes the declarations a scan of a global scope makes for the top level of a script, without
+/// making them (`ScopeScanner::script_declarations_now`).
+pub(crate) type DeclarationsNow<'a> =
+    &'a mut dyn FnMut(&mut AbstractCompiler, ScopeId, NodeId) -> Option<Vec<ScriptDeclaration>>;
 
 impl SyntacticScopeCache {
     /// Stamps the change scope (function or script) of every node the AST recorded as changed
@@ -470,6 +483,7 @@ impl SyntacticScopeCache {
             let cache = &mut compiler.syntactic_scope_cache;
             cache.entries.clear();
             cache.global_scripts.clear();
+            cache.global_declarations.clear();
             cache.script_declarations.clear();
             cache.stamps.clear();
             cache.declaration_stamps.clear();
@@ -482,6 +496,7 @@ impl SyntacticScopeCache {
             compiler.inline_vars_clean_cache = Default::default();
             compiler.inline_object_literals_clean_cache = Default::default();
             compiler.optimize_calls_unit_cache = Default::default();
+            compiler.inline_functions_facts = Default::default();
         }
         if !changed.is_empty() {
             let cache = &mut compiler.syntactic_scope_cache;
@@ -784,6 +799,7 @@ impl SyntacticScopeCache {
         scanned_at: u32,
         context: ScopeContext,
         redeclared: bool,
+        script_lists: Vec<Option<Arc<[ScriptDeclaration]>>>,
     ) {
         let context_tag = compiler.syntactic_scope_cache.round.wrapping_add(1);
         let entry = Entry {
@@ -810,11 +826,18 @@ impl SyntacticScopeCache {
         }
         cache.entries[scope.index()] = entry;
         if let Some(scripts) = context.scripts {
+            // One list per script, unless a script was not scanned through `scan_script`.
+            if script_lists.len() == scripts.len() {
+                cache
+                    .global_declarations
+                    .insert(scope, script_lists.into_boxed_slice());
+            }
             cache.global_scripts.insert(scope, scripts);
         }
         if let Some(previous) = NonZeroU32::new(previous) {
             let previous = ScopeId(previous);
             cache.global_scripts.swap_remove(&previous);
+            cache.global_declarations.swap_remove(&previous);
             previous.set_kept(compiler, false);
         }
         scope.set_kept(compiler, true);
@@ -831,7 +854,158 @@ impl SyntacticScopeCache {
             entry.context_tag = 0;
         }
         cache.global_scripts.swap_remove(&scope);
+        cache.global_declarations.swap_remove(&scope);
         scope.set_kept(compiler, false);
+    }
+
+    /// Rust-only (performance divergence): the kept global scope of `root`, updated, when the
+    /// scripts that changed since it was scanned make the declarations they made then less
+    /// some. A scan of the global scope makes the declarations of the top level of each script
+    /// in script order (`ScopeScanner::scan_script`): the first declaration of a name makes its
+    /// var, the others change nothing. When every changed script declares a subsequence of the
+    /// name nodes it declared at the scan, the vars of the declarations left are those of a new
+    /// scan, in the same order, except the vars made by the declarations that are gone, which
+    /// are removed (`ScopeId::remove_vars_as_rescanned` numbers the vars as a scan would), as
+    /// long as no declaration left has the name of one of them and every declared name node left
+    /// still has its var's name and is in the tree. `declarations_now` makes the declarations of
+    /// a script without making them (`None` when one would go to another scope). A script with a
+    /// Closure namespace, whose name is not a NAME, is scanned anew.
+    /// `CLOSURE_RS_GLOBAL_SCOPE_UPDATE=off` scans the global scope anew whenever a script changed.
+    pub(crate) fn reuse_global_after_removals(
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        context: &ScopeContext,
+        without_redeclarations: bool,
+        declarations_now: DeclarationsNow<'_>,
+    ) -> Option<ScopeId> {
+        static ENABLED: LazyLock<bool> = LazyLock::new(|| {
+            std::env::var("CLOSURE_RS_GLOBAL_SCOPE_UPDATE").as_deref() != Ok("off")
+        });
+        let scripts = context.scripts.as_ref()?;
+        if !*ENABLED {
+            return None;
+        }
+        Self::record_changes(compiler);
+        let cache = &compiler.syntactic_scope_cache;
+        let slot = *cache.by_root.get(root.arena_index())?;
+        let scope = ScopeId(NonZeroU32::new(slot)?);
+        let entry = cache.entries[scope.index()];
+        if entry.handed_out_in == compiler.scope_handout_round()
+            || entry.script.is_some()
+            || entry.change_root.is_some()
+            || cache.global_scripts.get(&scope) != Some(scripts)
+            || scope.get_parent(compiler).is_some()
+        {
+            return None;
+        }
+        let lists = cache.global_declarations.get(&scope)?.clone();
+        let changed: Vec<usize> = (0..scripts.len())
+            .filter(|&i| cache.changed_since(scripts[i], entry.scanned_at))
+            .collect();
+        let names = |list: &[ScriptDeclaration]| -> Option<Vec<NodeId>> {
+            list.iter()
+                .map(|declaration| match *declaration {
+                    ScriptDeclaration::Name { name, .. } => Some(name),
+                    ScriptDeclaration::GoogNamespace(_) => None,
+                })
+                .collect()
+        };
+        let mut renewed = Vec::with_capacity(changed.len());
+        let mut gone: Vec<NodeId> = Vec::new();
+        for i in changed {
+            let kept = names(lists[i].as_deref()?)?;
+            let now = declarations_now(compiler, scope, scripts[i])?;
+            let now_names = names(&now)?;
+            // `now_names` must be a subsequence of `kept`.
+            let mut k = 0;
+            for &name in &now_names {
+                while k < kept.len() && kept[k] != name {
+                    gone.push(kept[k]);
+                    k += 1;
+                }
+                if k == kept.len() {
+                    return None;
+                }
+                k += 1;
+            }
+            gone.extend_from_slice(&kept[k..]);
+            renewed.push((i, now));
+        }
+        // The vars made by declarations that are gone, by name, and whether a declaration that is
+        // gone found its name declared (it called the redeclaration handler).
+        let mut removed_names: IndexMap<JsString, VarId> = IndexMap::default();
+        let mut gone_redeclaration = false;
+        for &node in &gone {
+            let name = node.get_string(compiler);
+            let var = scope.get_own_slot(compiler, &name)?;
+            if var.get_name_node(compiler) == Some(node) {
+                removed_names.insert(name, var);
+            } else {
+                gone_redeclaration = true;
+            }
+        }
+        // Whether a scan now calls the redeclaration handler: a later declaration of a name finds
+        // it declared (the global scope allows shadowing, and the declarations hold no Closure
+        // namespace).
+        let mut redeclared = entry.redeclared;
+        if !removed_names.is_empty() || (redeclared && gone_redeclaration) {
+            let renewed_at: IndexMap<usize, &Vec<ScriptDeclaration>> =
+                renewed.iter().map(|(i, now)| (*i, now)).collect();
+            let mut declared: IndexMap<&JsString, NodeId> = IndexMap::default();
+            redeclared = false;
+            for (i, list) in lists.iter().enumerate() {
+                let declarations: &[ScriptDeclaration] = match renewed_at.get(&i) {
+                    Some(now) => now,
+                    None => list.as_deref()?,
+                };
+                for declaration in declarations {
+                    let ScriptDeclaration::Name { name, .. } = *declaration else {
+                        return None;
+                    };
+                    let spelling = name.get_string_ref(compiler);
+                    if removed_names.contains_key(spelling) {
+                        return None;
+                    }
+                    if let Some(&first) = declared.get(spelling) {
+                        redeclared |= first != name;
+                    } else {
+                        declared.insert(spelling, name);
+                    }
+                }
+            }
+        }
+        if without_redeclarations && redeclared {
+            return None;
+        }
+        let removed: IndexSet<VarId> = removed_names.into_values().collect();
+        // Every declared name left must still be the name of its node.
+        if !scope.declared_names_unchanged_except(compiler, &removed) {
+            return None;
+        }
+        if !removed.is_empty() {
+            scope.remove_vars_as_rescanned(compiler, &removed);
+        }
+        let scanned_at = Self::scan_round(compiler);
+        let pass_index = compiler.scope_handout_round();
+        let cache = &mut compiler.syntactic_scope_cache;
+        let current_tag = cache.round.wrapping_add(1);
+        let mut lists = lists.into_vec();
+        for (i, now) in renewed {
+            let now: Arc<[ScriptDeclaration]> = now.into();
+            cache
+                .script_declarations
+                .insert(scripts[i], (scanned_at, Arc::clone(&now)));
+            lists[i] = Some(now);
+        }
+        cache
+            .global_declarations
+            .insert(scope, lists.into_boxed_slice());
+        let entry = &mut cache.entries[scope.index()];
+        entry.scanned_at = scanned_at;
+        entry.handed_out_in = pass_index;
+        entry.context_tag = current_tag;
+        entry.redeclared = redeclared;
+        Some(scope)
     }
 
     /// The declarations recorded for the top level of `script`, while nothing in it changed and
@@ -862,12 +1036,12 @@ impl SyntacticScopeCache {
         compiler: &mut AbstractCompiler,
         script: NodeId,
         scanned_at: u32,
-        declarations: Vec<ScriptDeclaration>,
+        declarations: Arc<[ScriptDeclaration]>,
     ) {
         compiler
             .syntactic_scope_cache
             .script_declarations
-            .insert(script, (scanned_at, declarations.into()));
+            .insert(script, (scanned_at, declarations));
     }
 
     /// Whether reused scopes are checked against a new scan.

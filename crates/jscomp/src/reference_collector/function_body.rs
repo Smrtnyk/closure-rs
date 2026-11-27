@@ -38,7 +38,17 @@ const TAG_ENTER_EMPTY_SCOPE: u32 = 3 << TAG_SHIFT;
 const TAG_EXIT_EMPTY_SCOPE: u32 = 4 << TAG_SHIFT;
 const TAG_ENTER_SCOPE: u32 = 5 << TAG_SHIFT;
 const TAG_EXIT_SCOPE: u32 = 6 << TAG_SHIFT;
+const TAG_DELEGATE: u32 = 7 << TAG_SHIFT;
 const PAYLOAD_MASK: u32 = (1 << TAG_SHIFT) - 1;
+
+/// `CLOSURE_RS_DELEGATING_SITES=verify`: every use of kept delegating sites collects them again
+/// and checks that they are the same.
+fn verifying_delegating_sites() -> bool {
+    static VERIFY: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+        std::env::var("CLOSURE_RS_DELEGATING_SITES").as_deref() == Ok("verify")
+    });
+    *VERIFY
+}
 
 /// Compact 8-byte site record for cached reference-collection replay.
 #[derive(Clone, Copy)]
@@ -53,6 +63,8 @@ pub(super) enum SiteKind {
     /// A nested scope that declares `let`/`const` bindings.
     EnterScope(NodeId),
     ExitScope,
+    /// A node the replay hands back to the traversal (`FunctionBodySites::collect_delegating`).
+    Delegate(NodeId),
 }
 
 impl Site {
@@ -92,6 +104,11 @@ impl Site {
     }
 
     #[inline]
+    fn delegate(node: NodeId) -> Self {
+        Self(node, TAG_DELEGATE)
+    }
+
+    #[inline]
     pub(super) fn decode(self) -> SiteKind {
         match self.1 & !PAYLOAD_MASK {
             TAG_REFERENCE => SiteKind::Reference(self.0, self.1 & PAYLOAD_MASK),
@@ -100,7 +117,8 @@ impl Site {
             TAG_ENTER_EMPTY_SCOPE => SiteKind::EnterEmptyScope(self.0),
             TAG_EXIT_EMPTY_SCOPE => SiteKind::ExitEmptyScope,
             TAG_ENTER_SCOPE => SiteKind::EnterScope(self.0),
-            _ => SiteKind::ExitScope,
+            TAG_EXIT_SCOPE => SiteKind::ExitScope,
+            _ => SiteKind::Delegate(self.0),
         }
     }
 }
@@ -113,6 +131,10 @@ pub(crate) struct FunctionBodySites {
     /// The names of such a body resolve in more than one scope, and the scopes that declare
     /// bindings have exits a behavior acts on: only `collect_body_from_sites` handles that.
     pub(crate) declares_in_nested_scopes: bool,
+    /// Rust-only (performance divergence): whether the sites hand nodes back to the traversal
+    /// (`SiteKind::Delegate`, `collect_delegating`); only `replay_scoped_body_sites` replays
+    /// them, and such sites are kept apart from the others (`FunctionReferenceCache`).
+    pub(crate) has_delegates: bool,
 }
 
 /// The innermost scope around a node of a function body.
@@ -128,11 +150,25 @@ enum Nested {
 
 impl FunctionBodySites {
     fn collect(ast: &Ast, body: NodeId) -> Option<Self> {
+        Self::collect_in_mode(ast, body, false)
+    }
+
+    /// Rust-only (performance divergence): the sites of a block that also holds functions,
+    /// classes, catch clauses, default values or destructuring targets. Each such node is a
+    /// `SiteKind::Delegate`, which the replay hands back to the traversal at its place (with
+    /// the scopes and basic blocks around it entered), so that its subtree is traversed as
+    /// before; the sites cover the rest of the block. A function or class declared in a nested
+    /// scope makes that scope one that declares bindings.
+    fn collect_delegating(ast: &Ast, body: NodeId) -> Option<Self> {
+        Self::collect_in_mode(ast, body, true)
+    }
+
+    fn collect_in_mode(ast: &Ast, body: NodeId, delegate: bool) -> Option<Self> {
         let mut names = IndexMap::default();
         let mut sites = Vec::new();
         let mut child = body.get_first_child(ast);
         while let Some(n) = child {
-            if !Self::collect_node(ast, n, body, Nested::No, &mut names, &mut sites) {
+            if !Self::collect_node(ast, n, body, Nested::No, delegate, &mut names, &mut sites) {
                 return None;
             }
             child = n.get_next(ast);
@@ -140,11 +176,46 @@ impl FunctionBodySites {
         let declares_in_nested_scopes = sites
             .iter()
             .any(|site| matches!(site.decode(), SiteKind::EnterScope(_)));
+        let has_delegates = delegate
+            && sites
+                .iter()
+                .any(|site| matches!(site.decode(), SiteKind::Delegate(_)));
         Some(Self {
             first_names: names.into_values().collect(),
             sites: sites.into_boxed_slice(),
             declares_in_nested_scopes,
+            has_delegates,
         })
+    }
+
+    /// Whether `a` and `b` hold the same sites (for `CLOSURE_RS_DELEGATING_SITES=verify`).
+    fn same(a: Option<&Self>, b: Option<&Self>) -> bool {
+        match (a, b) {
+            (None, None) => true,
+            (Some(a), Some(b)) => {
+                a.first_names == b.first_names
+                    && a.declares_in_nested_scopes == b.declares_in_nested_scopes
+                    && a.has_delegates == b.has_delegates
+                    && a.sites.len() == b.sites.len()
+                    && a.sites
+                        .iter()
+                        .zip(b.sites.iter())
+                        .all(|(x, y)| x.0 == y.0 && x.1 == y.1)
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether a delegating collection hands `n` (with token `token`) back to the traversal.
+    fn is_delegated(token: Token) -> bool {
+        matches!(
+            token,
+            Token::FUNCTION
+                | Token::CLASS
+                | Token::CATCH
+                | Token::DEFAULT_VALUE
+                | Token::DESTRUCTURING_LHS
+        )
     }
 
     /// Whether the scope rooted at `n` declares `let` or `const` bindings: as statements of a
@@ -154,7 +225,13 @@ impl FunctionBodySites {
         fn any_lexical(ast: &Ast, parent: NodeId) -> bool {
             let mut child = parent.get_first_child(ast);
             while let Some(c) = child {
-                if matches!(c.get_token(ast), Token::LET | Token::CONST) {
+                // A function or class declaration, or a catch clause (whose parameter and the
+                // `let`/`const` of whose block this scope holds), ends a collection that does not
+                // delegate it.
+                if matches!(
+                    c.get_token(ast),
+                    Token::LET | Token::CONST | Token::FUNCTION | Token::CLASS | Token::CATCH
+                ) {
                     return true;
                 }
                 child = c.get_next(ast);
@@ -182,15 +259,28 @@ impl FunctionBodySites {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn collect_node<'a>(
         ast: &'a Ast,
         n: NodeId,
         parent: NodeId,
         nested: Nested,
+        delegate: bool,
         names: &mut IndexMap<&'a JsString, NodeId>,
         sites: &mut Vec<Site>,
     ) -> bool {
         let token = n.get_token(ast);
+        if delegate && Self::is_delegated(token) {
+            // A declaration in a nested scope that was not found to declare bindings.
+            if nested == Nested::Empty
+                && (NodeUtil::is_function_declaration(ast, n)
+                    || NodeUtil::is_class_declaration(ast, n))
+            {
+                return false;
+            }
+            sites.push(Site::delegate(n));
+            return true;
+        }
         if has_traversal_handler(token) || token == Token::CATCH {
             return false;
         }
@@ -241,7 +331,7 @@ impl FunctionBodySites {
         };
         let mut child = n.get_first_child(ast);
         while let Some(c) = child {
-            if !Self::collect_node(ast, c, n, child_nested, names, sites) {
+            if !Self::collect_node(ast, c, n, child_nested, delegate, names, sites) {
                 return false;
             }
             child = c.get_next(ast);
@@ -319,6 +409,7 @@ impl FunctionBodySites {
                         out.push(site);
                     }
                 }
+                SiteKind::Delegate(_) => unreachable!("sites of a leaf body delegate nothing"),
             }
         }
         debug_assert!(frames.is_empty());
@@ -329,6 +420,9 @@ impl FunctionBodySites {
 #[derive(Default)]
 pub(crate) struct FunctionReferenceCache {
     bodies: IndexMap<NodeId, (u32, Option<Arc<FunctionBodySites>>)>,
+    /// Rust-only (performance divergence): the delegating sites (`collect_delegating`) of
+    /// blocks without sites of their own, by the same stamp.
+    delegating: IndexMap<NodeId, (u32, Option<Arc<FunctionBodySites>>)>,
 }
 
 impl FunctionReferenceCache {
@@ -373,6 +467,45 @@ impl FunctionReferenceCache {
             .bodies
             .insert(body, (stamp, sites.clone()));
         sites
+    }
+
+    /// Rust-only (performance divergence): the delegating sites of `body` (`collect_delegating`).
+    /// The stamp of the block covers the place of every delegated node (a nested function is a
+    /// change scope of its own, but moving or removing it changes its parent), and the sites
+    /// cover nothing inside a delegated node.
+    pub(crate) fn delegating_sites(
+        compiler: &mut AbstractCompiler,
+        body: NodeId,
+    ) -> Option<Arc<FunctionBodySites>> {
+        let stamp = SyntacticScopeCache::subtree_stamp(compiler, body);
+        if let Some((old_stamp, sites)) = compiler.function_reference_sites.delegating.get(&body)
+            && *old_stamp == stamp
+        {
+            if verifying_delegating_sites() {
+                Self::verify_delegating_sites(compiler, body, sites.as_deref());
+            }
+            return sites.clone();
+        }
+        let sites = FunctionBodySites::collect_delegating(compiler, body).map(Arc::new);
+        compiler
+            .function_reference_sites
+            .delegating
+            .insert(body, (stamp, sites.clone()));
+        sites
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn verify_delegating_sites(
+        compiler: &AbstractCompiler,
+        body: NodeId,
+        kept: Option<&FunctionBodySites>,
+    ) {
+        let fresh = FunctionBodySites::collect_delegating(compiler, body);
+        assert!(
+            FunctionBodySites::same(kept, fresh.as_ref()),
+            "delegating sites of an unchanged block differ from a new collection"
+        );
     }
 
     /// Rust-only (performance divergence): finds uncached or stale non-empty function bodies under

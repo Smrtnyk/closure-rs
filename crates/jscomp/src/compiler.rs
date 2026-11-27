@@ -152,6 +152,8 @@ pub struct Compiler {
         crate::inline_object_literals::InlineObjectLiteralsCleanCache,
     /// The references of unchanged top-level statements for `OptimizeCalls`.
     pub(crate) optimize_calls_unit_cache: crate::optimize_calls::UnitReferenceCache,
+    /// Kept facts of candidate functions of `InlineFunctions`.
+    pub(crate) inline_functions_facts: crate::inline_functions::FunctionFactsCache,
     accessor_summary: Option<Arc<crate::accessor_summary::AccessorSummary>>,
     unique_name_id: Arc<std::sync::atomic::AtomicI32>,
     unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier,
@@ -299,6 +301,7 @@ impl Compiler {
             inline_vars_clean_cache: Default::default(),
             inline_object_literals_clean_cache: Default::default(),
             optimize_calls_unit_cache: Default::default(),
+            inline_functions_facts: Default::default(),
             accessor_summary: None,
             unique_name_id: Arc::new(std::sync::atomic::AtomicI32::new(0)),
             unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier::default(),
@@ -1100,6 +1103,7 @@ impl Compiler {
         if self.stage.is_normalized() && !stage.is_normalized() {
             self.inline_vars_clean_cache = Default::default();
             self.inline_object_literals_clean_cache = Default::default();
+            self.inline_functions_facts = Default::default();
             self.flow_inline_clean_cache = Default::default();
             self.remove_unused_code_cache = Default::default();
             self.function_reference_sites = Default::default();
@@ -1536,6 +1540,7 @@ impl Compiler {
         self.flow_inline_clean_cache = Default::default();
         self.inline_vars_clean_cache = Default::default();
         self.inline_object_literals_clean_cache = Default::default();
+        self.inline_functions_facts = Default::default();
         self.extern_and_js_root = Some(IR::root(self, &[externs, js]));
     }
     // port: Compiler#getChunkGraph
@@ -6192,6 +6197,7 @@ impl Compiler {
         self.flow_inline_clean_cache = Default::default();
         self.inline_vars_clean_cache = Default::default();
         self.inline_object_literals_clean_cache = Default::default();
+        self.inline_functions_facts = Default::default();
         self.js_root = Some(js_root);
         self.inputs_by_id.clear();
         self.excerpt_provider.files.lock().unwrap().clear();

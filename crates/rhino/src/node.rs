@@ -4430,7 +4430,8 @@ impl NodeId {
             return false;
         }
         let internal_string = self.get_string_ref(ast);
-        !internal_string.is_empty() && name.with_units(|name| name == internal_string.as_units())
+        // Rust-only (performance divergence): a str name is compared without converting it.
+        !internal_string.is_empty() && name.equals_units(internal_string.as_units())
     }
     // port: Node#matchesName(Node)
     pub fn matches_name_node(self, ast: &Ast, n: NodeId) -> bool {

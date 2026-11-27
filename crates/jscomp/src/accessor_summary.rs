@@ -23,7 +23,7 @@ use crate::compiler_state_proto::{
     AccessorSummaryEntryProto, AccessorSummaryProto, PropertyAccessKindProto,
 };
 use crate::serialization::protobuf::encode_utf8_java;
-use closure_rhino::fast_hash::IndexMap;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_state, js_string::JsString};
 
 // port: AccessorSummary.PropertyAccessKind
@@ -130,6 +130,27 @@ impl AccessorSummary {
             .get(name)
             .copied()
             .unwrap_or(PropertyAccessKind::NORMAL)
+    }
+
+    /// Rust-only (performance divergence): the names whose kind (`get_kind`) differs between
+    /// `self` and `other`, or `None` when either one assumes that every property has a getter and
+    /// a setter.
+    pub(crate) fn changed_names(&self, other: &AccessorSummary) -> Option<IndexSet<JsString>> {
+        if self.assume_always_getter_and_setter || other.assume_always_getter_and_setter {
+            return None;
+        }
+        let mut changed = IndexSet::default();
+        for (name, kind) in &self.accessors {
+            if other.accessors.get(name) != Some(kind) {
+                changed.insert(name.clone());
+            }
+        }
+        for (name, kind) in &other.accessors {
+            if self.accessors.get(name) != Some(kind) {
+                changed.insert(name.clone());
+            }
+        }
+        Some(changed)
     }
 
     // port: AccessorSummary#createAssumingAlwaysGetterAndSetter

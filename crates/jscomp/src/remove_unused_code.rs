@@ -89,8 +89,24 @@ use std::{
 static USE_LEAF_CACHE: LazyLock<bool> =
     LazyLock::new(|| std::env::var("CLOSURE_RS_RUC_CACHE").as_deref() != Ok("off"));
 
+/// `CLOSURE_RS_RUC_GUARD_DEFER=off`: the guarded polyfill traversal of a script traverses every
+/// isolated function without kept usages (`PolyfillUsageFinder::traverse_only_guarded_cached`).
+static DEFER_GUARDED_FUNCTIONS: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_RUC_GUARD_DEFER").as_deref() != Ok("off"));
+
+/// `CLOSURE_RS_RUC_NESTED=off`: a function traversed without a summary ends the recordings of the
+/// functions around it (`LeafRecorder::outer`).
+static NESTED_LEAF_RECORDING: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_RUC_NESTED").as_deref() != Ok("off"));
+
+/// `CLOSURE_RS_RUC_ACCESSOR_KEY=off`: a new accessor summary drops every function summary
+/// (`RemoveUnusedCodeCache::drop_summaries_reading_changed_accessors`).
+static ACCESSOR_KEYED_SUMMARIES: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_RUC_ACCESSOR_KEY").as_deref() != Ok("off"));
+
 /// `CLOSURE_RS_RUC_CACHE=verify`: every cached collection of guarded polyfill usages is compared
-/// with a full traversal.
+/// with a full traversal, and every function a summary would be replayed for is traversed and
+/// recorded again, the new summary compared with the kept one (`verify_same_summary`).
 static VERIFY_GUARD_CACHE: LazyLock<bool> =
     LazyLock::new(|| std::env::var("CLOSURE_RS_RUC_CACHE").as_deref() == Ok("verify"));
 
@@ -138,6 +154,7 @@ pub(crate) struct RemoveUnusedCodeCache {
 impl RemoveUnusedCodeCache {
     fn sync_environment(
         &mut self,
+        ast: &Ast,
         accessor_summary: Option<&Arc<AccessorSummary>>,
         extern_properties: &Arc<IndexSet<JsString>>,
     ) {
@@ -150,12 +167,59 @@ impl RemoveUnusedCodeCache {
             .extern_properties
             .as_ref()
             .is_some_and(|e| Arc::ptr_eq(e, extern_properties));
-        if !accessor_same || !externs_same {
+        if !externs_same {
             self.summaries.clear();
             self.prop_universe.clear();
+        } else if !accessor_same {
+            self.drop_summaries_reading_changed_accessors(ast, accessor_summary);
         }
         self.accessor_summary = accessor_summary.cloned();
         self.extern_properties = Some(Arc::clone(extern_properties));
+    }
+
+    /// Rust-only (performance divergence): a function's analysis reads the accessor summary only
+    /// for the names of the GETPROP, OPTCHAIN_GETPROP and STRING_KEY nodes in its subtree
+    /// (`considerForAccessorSideEffects`, `AstAnalyzer#getPropertyKind`); a summary stays valid
+    /// under a new accessor summary unless such a name changed its kind (Java analyzes every
+    /// function again). A function that changed since its summary fails the stamp check.
+    /// `CLOSURE_RS_RUC_ACCESSOR_KEY=off` drops every summary when the accessor summary changes.
+    fn drop_summaries_reading_changed_accessors(
+        &mut self,
+        ast: &Ast,
+        accessor_summary: Option<&Arc<AccessorSummary>>,
+    ) {
+        let changed = match (&self.accessor_summary, accessor_summary) {
+            (Some(old), Some(new)) if *ACCESSOR_KEYED_SUMMARIES => old.changed_names(new),
+            _ => None,
+        };
+        let Some(changed) = changed else {
+            self.summaries.clear();
+            self.prop_universe.clear();
+            return;
+        };
+        if changed.is_empty() {
+            return;
+        }
+        let mut pending = Vec::new();
+        self.summaries.retain(|&function, _| {
+            pending.clear();
+            pending.push(function);
+            while let Some(n) = pending.pop() {
+                if matches!(
+                    n.get_token(ast),
+                    Token::GETPROP | Token::OPTCHAIN_GETPROP | Token::STRING_KEY
+                ) && changed.contains(n.get_string_ref(ast))
+                {
+                    return false;
+                }
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    pending.push(c);
+                    child = c.get_next(ast);
+                }
+            }
+            true
+        });
     }
 
     fn intern_prop(&mut self, prop: JsString) -> u32 {
@@ -180,6 +244,10 @@ impl RemoveUnusedCodeCache {
 
 struct LeafRecorder {
     function: NodeId,
+    /// Rust-only (performance divergence): the recorder of the function around this one that
+    /// was active when this one started (`NO_LEAF` for none). It keeps recording while this
+    /// function is traversed: what happens in this function happens in its subtree too.
+    outer: u32,
     parent: Option<NodeId>,
     name_value_used: bool,
     name_non_local: bool,
@@ -201,6 +269,46 @@ const MAX_LEAF_NESTED_STAMPS: usize = 512;
 const MAX_LEAF_OUTER_VARS: usize = 512;
 
 impl LeafRecorder {
+    /// Rust-only: for `CLOSURE_RS_RUC_CACHE=verify`, why this recording would not become a
+    /// summary (the checks of `commit_leaf_summaries`).
+    fn verify_failure(
+        &self,
+        pass: &RemoveUnusedCode,
+        compiler: &mut AbstractCompiler,
+    ) -> Option<&'static str> {
+        if self.aborted {
+            return Some("its recording ended");
+        }
+        if SyntacticScopeCache::subtree_stamp_with_flags(compiler, self.function)
+            != self.start_stamp
+        {
+            return Some("the function changed");
+        }
+        if !self.nested_stamps.iter().all(|&(nested_fn, nested_stamp)| {
+            SyntacticScopeCache::cached_subtree_stamp_with_flags(compiler, nested_fn)
+                == nested_stamp
+        }) {
+            return Some("a nested function changed");
+        }
+        if !self
+            .local_var_infos
+            .iter()
+            .all(|&vi| !pass.var_info_is_removable(vi) || pass.is_benign_unused_param(compiler, vi))
+            || (pass.remove_globals
+                && RemoveUnusedCode::trailing_parameter_is_empty_pattern(compiler, self.function))
+        {
+            return Some("a local var is removable");
+        }
+        if !self
+            .required_pinned_props
+            .iter()
+            .all(|prop| pass.pinned_property_names.contains(prop))
+        {
+            return Some("a required property is not pinned");
+        }
+        None
+    }
+
     fn clear_buffers(&mut self) {
         self.aborted = true;
         self.nested_stamps = Vec::new();
@@ -346,6 +454,12 @@ pub struct RemoveUnusedCode {
     guarded_usages: IndexSet<NodeId>,
     /// Scripts whose guards have yet to be consulted during a single optimizer run.
     pending_guard_scripts: Option<IndexSet<NodeId>>,
+    /// Rust-only (performance divergence): the isolated functions of the scripts consulted so
+    /// far that the guarded polyfill traversal left out (`PolyfillUsageFinder::traverse_only_guarded_cached`).
+    deferred_guard_functions: IndexSet<NodeId>,
+    /// Rust-only: with `CLOSURE_RS_RUC_CACHE=verify`, the guarded usages of each consulted script
+    /// by a full traversal.
+    verify_guarded_usages: IndexMap<NodeId, IndexSet<NodeId>>,
 
     // Java's `polyfillsFromTable` field is read only by the constructor, which hands it to the
     // finder.
@@ -375,6 +489,9 @@ pub struct RemoveUnusedCode {
     /// (`NO_LEAF` when not inside a recorded leaf function or its local continuations).
     active_leaf: u32,
     leaf_recorders: Vec<LeafRecorder>,
+    /// Rust-only: with `CLOSURE_RS_RUC_CACHE=verify`, the summaries a hit would have replayed in
+    /// this run; each function is traversed instead and its new recording compared at commit.
+    verify_expected: IndexMap<NodeId, Arc<LeafFunctionSummary>>,
     can_use_leaf_cache: bool,
     current_polyfill_mask: u128,
     removable_polyfill_mask: u128,
@@ -415,6 +532,8 @@ impl RemoveUnusedCode {
             polyfills: JavaHashMultimap::create(),
             guarded_usages: IndexSet::<_>::default(),
             pending_guard_scripts: None,
+            deferred_guard_functions: IndexSet::default(),
+            verify_guarded_usages: IndexMap::default(),
             polyfill_usage_finder,
             scope_creator,
             remove_unused_prototype_properties: builder.remove_unused_prototype_properties,
@@ -431,6 +550,7 @@ impl RemoveUnusedCode {
             polyfill_infos: Vec::new(),
             active_leaf: NO_LEAF,
             leaf_recorders: Vec::new(),
+            verify_expected: IndexMap::default(),
             can_use_leaf_cache: false,
             current_polyfill_mask: 0,
             removable_polyfill_mask: 0,
@@ -741,9 +861,11 @@ impl RemoveUnusedCode {
         self.pinned_prop_ids.clear();
         if self.can_use_leaf_cache {
             let accessor = compiler.get_accessor_summary().cloned();
-            compiler
-                .remove_unused_code_cache
-                .sync_environment(accessor.as_ref(), &self.extern_properties);
+            compiler.remove_unused_code_cache.sync_environment(
+                &compiler.ast,
+                accessor.as_ref(),
+                &self.extern_properties,
+            );
             let prop_universe = &compiler.remove_unused_code_cache.prop_universe;
             self.pinned_prop_ids.resize(prop_universe.len(), false);
             for prop in &self.pinned_property_names {
@@ -761,26 +883,23 @@ impl RemoveUnusedCode {
         self.worklist.push_back(Continuation::new(root, scope));
         while let Some(continuation) = self.worklist.pop_front() {
             let prev_leaf = self.active_leaf;
-            self.active_leaf = if continuation.leaf_owner != NO_LEAF {
-                let rec = &mut self.leaf_recorders[continuation.leaf_owner as usize];
-                if rec.aborted {
-                    NO_LEAF
-                } else if self.polyfill_mask_overflow
-                    || rec.polyfill_mask != self.current_polyfill_mask
-                {
-                    rec.clear_buffers();
-                    NO_LEAF
-                } else {
-                    rec.last_outer_var = None;
-                    continuation.leaf_owner
+            // The continuation lies in the subtree of its owner and of the functions around it.
+            let mut r = continuation.leaf_owner;
+            while r != NO_LEAF {
+                let (overflow, mask) = (self.polyfill_mask_overflow, self.current_polyfill_mask);
+                let rec = &mut self.leaf_recorders[r as usize];
+                if !rec.aborted {
+                    if overflow || rec.polyfill_mask != mask {
+                        rec.clear_buffers();
+                    } else {
+                        rec.last_outer_var = None;
+                    }
                 }
-            } else {
-                NO_LEAF
-            };
-            self.continuation_apply(compiler, continuation);
-            if self.active_leaf != NO_LEAF {
-                self.leaf_recorders[self.active_leaf as usize].last_outer_var = None;
+                r = rec.outer;
             }
+            self.active_leaf = self.live_leaf(continuation.leaf_owner);
+            self.continuation_apply(compiler, continuation);
+            self.clear_last_outer_vars();
             self.active_leaf = prev_leaf;
         }
         self.active_leaf = NO_LEAF;
@@ -846,16 +965,115 @@ impl RemoveUnusedCode {
         {
             return false;
         }
+        // The functions around it hold the var's scope (it declares the name of this function).
+        let mut r = rec.outer;
+        while r != NO_LEAF {
+            let outer = &self.leaf_recorders[r as usize];
+            if !outer.aborted && real.scope_depth < outer.fparam_depth {
+                return false;
+            }
+            r = outer.outer;
+        }
+        let rec = &mut self.leaf_recorders[self.active_leaf as usize];
         rec.name_non_local = true;
         real.has_non_local_or_non_literal_value = true;
         true
     }
 
+    /// Rust-only (performance divergence): `leaf` or, when it was aborted, the first recorder
+    /// around it that still records (`NO_LEAF` for none).
+    #[inline]
+    fn live_leaf(&self, mut leaf: u32) -> u32 {
+        while leaf != NO_LEAF && self.leaf_recorders[leaf as usize].aborted {
+            leaf = self.leaf_recorders[leaf as usize].outer;
+        }
+        leaf
+    }
+
+    /// Ends the recording of the active function and of every function around it.
     #[inline]
     fn abort_active_leaf(&mut self) {
-        if self.active_leaf != NO_LEAF {
-            self.leaf_recorders[self.active_leaf as usize].clear_buffers();
-            self.active_leaf = NO_LEAF;
+        let mut r = self.active_leaf;
+        while r != NO_LEAF {
+            let rec = &mut self.leaf_recorders[r as usize];
+            if !rec.aborted {
+                rec.clear_buffers();
+            }
+            r = rec.outer;
+        }
+        self.active_leaf = NO_LEAF;
+    }
+
+    /// Rust-only (performance divergence): ends the recordings of the active functions that a
+    /// var declared at scope depth `depth` lies outside of; the functions around them keep
+    /// recording.
+    fn abort_leaves_inside(&mut self, depth: i32) {
+        let mut r = self.active_leaf;
+        while r != NO_LEAF {
+            let rec = &mut self.leaf_recorders[r as usize];
+            if !rec.aborted && depth < rec.fparam_depth {
+                rec.clear_buffers();
+            }
+            r = rec.outer;
+        }
+        self.active_leaf = self.live_leaf(self.active_leaf);
+    }
+
+    /// Forgets the last outer var of every active recorder.
+    #[inline]
+    fn clear_last_outer_vars(&mut self) {
+        let mut r = self.active_leaf;
+        while r != NO_LEAF {
+            let rec = &mut self.leaf_recorders[r as usize];
+            rec.last_outer_var = None;
+            r = rec.outer;
+        }
+    }
+
+    /// Rust-only (performance divergence): records a reference to the outer `var` (named by
+    /// `node`) in every active recorder that `var` lies outside of; for the others it is local.
+    fn record_outer_var_in_leaves(
+        &mut self,
+        compiler: &AbstractCompiler,
+        var: VarId,
+        node: NodeId,
+    ) {
+        if self.active_leaf == NO_LEAF {
+            return;
+        }
+        let depth = var.get_scope(compiler).get_depth(compiler);
+        let is_arguments = var.is_arguments(compiler);
+        let mut r = self.active_leaf;
+        while r != NO_LEAF {
+            let rec = &mut self.leaf_recorders[r as usize];
+            if !rec.aborted {
+                if depth < rec.fparam_depth {
+                    if is_arguments || !rec.record_outer_var(var, node) {
+                        rec.clear_buffers();
+                    }
+                } else {
+                    rec.last_outer_var = None;
+                }
+            }
+            r = rec.outer;
+        }
+        self.active_leaf = self.live_leaf(self.active_leaf);
+    }
+
+    /// Rust-only (performance divergence): `required_used_polyfills |= bit` in every active
+    /// recorder, or the end of every recording for a polyfill without a bit.
+    fn record_required_polyfill(&mut self, bit: Option<u128>) {
+        let Some(bit) = bit else {
+            self.abort_active_leaf();
+            return;
+        };
+        let mut r = self.active_leaf;
+        while r != NO_LEAF {
+            let rec = &mut self.leaf_recorders[r as usize];
+            if !rec.aborted {
+                rec.required_used_polyfills |= bit;
+            }
+            r = rec.outer;
         }
     }
 
@@ -893,7 +1111,19 @@ impl RemoveUnusedCode {
         let flags = self.flags_bits();
         let recorders = std::mem::take(&mut self.leaf_recorders);
         let mut dedup: IndexSet<JsString> = IndexSet::default();
+        let mut expected = std::mem::take(&mut self.verify_expected);
         for rec in recorders {
+            let function = rec.function;
+            let verify = expected.swap_remove(&function);
+            if let Some(expected) = &verify
+                && let Some(why) = rec.verify_failure(self, compiler)
+            {
+                panic!(
+                    "RemoveUnusedCode: the summary of {} is stale: {why}\n{:?}",
+                    function.to_string(compiler),
+                    expected.outer_vars
+                );
+            }
             if rec.aborted {
                 continue;
             }
@@ -956,11 +1186,73 @@ impl RemoveUnusedCode {
                 pinned_props,
                 required_pinned_props,
             };
+            if let Some(expected) = verify {
+                Self::verify_same_summary(compiler, function, &expected, &summary);
+            }
             compiler
                 .remove_unused_code_cache
                 .summaries
-                .insert(rec.function, Arc::new(summary));
+                .insert(function, Arc::new(summary));
         }
+    }
+
+    /// Rust-only: `CLOSURE_RS_RUC_CACHE=verify`, the summary a hit would have replayed against
+    /// the one recorded now by traversing the function. The order of the outer vars may differ
+    /// (a nested summary replays the vars of its continuations where the function is reached).
+    /// A polyfill the kept summary relied on that is not registered where the function is
+    /// reached now (an earlier run removed it) leaves no mark in the new recording: a reference
+    /// to its name is an ordinary reference then, as it is for a replay.
+    fn verify_same_summary(
+        compiler: &AbstractCompiler,
+        function: NodeId,
+        expected: &LeafFunctionSummary,
+        fresh: &LeafFunctionSummary,
+    ) {
+        let set = |ids: &[u32]| ids.iter().copied().collect::<IndexSet<u32>>();
+        let outer = |s: &LeafFunctionSummary| s.outer_vars.iter().copied().collect::<IndexSet<_>>();
+        let nested = |s: &LeafFunctionSummary| {
+            s.nested_stamps
+                .iter()
+                .map(|&(f, _)| f)
+                .collect::<IndexSet<NodeId>>()
+        };
+        let same = expected.parent == fresh.parent
+            && expected.name_value_used == fresh.name_value_used
+            && expected.name_non_local == fresh.name_non_local
+            && (!expected.name_non_local || expected.outer_vars[0] == fresh.outer_vars[0])
+            && expected.flags == fresh.flags
+            && (fresh.polyfill_mask & !expected.polyfill_mask) == 0
+            && (expected.required_used_polyfills & fresh.polyfill_mask)
+                == fresh.required_used_polyfills
+            && outer(expected) == outer(fresh)
+            && set(&expected.pinned_props) == set(&fresh.pinned_props)
+            && set(&expected.required_pinned_props) == set(&fresh.required_pinned_props)
+            && nested(expected) == nested(fresh);
+        assert!(
+            same,
+            "RemoveUnusedCode: the summary of {} differs from a new recording\nkept outer {:?} pinned {:?} required {:?} parent {:?} name ({}, {}) flags {:#x} polyfills {:#x} of {:#x} nested {:?}\nnew  outer {:?} pinned {:?} required {:?} parent {:?} name ({}, {}) flags {:#x} polyfills {:#x} of {:#x} nested {:?}",
+            function.to_string(compiler),
+            expected.outer_vars,
+            expected.pinned_props,
+            expected.required_pinned_props,
+            expected.parent,
+            expected.name_value_used,
+            expected.name_non_local,
+            expected.flags,
+            expected.required_used_polyfills,
+            expected.polyfill_mask,
+            expected.nested_stamps,
+            fresh.outer_vars,
+            fresh.pinned_props,
+            fresh.required_pinned_props,
+            fresh.parent,
+            fresh.name_value_used,
+            fresh.name_non_local,
+            fresh.flags,
+            fresh.required_used_polyfills,
+            fresh.polyfill_mask,
+            fresh.nested_stamps
+        );
     }
 
     /// Rust-only (performance divergence): whether `removeUnreferencedFunctionArgs` could delete
@@ -985,6 +1277,17 @@ impl RemoveUnusedCode {
     }
 
     fn collect_guarded_usages(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
+        self.collect_guarded_usages_deferring(compiler, root, false);
+    }
+
+    /// `collect_guarded_usages`; with `defer`, the isolated functions without kept usages are left
+    /// out until a usage in them is asked about (`is_guarded_polyfill_use`).
+    fn collect_guarded_usages_deferring(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        defer: bool,
+    ) {
         if !*USE_LEAF_CACHE {
             self.polyfill_usage_finder
                 .traverse_only_guarded(compiler, root, &mut |_, usage| {
@@ -1000,9 +1303,10 @@ impl RemoveUnusedCode {
             compiler,
             root,
             |compiler| &mut compiler.remove_unused_code_cache.guarded_polyfill_usages,
+            defer.then_some(&mut self.deferred_guard_functions),
             &mut |_, usage| found.push(usage.node()),
         );
-        if *VERIFY_GUARD_CACHE {
+        if *VERIFY_GUARD_CACHE && !defer {
             let mut expected = Vec::new();
             self.polyfill_usage_finder
                 .traverse_only_guarded(compiler, root, &mut |_, usage| {
@@ -1018,14 +1322,52 @@ impl RemoveUnusedCode {
     }
 
     fn is_guarded_polyfill_use(&mut self, compiler: &mut AbstractCompiler, n: NodeId) -> bool {
+        let defer = *DEFER_GUARDED_FUNCTIONS;
         if let Some(pending) = &mut self.pending_guard_scripts
             && !pending.is_empty()
             && let Some(script) = NodeUtil::get_enclosing_script(compiler, n)
             && pending.swap_remove(&script)
         {
-            self.collect_guarded_usages(compiler, script);
+            self.collect_guarded_usages_deferring(compiler, script, defer);
+            if defer && *VERIFY_GUARD_CACHE {
+                let mut expected = IndexSet::default();
+                self.polyfill_usage_finder.traverse_only_guarded(
+                    compiler,
+                    script,
+                    &mut |_, usage| {
+                        expected.insert(usage.node());
+                    },
+                );
+                self.verify_guarded_usages.insert(script, expected);
+            }
         }
-        self.guarded_usages.contains(&n)
+        // Rust-only (performance divergence): a left-out function holding `n` is traversed now,
+        // outermost first (the functions in it were not reached).
+        while !self.deferred_guard_functions.is_empty() {
+            let mut outermost = None;
+            let mut node = Some(n);
+            while let Some(current) = node {
+                if self.deferred_guard_functions.contains(&current) {
+                    outermost = Some(current);
+                }
+                node = current.get_parent(compiler);
+            }
+            let Some(function) = outermost else {
+                break;
+            };
+            self.deferred_guard_functions.swap_remove(&function);
+            self.collect_guarded_usages_deferring(compiler, function, true);
+        }
+        let guarded = self.guarded_usages.contains(&n);
+        if let Some(script) = NodeUtil::get_enclosing_script(compiler, n)
+            && let Some(expected) = self.verify_guarded_usages.get(&script)
+        {
+            assert!(
+                guarded == expected.contains(&n),
+                "guarded polyfill usages with left-out functions differ from a full traversal"
+            );
+        }
+        guarded
     }
 
     // port: RemoveUnusedCode#removeIndependentlyRemovableProperties
@@ -1228,14 +1570,8 @@ impl RemoveUnusedCode {
             }
             if !any_removable && self.active_leaf != NO_LEAF {
                 let key = get_prop.get_string(compiler);
-                if let Some(bit) = compiler.remove_unused_code_cache.polyfill_bit(&key) {
-                    let rec = &mut self.leaf_recorders[self.active_leaf as usize];
-                    if !rec.aborted {
-                        rec.required_used_polyfills |= bit;
-                    }
-                } else {
-                    self.abort_active_leaf();
-                }
+                let bit = compiler.remove_unused_code_cache.polyfill_bit(&key);
+                self.record_required_polyfill(bit);
             }
         }
 
@@ -1430,32 +1766,14 @@ impl RemoveUnusedCode {
                 }
             }
             if !any_removable && self.active_leaf != NO_LEAF {
-                if let Some(bit) = compiler.remove_unused_code_cache.polyfill_bit(&name) {
-                    let rec = &mut self.leaf_recorders[self.active_leaf as usize];
-                    if !rec.aborted {
-                        rec.required_used_polyfills |= bit;
-                    }
-                } else {
-                    self.abort_active_leaf();
-                }
+                let bit = compiler.remove_unused_code_cache.polyfill_bit(&name);
+                self.record_required_polyfill(bit);
             }
         }
 
         let var = self.get_var_for_name_node(compiler, n, scope);
         let var_info = self.traverse_var(compiler, var);
-        if self.active_leaf != NO_LEAF {
-            let rec = &mut self.leaf_recorders[self.active_leaf as usize];
-            if !rec.aborted {
-                if var.get_scope(compiler).get_depth(compiler) < rec.fparam_depth {
-                    if var.is_arguments(compiler) || !rec.record_outer_var(var, n) {
-                        rec.clear_buffers();
-                        self.active_leaf = NO_LEAF;
-                    }
-                } else {
-                    rec.last_outer_var = None;
-                }
-            }
-        }
+        self.record_outer_var_in_leaves(compiler, var, n);
         var_info
     }
 
@@ -2724,14 +3042,20 @@ impl RemoveUnusedCode {
                 .required_pinned_props
                 .iter()
                 .all(|&prop_id| self.pinned_prop_ids[prop_id as usize])
+            && !(*VERIFY_GUARD_CACHE && {
+                self.verify_expected.insert(function, summary.clone());
+                true
+            })
         {
-            if self.active_leaf != NO_LEAF {
-                let rec = &mut self.leaf_recorders[self.active_leaf as usize];
+            // Every active recorder absorbs the summary: the function lies in each one's subtree.
+            let mut r = self.active_leaf;
+            while r != NO_LEAF {
+                let rec = &mut self.leaf_recorders[r as usize];
                 if !rec.aborted {
                     if rec.nested_stamps.len() + 1 + summary.nested_stamps.len()
                         > MAX_LEAF_NESTED_STAMPS
                     {
-                        self.abort_active_leaf();
+                        rec.clear_buffers();
                     } else {
                         rec.nested_stamps.push((function, summary.stamp));
                         rec.nested_stamps.extend_from_slice(&summary.nested_stamps);
@@ -2745,22 +3069,13 @@ impl RemoveUnusedCode {
                         }
                     }
                 }
+                r = rec.outer;
             }
+            self.active_leaf = self.live_leaf(self.active_leaf);
             for (index, &(name_node, mark_not_removable)) in summary.outer_vars.iter().enumerate() {
                 let var = self.get_var_for_name_node(compiler, name_node, parent_scope);
                 let var_info = self.traverse_var(compiler, var);
-                if self.active_leaf != NO_LEAF {
-                    let rec = &mut self.leaf_recorders[self.active_leaf as usize];
-                    if !rec.aborted {
-                        if var.get_scope(compiler).get_depth(compiler) < rec.fparam_depth {
-                            if var.is_arguments(compiler) || !rec.record_outer_var(var, name_node) {
-                                self.abort_active_leaf();
-                            }
-                        } else {
-                            rec.last_outer_var = None;
-                        }
-                    }
-                }
+                self.record_outer_var_in_leaves(compiler, var, name_node);
                 if mark_not_removable {
                     self.var_info_set_is_explicitly_not_removable(compiler, var_info, |_| {
                         String::new()
@@ -2773,15 +3088,27 @@ impl RemoveUnusedCode {
                     self.var_info_set_has_non_local_or_non_literal_value(var_info);
                 }
             }
-            if self.active_leaf != NO_LEAF {
-                self.leaf_recorders[self.active_leaf as usize].last_outer_var = None;
-            }
+            self.clear_last_outer_vars();
             for &prop_id in &summary.pinned_props {
                 self.mark_property_name_as_pinned_by_id(compiler, prop_id);
             }
             return;
         }
-        self.abort_active_leaf();
+        // Rust-only (performance divergence): the recorders of the functions around this one go
+        // on recording while it is traversed (`LeafRecorder::outer`), with this function among
+        // the nested functions they depend on. Without its own summary, a hit on one of them
+        // skips `removeUnreferencedFunctionArgs` for it too, which requires its last parameter
+        // not to be an empty pattern (see `trailing_parameter_is_empty_pattern`).
+        let outer_leaf = self.active_leaf;
+        if outer_leaf != NO_LEAF
+            && (!*NESTED_LEAF_RECORDING
+                || !self.can_use_leaf_cache
+                || self.polyfill_mask_overflow
+                || (self.remove_globals
+                    && Self::trailing_parameter_is_empty_pattern(compiler, function)))
+        {
+            self.abort_active_leaf();
+        }
 
         let paramlist = NodeUtil::get_function_parameters(compiler, function);
         let body = function.get_last_child(compiler).unwrap();
@@ -2803,9 +3130,23 @@ impl RemoveUnusedCode {
 
         if self.can_use_leaf_cache && !self.polyfill_mask_overflow {
             let start_stamp = SyntacticScopeCache::subtree_stamp_with_flags(compiler, function);
+            let mut r = self.active_leaf;
+            while r != NO_LEAF {
+                let rec = &mut self.leaf_recorders[r as usize];
+                if !rec.aborted {
+                    if rec.nested_stamps.len() >= MAX_LEAF_NESTED_STAMPS {
+                        rec.clear_buffers();
+                    } else {
+                        rec.nested_stamps.push((function, start_stamp));
+                    }
+                }
+                r = rec.outer;
+            }
+            let outer = self.live_leaf(self.active_leaf);
             let rec_idx = self.leaf_recorders.len() as u32;
             self.leaf_recorders.push(LeafRecorder {
                 function,
+                outer,
                 parent: function.get_parent(compiler),
                 name_value_used: Self::function_name_value_used(compiler, function),
                 name_non_local: false,
@@ -2841,10 +3182,8 @@ impl RemoveUnusedCode {
 
         self.traverse_node(compiler, paramlist, fparam_scope);
         self.traverse_children(compiler, body, fbody_scope);
-        if self.active_leaf != NO_LEAF {
-            self.leaf_recorders[self.active_leaf as usize].last_outer_var = None;
-        }
-        self.active_leaf = NO_LEAF;
+        self.clear_last_outer_vars();
+        self.active_leaf = self.live_leaf(outer_leaf);
 
         self.all_function_param_scopes.push(fparam_scope);
     }
@@ -2905,11 +3244,13 @@ impl RemoveUnusedCode {
         if !self.tracks_removable_properties() {
             return;
         }
-        if self.active_leaf != NO_LEAF {
-            let rec = &mut self.leaf_recorders[self.active_leaf as usize];
+        let mut r = self.active_leaf;
+        while r != NO_LEAF {
+            let rec = &mut self.leaf_recorders[r as usize];
             if !rec.aborted {
                 rec.record_pinned(property_name);
             }
+            r = rec.outer;
         }
         if self.pinned_property_names.contains(property_name) {
             return;
@@ -2978,13 +3319,17 @@ impl RemoveUnusedCode {
                 // Referenced or exported, so not removable.
                 if self.active_leaf != NO_LEAF && !is_extern && !is_exported {
                     let is_indep = self.is_independently_removable(compiler, removable);
-                    let rec = &mut self.leaf_recorders[self.active_leaf as usize];
-                    if !rec.aborted {
-                        if is_indep {
-                            rec.record_required_pinned(property_name);
-                        } else {
-                            rec.record_pinned(&property_name);
+                    let mut r = self.active_leaf;
+                    while r != NO_LEAF {
+                        let rec = &mut self.leaf_recorders[r as usize];
+                        if !rec.aborted {
+                            if is_indep {
+                                rec.record_required_pinned(property_name.clone());
+                            } else {
+                                rec.record_pinned(&property_name);
+                            }
                         }
+                        r = rec.outer;
                     }
                 }
                 self.removable_apply_continuations(removable);
@@ -3251,11 +3596,13 @@ impl RemoveUnusedCode {
                 scope_depth,
                 var.get_name(compiler),
             )));
-            if self.active_leaf != NO_LEAF {
-                let rec = &mut self.leaf_recorders[self.active_leaf as usize];
+            let mut r = self.active_leaf;
+            while r != NO_LEAF {
+                let rec = &mut self.leaf_recorders[r as usize];
                 if !rec.aborted && scope_depth >= rec.fparam_depth {
                     rec.local_var_infos.push(var_info);
                 }
+                r = rec.outer;
             }
             if var
                 .get_parent_node(compiler)
@@ -3270,6 +3617,11 @@ impl RemoveUnusedCode {
             // Cannot use canonicalUnremovableVarInfo for the 2 non-removable cases below, because
             // each varInfo needs to track what value is assigned to it for the purpose of
             // correctly allowing or preventing removal of properties set on it.
+            // Rust-only (performance divergence): the recordings of summaries do not see this
+            // mark. It goes to a new var info, which has no removables, and the hit of a summary
+            // makes the var info the same way (`traverse_var`); recording it would end the
+            // recording of a function whose first reference to an outer var makes its var info.
+            let recording = std::mem::replace(&mut self.active_leaf, NO_LEAF);
             if !self.remove_globals && is_global {
                 self.var_info_set_is_explicitly_not_removable(compiler, var_info, |_| {
                     "not removing globals".to_string()
@@ -3279,6 +3631,7 @@ impl RemoveUnusedCode {
                     "not removing locals".to_string()
                 });
             }
+            self.active_leaf = recording;
             self.var_info_map.insert(var, var_info);
             var_info
         }
@@ -5110,11 +5463,9 @@ impl RemoveUnusedCode {
                 self.consider_for_independent_removal(compiler, removable);
             }
             VarInfo::Real(real) => {
-                if self.active_leaf != NO_LEAF
-                    && real.scope_depth
-                        < self.leaf_recorders[self.active_leaf as usize].fparam_depth
-                {
-                    self.abort_active_leaf();
+                if self.active_leaf != NO_LEAF {
+                    let depth = real.scope_depth;
+                    self.abort_leaves_inside(depth);
                 }
                 self.real_var_info_add_removable(compiler, var_info, removable);
             }
@@ -5201,31 +5552,41 @@ impl RemoveUnusedCode {
         var_info: VarInfoId,
         reason_supplier: impl FnOnce(&Ast) -> String,
     ) {
-        let mut suspend_leaf = false;
+        // The scope depth of a var that lies outside of an active recorder: what marking it
+        // causes is not recorded there (a hit marks it again), only in the recorders around it
+        // that hold the var.
+        let mut suspend_depth = None;
         if self.active_leaf != NO_LEAF {
-            let rec = &mut self.leaf_recorders[self.active_leaf as usize];
-            if !rec.aborted {
-                match &self.var_infos[var_info.0] {
-                    VarInfo::CanonicalUnremovable => {
-                        if let Some(v) = rec.last_outer_var
-                            && let Some(entry) = rec.outer_vars.iter_mut().find(|e| e.0 == v)
-                        {
-                            entry.2 = true;
+            let outer_var = match &self.var_infos[var_info.0] {
+                VarInfo::CanonicalUnremovable => None,
+                VarInfo::Real(real) => Some((real.scope_depth, real.var_id)),
+            };
+            let mut r = self.active_leaf;
+            while r != NO_LEAF {
+                let rec = &mut self.leaf_recorders[r as usize];
+                if !rec.aborted {
+                    match outer_var {
+                        None => {
+                            if let Some(v) = rec.last_outer_var
+                                && let Some(entry) = rec.outer_vars.iter_mut().find(|e| e.0 == v)
+                            {
+                                entry.2 = true;
+                            }
                         }
-                    }
-                    VarInfo::Real(real) if real.scope_depth < rec.fparam_depth => {
-                        if let Some(entry) = rec.outer_vars.iter_mut().find(|e| e.0 == real.var_id)
-                        {
-                            entry.2 = true;
-                        } else {
-                            rec.clear_buffers();
-                            self.active_leaf = NO_LEAF;
+                        Some((depth, var_id)) if depth < rec.fparam_depth => {
+                            if let Some(entry) = rec.outer_vars.iter_mut().find(|e| e.0 == var_id) {
+                                entry.2 = true;
+                            } else {
+                                rec.clear_buffers();
+                            }
+                            suspend_depth = Some(depth);
                         }
-                        suspend_leaf = true;
+                        Some(_) => {}
                     }
-                    VarInfo::Real(_) => {}
                 }
+                r = rec.outer;
             }
+            self.active_leaf = self.live_leaf(self.active_leaf);
         }
         match &mut self.var_infos[var_info.0] {
             // port: RemoveUnusedCode.CanonicalUnremovableVarInfo#setIsExplicitlyNotRemovable
@@ -5247,17 +5608,21 @@ impl RemoveUnusedCode {
                         let reason = reason_supplier.take().map_or_else(String::new, |f| f(ast));
                         format!("{var_name}: {reason}")
                     });
-                    let saved_leaf = if suspend_leaf {
-                        std::mem::replace(&mut self.active_leaf, NO_LEAF)
-                    } else {
-                        NO_LEAF
-                    };
+                    let saved_leaf = self.active_leaf;
+                    if let Some(depth) = suspend_depth {
+                        let mut r = self.active_leaf;
+                        while r != NO_LEAF
+                            && (self.leaf_recorders[r as usize].aborted
+                                || depth < self.leaf_recorders[r as usize].fparam_depth)
+                        {
+                            r = self.leaf_recorders[r as usize].outer;
+                        }
+                        self.active_leaf = r;
+                    }
                     for &r in removables.as_slice() {
                         self.consider_for_independent_removal(compiler, r);
                     }
-                    if suspend_leaf {
-                        self.active_leaf = saved_leaf;
-                    }
+                    self.active_leaf = self.live_leaf(saved_leaf);
                 }
             }
         }
@@ -5276,10 +5641,8 @@ impl RemoveUnusedCode {
             VarInfo::Real(real) => {
                 real.has_non_local_or_non_literal_value = true;
                 let depth = real.scope_depth;
-                if self.active_leaf != NO_LEAF
-                    && depth < self.leaf_recorders[self.active_leaf as usize].fparam_depth
-                {
-                    self.abort_active_leaf();
+                if self.active_leaf != NO_LEAF {
+                    self.abort_leaves_inside(depth);
                 }
             }
         }

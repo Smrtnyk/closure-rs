@@ -462,16 +462,45 @@ impl ScopeId {
         compiler.scope_mirror.scopes[self.index()].depth = depth;
     }
 
+    /// Rust-only (performance divergence): removes `removed` from this kept global scope, as a
+    /// scan of the code without their declarations would not make them, and numbers the vars
+    /// after them as that scan would (`SyntacticScopeCache::reuse_global_after_removals`). The
+    /// scope stays kept: this is not a pass declaring or undeclaring a name.
+    pub(crate) fn remove_vars_as_rescanned(
+        self,
+        compiler: &mut AbstractCompiler,
+        removed: &closure_rhino::fast_hash::IndexSet<VarId>,
+    ) {
+        compiler.scope_lookups.invalidate(self);
+        let arena = ScopeArena::write(compiler);
+        let vars = &mut arena.scopes[self.index()].abstract_scope.vars;
+        vars.retain(|_, var| !removed.contains(var));
+        let kept: Vec<VarId> = vars.values().copied().collect();
+        for (index, var) in kept.into_iter().enumerate() {
+            arena.vars[var.index()].index = i32::try_from(index).unwrap();
+        }
+    }
+
     /// Rust-only (performance divergence): whether every name declared here is still the name of
     /// its declaring NAME node, and that node is still in the tree. The name of a function belongs
     /// to the function's change scope, not to the scope that declares it, so the
     /// `SyntacticScopeCache` checks it before handing out again a scope that declares a function.
     pub(crate) fn declared_names_unchanged(self, compiler: &AbstractCompiler) -> bool {
+        self.declared_names_unchanged_except(compiler, &Default::default())
+    }
+
+    /// `declared_names_unchanged` for the vars not in `except`.
+    pub(crate) fn declared_names_unchanged_except(
+        self,
+        compiler: &AbstractCompiler,
+        except: &closure_rhino::fast_hash::IndexSet<VarId>,
+    ) -> bool {
         let arena = ScopeArena::read(compiler);
         arena.scopes[self.index()]
             .abstract_scope
             .vars
             .iter()
+            .filter(|(_, var)| !except.contains(*var))
             .all(|(name, var)| match arena.vars[var.index()].name_node {
                 Some(node) if node.is_name(compiler) || node.is_import_star(compiler) => {
                     node.get_parent(compiler).is_some() && node.get_string_ref(compiler) == name

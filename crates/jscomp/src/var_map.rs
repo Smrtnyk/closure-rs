@@ -120,6 +120,26 @@ impl<V> VarMap<V> {
         *self = Self::default();
     }
 
+    /// Keeps the entries for which `keep` is true, in their order.
+    pub fn retain(&mut self, mut keep: impl FnMut(&JsString, &V) -> bool) {
+        match self {
+            Self::Inline(entries) => {
+                let mut kept = 0;
+                for i in 0..INLINE {
+                    match entries[i].take() {
+                        Some((key, value)) if keep(&key, &value) => {
+                            entries[kept] = Some((key, value));
+                            kept += 1;
+                        }
+                        Some(_) => {}
+                        None => break,
+                    }
+                }
+            }
+            Self::Map(map) => map.retain(|key, value| keep(key, value)),
+        }
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (&JsString, &V)> {
         let (inline, map) = match self {
             Self::Inline(entries) => (Some(Self::inline_entries(entries)), None),
