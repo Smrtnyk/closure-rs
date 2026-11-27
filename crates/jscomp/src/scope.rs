@@ -163,6 +163,18 @@ impl ScopeLookupCache {
     }
 }
 
+/// Rust-only (performance divergence): a var of a global scope as a scan now makes it, for
+/// `ScopeId::rebuild_vars_as_rescanned`.
+pub(crate) enum RescannedVar {
+    /// The var at this position of the scope now.
+    Kept(usize),
+    /// A new var for this name node, with the input of its script.
+    New {
+        name_node: NodeId,
+        input: Option<CompilerInput>,
+    },
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ScopeMeta {
     pub(crate) root_node: NodeId,
@@ -479,6 +491,131 @@ impl ScopeId {
         for (index, var) in kept.into_iter().enumerate() {
             arena.vars[var.index()].index = i32::try_from(index).unwrap();
         }
+    }
+
+    /// Rust-only (performance divergence): gives this kept global scope the vars `order` lists, in
+    /// that order and numbered by it, as a scan of its code now makes them
+    /// (`SyntacticScopeCache::reuse_global_merged`): a var of the scope (by its position now), or a
+    /// new var for a name node with the input of its script. The name bits of the new names are
+    /// added. The scope stays kept: this is not a pass declaring or undeclaring a name.
+    pub(crate) fn rebuild_vars_as_rescanned(
+        self,
+        compiler: &mut AbstractCompiler,
+        order: &[RescannedVar],
+    ) {
+        /// The most new vars put in place one by one (each moves the vars after it).
+        const MAX_INSERTS: usize = 32;
+        compiler.scope_lookups.invalidate(self);
+        let old_len = self.get_var_count(compiler) as usize;
+        let mut kept_in_order = true;
+        let mut previous = None;
+        let mut new_vars = 0;
+        // The first position whose var is not the var at that position now.
+        let mut first_moved = order.len();
+        for (position, var) in order.iter().enumerate() {
+            match *var {
+                RescannedVar::Kept(index) => {
+                    if previous.is_some_and(|previous| previous >= index) {
+                        kept_in_order = false;
+                    }
+                    previous = Some(index);
+                    if index != position {
+                        first_moved = first_moved.min(position);
+                    }
+                }
+                RescannedVar::New { .. } => {
+                    new_vars += 1;
+                    first_moved = first_moved.min(position);
+                }
+            }
+        }
+        if order.len() != old_len {
+            first_moved = first_moved.min(order.len().min(old_len));
+        }
+        let mut name_bits = 0u64;
+        let mut new_var = |compiler: &mut AbstractCompiler,
+                           position: usize,
+                           name_node: NodeId,
+                           input: &Option<CompilerInput>| {
+            VarId::check_name_node(compiler, Some(name_node));
+            let name = name_node.get_string(compiler);
+            name_bits |= Self::name_bit(&name);
+            let data = crate::abstract_var::AbstractVarData::new(
+                compiler,
+                name.clone(),
+                Some(name_node),
+                Some(self),
+                i32::try_from(position).unwrap(),
+                input.clone(),
+                None,
+            );
+            (name, VarId::push(ScopeArena::write(compiler), data))
+        };
+        if kept_in_order && new_vars <= MAX_INSERTS {
+            // The vars left keep their order: drop the others, put the new ones in place and
+            // number the vars from the first one that moved.
+            if order.len() - new_vars != old_len {
+                let mut keep = vec![false; old_len];
+                for var in order {
+                    if let RescannedVar::Kept(index) = *var {
+                        keep[index] = true;
+                    }
+                }
+                let vars = &mut ScopeArena::write(compiler).scopes[self.index()]
+                    .abstract_scope
+                    .vars;
+                let mut position = 0;
+                vars.retain(|_, _| {
+                    position += 1;
+                    keep[position - 1]
+                });
+            }
+            for (position, var) in order.iter().enumerate().skip(first_moved) {
+                if let RescannedVar::New { name_node, input } = var {
+                    let (name, var) = new_var(compiler, position, *name_node, input);
+                    ScopeArena::write(compiler).scopes[self.index()]
+                        .abstract_scope
+                        .vars
+                        .shift_insert(position, name, var);
+                }
+            }
+            let arena = ScopeArena::write(compiler);
+            let vars: Vec<VarId> = arena.scopes[self.index()]
+                .abstract_scope
+                .vars
+                .values()
+                .skip(first_moved)
+                .copied()
+                .collect();
+            for (offset, var) in vars.into_iter().enumerate() {
+                arena.vars[var.index()].index = i32::try_from(first_moved + offset).unwrap();
+            }
+            compiler.scope_mirror.scopes[self.index()].name_bits |= name_bits;
+            return;
+        }
+        let mut entries: Vec<(JsString, VarId)> = Vec::with_capacity(order.len());
+        for (position, var) in order.iter().enumerate() {
+            match var {
+                RescannedVar::Kept(old) => {
+                    let arena = ScopeArena::write(compiler);
+                    let (name, var) = arena.scopes[self.index()]
+                        .abstract_scope
+                        .vars
+                        .get_index(*old)
+                        .map(|(name, var)| (name.clone(), *var))
+                        .unwrap();
+                    arena.vars[var.index()].index = i32::try_from(position).unwrap();
+                    entries.push((name, var));
+                }
+                RescannedVar::New { name_node, input } => {
+                    entries.push(new_var(compiler, position, *name_node, input));
+                }
+            }
+        }
+        compiler.scope_mirror.scopes[self.index()].name_bits |= name_bits;
+        ScopeArena::write(compiler).scopes[self.index()]
+            .abstract_scope
+            .vars = crate::var_map::VarMap::from_ordered(entries);
     }
 
     /// Rust-only (performance divergence): whether every name declared here is still the name of

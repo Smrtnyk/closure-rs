@@ -117,6 +117,15 @@ impl SyntacticScopeCreator<'_> {
             && let Some(scope) =
                 SyntacticScopeCache::reuse(compiler, n, parent, context, !self.default_handler)
                     .or_else(|| {
+                        SyntacticScopeCache::reuse_global_merged(
+                            compiler,
+                            n,
+                            context,
+                            !self.default_handler,
+                            &mut ScopeScanner::script_declarations_now,
+                        )
+                    })
+                    .or_else(|| {
                         SyntacticScopeCache::reuse_global_after_removals(
                             compiler,
                             n,

@@ -116,6 +116,55 @@ impl<V> VarMap<V> {
         }
     }
 
+    /// The position of `name` in declaration order.
+    pub fn get_index_of(&self, name: &JsString) -> Option<usize> {
+        match self {
+            Self::Inline(entries) => Self::inline_entries(entries).position(|(key, _)| key == name),
+            Self::Map(map) => map.get_index_of(name),
+        }
+    }
+
+    /// The entry at `index` in declaration order.
+    pub fn get_index(&self, index: usize) -> Option<(&JsString, &V)> {
+        match self {
+            Self::Inline(entries) => entries
+                .get(index)
+                .and_then(Option::as_ref)
+                .map(|(key, value)| (key, value)),
+            Self::Map(map) => map.get_index(index),
+        }
+    }
+
+    /// Puts `name` (not yet in the map) at position `index`; the names from there on move one
+    /// position back.
+    pub fn shift_insert(&mut self, index: usize, name: JsString, value: V) {
+        match self {
+            Self::Inline(entries) => {
+                let mut all: Vec<(JsString, V)> =
+                    entries.iter_mut().filter_map(Option::take).collect();
+                all.insert(index, (name, value));
+                *self = Self::from_ordered(all);
+            }
+            Self::Map(map) => {
+                map.shift_insert(index, name, value);
+            }
+        }
+    }
+
+    /// A map of `entries` (distinct names), in their order.
+    pub fn from_ordered(entries: Vec<(JsString, V)>) -> Self {
+        if entries.len() <= INLINE {
+            let mut map = Self::default();
+            for (name, value) in entries {
+                map.insert(name, value);
+            }
+            return map;
+        }
+        let mut map = IndexMap::with_capacity_and_hasher(entries.len(), Default::default());
+        map.extend(entries);
+        Self::Map(map)
+    }
+
     pub fn clear(&mut self) {
         *self = Self::default();
     }

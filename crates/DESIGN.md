@@ -1914,3 +1914,19 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   it, or more than `MAX_CLEAN_SKIP_FUNCTIONS` (64) changed functions, make the run go ahead.
   `CLOSURE_RS_RUC_CLEAN_SKIP=off` runs every time; `=verify` runs a skipped run and checks that it
   changes nothing.
+- `jscomp/normalize.rs` (`Normalize::process`): the traversal that propagates constant annotations
+  (with the duplicate declaration handler) starts a new scope handout round, so it may receive the
+  scopes the traversal of `NormalizeStatements` just received and left unchanged (with the
+  `SyntacticScopeCache`'s usual tests, and only scopes whose scan called no redeclaration handler);
+  nothing of the first traversal is read during the second. `CLOSURE_RS_NORMALIZE_SCOPE_ROUND=off`
+  scans them anew; `CLOSURE_RS_SCOPE_CACHE=verify` checks each reused scope.
+- `jscomp/syntactic_scope_cache.rs` (`reuse_global_merged`), `scope.rs` (`RescannedVar`,
+  `rebuild_vars_as_rescanned`), `var_map.rs`: a kept global scope rooted at a ROOT node whose
+  scripts changed is updated to what a scan makes now instead of being scanned anew: the
+  declarations of each unchanged script are the kept ones, those of a changed script are found by
+  a scan of its top level that only records them; going through them in script order (reading
+  each name now), a var of the scope that no earlier declaration took and that has the same node
+  and input is kept (renumbered), any other first declaration makes a new var, later ones count
+  as redeclarations, and the vars nobody took are dropped. A Closure namespace anywhere leaves the
+  scope to a new scan. `CLOSURE_RS_GLOBAL_SCOPE_MERGE=off` restores the removal-only update and
+  new scans; `CLOSURE_RS_SCOPE_CACHE=verify` checks every updated scope against a new scan.
