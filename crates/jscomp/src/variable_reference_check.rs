@@ -26,6 +26,7 @@ use crate::basic_block::BasicBlock;
 use crate::compiler_pass::CompilerPass;
 use crate::diagnostic_group::DiagnosticGroup;
 use crate::diagnostic_type::DiagnosticType;
+use crate::infer_consts::HandoffBuilder;
 use crate::js_error::JSError;
 use crate::node_traversal::{AbstractShallowCallback, NodeTraversal};
 use crate::node_util::NodeUtil;
@@ -470,13 +471,19 @@ impl CompilerPass for VariableReferenceCheck {
         let mut scope_creator = SyntacticScopeCreator::new();
         let skip_bundled_externs = self.skip_bundled_externs;
         self.skipped_bundled_scripts = 0;
-        let behavior = ReferenceCheckingBehavior::new(self);
+        let mut behavior = ReferenceCheckingBehavior::new(self);
+        // Rust-only (performance divergence): see `InferConstsHandoff`.
+        behavior.handoff = HandoffBuilder::for_run(compiler);
         let mut collector = ReferenceCollector::new(compiler, behavior, &mut scope_creator);
         collector.reuse_reference_sites();
         if skip_bundled_externs {
             collector.skip_bundled_extern_prefixes();
         }
         CompilerPass::process(&mut collector, compiler, externs, root);
+        compiler.infer_consts_handoff = collector
+            .into_behavior()
+            .handoff
+            .and_then(|handoff| handoff.finish(compiler, root));
     }
 }
 
@@ -496,6 +503,9 @@ struct ReferenceCheckingBehavior<'a> {
     /// declarations, of which there are none. Such a var is therefore checked with the
     /// references the collector saw, starting as declared.
     bundled_scripts: IndexSet<NodeId>,
+    /// Rust-only (performance divergence): what the InferConsts run after this pass reads from the
+    /// references (`InferConstsHandoff`).
+    handoff: Option<HandoffBuilder>,
 }
 
 impl<'a> ReferenceCheckingBehavior<'a> {
@@ -505,6 +515,7 @@ impl<'a> ReferenceCheckingBehavior<'a> {
             outer,
             vars_in_function_body: IndexSet::<_>::default(),
             bundled_scripts: IndexSet::default(),
+            handoff: None,
         }
     }
 
@@ -764,7 +775,8 @@ impl Behavior for ReferenceCheckingBehavior<'_> {
         let scope = t.get_scope();
         let compiler = t.get_compiler();
         let vars = scope.get_var_iterable(compiler);
-        let check_skipped = !self.bundled_scripts.is_empty() && scope.is_global(compiler);
+        let is_global = scope.is_global(compiler);
+        let check_skipped = !self.bundled_scripts.is_empty() && is_global;
         if scope.is_function_block_scope(compiler) {
             self.vars_in_function_body.clear();
             for &v in &vars {
@@ -793,6 +805,9 @@ impl Behavior for ReferenceCheckingBehavior<'_> {
                     &reference_collection.references,
                     declared_in_skipped_script,
                 );
+                if let Some(handoff) = &mut self.handoff {
+                    handoff.note(compiler, is_global, v, reference_collection);
+                }
             }
         }
         if scope.has_own_implicit_slot(compiler, Some(ImplicitVar::EXPORTS)) {

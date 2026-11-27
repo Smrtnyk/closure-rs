@@ -166,6 +166,12 @@ pub struct Compiler {
     /// `FlowSensitiveInlineVariables`.
     pub(crate) fsiv_unit_cache:
         crate::unit_cache::UnitCache<crate::flow_sensitive_inline_variables::FsivUnitRecord>,
+    /// What VariableReferenceCheck found out for the InferConsts run that follows it
+    /// (`infer_consts::InferConstsHandoff`).
+    pub(crate) infer_consts_handoff: Option<crate::infer_consts::InferConstsHandoff>,
+    /// What StrictModeCheck's traversal found out for the check passes after it
+    /// (`strict_mode_check::CheckLookahead`).
+    pub(crate) check_lookahead: Option<crate::strict_mode_check::CheckLookahead>,
     accessor_summary: Option<Arc<crate::accessor_summary::AccessorSummary>>,
     unique_name_id: Arc<std::sync::atomic::AtomicI32>,
     unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier,
@@ -319,6 +325,8 @@ impl Compiler {
             inline_simple_methods_cache: Default::default(),
             dae_unit_cache: Default::default(),
             fsiv_unit_cache: Default::default(),
+            infer_consts_handoff: None,
+            check_lookahead: None,
             accessor_summary: None,
             unique_name_id: Arc::new(std::sync::atomic::AtomicI32::new(0)),
             unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier::default(),
@@ -1564,6 +1572,8 @@ impl Compiler {
         self.inline_simple_methods_cache = Default::default();
         self.dae_unit_cache = Default::default();
         self.fsiv_unit_cache = Default::default();
+        self.infer_consts_handoff = None;
+        self.check_lookahead = None;
         self.extern_and_js_root = Some(IR::root(self, &[externs, js]));
     }
     // port: Compiler#getChunkGraph
@@ -6224,6 +6234,8 @@ impl Compiler {
         self.inline_simple_methods_cache = Default::default();
         self.dae_unit_cache = Default::default();
         self.fsiv_unit_cache = Default::default();
+        self.infer_consts_handoff = None;
+        self.check_lookahead = None;
         self.js_root = Some(js_root);
         self.inputs_by_id.clear();
         self.excerpt_provider.files.lock().unwrap().clear();

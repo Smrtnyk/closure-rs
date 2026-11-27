@@ -21,8 +21,12 @@ use crate::{
     abstract_compiler::AbstractCompiler,
     compiler_pass::CompilerPass,
     diagnostic_type::DiagnosticType,
+    js_error::JSError,
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
+    strict_mode_check::{
+        CheckLookahead, LOOKAHEAD_MODE, LookaheadMode, LookaheadReads, report_all, verify_kept,
+    },
 };
 use closure_rhino::{check_argument, check_not_null, check_state, node::NodeId, token::Token};
 
@@ -109,6 +113,25 @@ pub struct CheckSuper {
     // are identified by index.
     contexts: Vec<Context>,
     context_stack: Vec<ContextId>,
+    /// Rust-only (performance divergence): where the diagnostics go while StrictModeCheck makes
+    /// this pass's traversal ahead of time (`strict_mode_check::CheckLookahead`); None reports
+    /// them.
+    pub(crate) capture: Option<Vec<JSError>>,
+}
+
+/// Rust-only (performance divergence): `report_or_capture(&mut self.capture, t, n, diagnostic, arguments)`, or the error kept in
+/// `capture` for a pass whose traversal is made ahead of time (`strict_mode_check::CheckLookahead`).
+pub(crate) fn report_or_capture(
+    capture: &mut Option<Vec<JSError>>,
+    t: &mut NodeTraversal<'_>,
+    n: NodeId,
+    diagnostic: &'static DiagnosticType,
+    arguments: &[&str],
+) {
+    match capture {
+        Some(errors) => errors.push(JSError::make(t, n, diagnostic, arguments)),
+        None => t.report(n, diagnostic, arguments),
+    }
 }
 
 type ContextId = usize;
@@ -119,6 +142,7 @@ impl CheckSuper {
         Self {
             contexts: Vec::new(),
             context_stack: Vec::new(),
+            capture: None,
         }
     }
 
@@ -228,12 +252,12 @@ impl CheckSuper {
             // port: CheckSuper.SuperPropertyAccessAllowedContext#visitSuperConstructorCall
             ContextKind::SuperPropertyAccessAllowed => {
                 // Super constructor calls are only allowed in constructor() methods.
-                t.report(super_node, &INVALID_SUPER_CALL, &[]);
+                report_or_capture(&mut self.capture, t, super_node, &INVALID_SUPER_CALL, &[]);
             }
             // port: CheckSuper.SuperNotAllowedContext#visitSuperConstructorCall
             ContextKind::SuperNotAllowed => {
                 // We're not within a constructor method.
-                t.report(super_node, &INVALID_SUPER_CALL, &[]);
+                report_or_capture(&mut self.capture, t, super_node, &INVALID_SUPER_CALL, &[]);
             }
             // port: CheckSuper.MethodContext#visitSuperConstructorCall
             ContextKind::Method { is_class_method } => {
@@ -243,17 +267,25 @@ impl CheckSuper {
                     if let Some(prop_name) = prop_name {
                         // Maybe the user was confused by other languages where super() invokes
                         // the same method in the parent class?
-                        t.report(
+                        report_or_capture(
+                            &mut self.capture,
+                            t,
                             super_node,
                             &INVALID_SUPER_CALL_WITH_SUGGESTION,
                             &[prop_name.as_str()],
                         );
                     } else {
-                        t.report(super_node, &INVALID_SUPER_CALL, &[]);
+                        report_or_capture(
+                            &mut self.capture,
+                            t,
+                            super_node,
+                            &INVALID_SUPER_CALL,
+                            &[],
+                        );
                     }
                 } else {
                     // object literal methods cannot contain super() calls
-                    t.report(super_node, &INVALID_SUPER_CALL, &[]);
+                    report_or_capture(&mut self.capture, t, super_node, &INVALID_SUPER_CALL, &[]);
                 }
             }
             // port: CheckSuper.ConstructorContext#visitSuperConstructorCall
@@ -279,7 +311,7 @@ impl CheckSuper {
                 constructor_context,
             } => {
                 let constructor_context = *constructor_context;
-                t.report(super_node, &SUPER_CALL_IN_ARROW, &[]);
+                report_or_capture(&mut self.capture, t, super_node, &SUPER_CALL_IN_ARROW, &[]);
                 // Tell the constructor context about this `super()` call in order to avoid
                 // confusing and likely redundant error messages such as "missing super call" or
                 // "`this` accessed before super()".
@@ -314,7 +346,7 @@ impl CheckSuper {
             // port: CheckSuper.SuperNotAllowedContext#visitSuperPropertyAccess
             ContextKind::SuperNotAllowed => {
                 // We're not within a method.
-                t.report(super_node, &INVALID_SUPER_ACCESS, &[]);
+                report_or_capture(&mut self.capture, t, super_node, &INVALID_SUPER_ACCESS, &[]);
             }
             // port: CheckSuper.MethodContext#visitSuperPropertyAccess
             ContextKind::Method { .. } => {
@@ -397,7 +429,13 @@ impl CheckSuper {
                 if !constructor.has_parent_class {
                     if let Some(first_super_call) = constructor.first_super_call {
                         // calling `super()` only makes sense when there is a super class.
-                        t.report(first_super_call, &INVALID_SUPER_CALL, &[]);
+                        report_or_capture(
+                            &mut self.capture,
+                            t,
+                            first_super_call,
+                            &INVALID_SUPER_CALL,
+                            &[],
+                        );
                     }
                 } else {
                     // There is a parent class, so a call to `super()` is required. Like TypeScript
@@ -405,7 +443,9 @@ impl CheckSuper {
                     if constructor.first_super_call.is_none() {
                         // The context node is the function itself , but ErrorToFixMapper expects
                         // the error to be reported on the MEMBER_FUNCTION_DEF that is its parent.
-                        t.report(
+                        report_or_capture(
+                            &mut self.capture,
+                            t,
                             context_node.get_parent(t).unwrap(),
                             if constructor.returns_a_value {
                                 &RETURN_WITHOUT_CALL_TO_SUPER
@@ -421,7 +461,9 @@ impl CheckSuper {
                     {
                         // The instance elements are initialized right after `super()` returns, so
                         // like TypeScript (TS2401), require a single place to initialize them.
-                        t.report(
+                        report_or_capture(
+                            &mut self.capture,
+                            t,
                             context_node.get_parent(t).unwrap(),
                             &MISSING_ROOT_LEVEL_CALL_TO_SUPER,
                             &[],
@@ -429,12 +471,20 @@ impl CheckSuper {
                     }
                     if let Some(this_accessed_before_super) = constructor.this_accessed_before_super
                     {
-                        t.report(this_accessed_before_super, &THIS_BEFORE_SUPER, &[]);
+                        report_or_capture(
+                            &mut self.capture,
+                            t,
+                            this_accessed_before_super,
+                            &THIS_BEFORE_SUPER,
+                            &[],
+                        );
                     }
                     if let Some(super_property_accessed_before_super_call) =
                         constructor.super_property_accessed_before_super_call
                     {
-                        t.report(
+                        report_or_capture(
+                            &mut self.capture,
+                            t,
                             super_property_accessed_before_super_call,
                             &SUPER_ACCESS_BEFORE_SUPER_CONSTRUCTOR,
                             &[],
@@ -456,15 +506,38 @@ impl Default for CheckSuper {
     }
 }
 
-impl CompilerPass for CheckSuper {
-    // port: CheckSuper#process
-    fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
-        NodeTraversal::traverse(compiler, root, self);
+impl CheckSuper {
+    /// The check at the end of `process`.
+    pub(crate) fn check_context_stack_empty(&self) {
         check_state!(
             self.context_stack.is_empty(),
             "%s",
             format!("{:?}", self.context_stack)
         );
+    }
+}
+
+impl CompilerPass for CheckSuper {
+    // port: CheckSuper#process
+    fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
+        // Rust-only (performance divergence): see `strict_mode_check::CheckLookahead`.
+        if let Some(kept) =
+            CheckLookahead::take(compiler, root, LookaheadReads::CodeStructure, |lookahead| {
+                lookahead.check_super.take()
+            })
+        {
+            let errors = kept.capture.expect("captured");
+            if *LOOKAHEAD_MODE == LookaheadMode::Verify {
+                self.capture = Some(Vec::new());
+                NodeTraversal::traverse(compiler, root, self);
+                self.check_context_stack_empty();
+                verify_kept("CheckSuper", &errors, &self.capture.take().unwrap());
+            }
+            report_all(compiler, errors);
+            return;
+        }
+        NodeTraversal::traverse(compiler, root, self);
+        self.check_context_stack_empty();
     }
 }
 
@@ -521,7 +594,7 @@ impl Callback for CheckSuper {
                     self.visit_super_property_access(current_context, t, n);
                 } else {
                     // super used some way other than `super()`, `super.prop`, or `super[expr]`.
-                    t.report(n, &INVALID_SUPER_USAGE, &[]);
+                    report_or_capture(&mut self.capture, t, n, &INVALID_SUPER_USAGE, &[]);
                 }
             }
             Token::CALL => {
