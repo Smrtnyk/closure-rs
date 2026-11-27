@@ -260,6 +260,7 @@ pub mod type_mismatch;
 pub mod type_validator;
 pub mod typed_scope_creator;
 pub mod unique_id_supplier;
+pub(crate) mod unit_cache;
 
 pub mod performance_tracker_code_size_estimator;
 

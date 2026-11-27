@@ -1515,7 +1515,7 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   current and its name and the size limit are the same (Java computes them on every run).
   `CLOSURE_RS_INLINE_FUNCTION_FACTS=off` computes them on every run, `=verify` computes every kept
   fact again and compares.
-- `jscomp/inline_functions.rs` (`NoInlineSite`, `FindCandidatesReferences::maybe_add_reference_using_mode`):
+- `jscomp/inline_functions.rs` (`KeptSite`, `FindCandidatesReferences::maybe_add_reference_using_mode`):
   a call site that InlineFunctions could not inline a candidate into (the size limit or
   `canInlineReferenceToFunction`) is kept by call node, candidate and mode with the
   `DeepFunctionStamp` of the function around the call (or of its statement of the script) and of
@@ -1542,3 +1542,89 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   the var info has no removables, and a summary's hit makes it the same way, while recording the
   mark ended the recording of every function whose first reference to an outer var made its var
   info (`CLOSURE_RS_RUC_CACHE=verify` found such a recording ending where the kept summary did not).
+- `jscomp/dead_assignments_elimination.rs`, `flow_sensitive_inline_variables.rs`,
+  `coalesce_variable_names.rs` (`process`): without worker threads (one CPU, a busy machine, a
+  small input) the three passes screen their functions with `FunctionVars` on the compiler
+  thread too, as their parallel paths do on workers (same screen, same order: all functions
+  before any work), so the functions the screen rules out get no scopes; coalescing takes its
+  precomputing path and the pruned traversal. `CLOSURE_RS_PARALLEL_ANALYSIS=off` restores the
+  serial paths of Java's shape; `=verify` takes the parallel paths' verified code with one thread.
+- `rhino/js_string.rs` (`PartialEq<str> for JsString`, `JsStrLike::equals_units` for `str`): a JS
+  string is compared with a `str` as `equals_units` does: an ASCII `str` of another length, or
+  whose ASCII first byte is not the first code unit, differs at once, without encoding it to
+  UTF-16 (names are compared with `"undefined"`, `"arguments"`, ... everywhere).
+- `jscomp/abstract_peephole_optimization.rs` (`has_new_features`, `may_add_features`),
+  `peephole_optimizations_pass.rs`: after an `optimizeSubtree` call the pass asks whether the
+  optimization added features without copying them into a list, and not for the optimizations
+  that declare they never add any (`may_add_features` false: the peephole optimizations of the
+  default passes other than PeepholeRemoveDeadCode and OptimizeLetAndConstPeephole;
+  `add_feature_to_enclosing_script` checks the declaration).
+- `jscomp/inline_simple_methods.rs` (`UnitSignatures`, `InlineSimpleMethodsCache`,
+  `process_with_unit_cache`), `compiler.rs`: what the two walks of InlineSimpleMethods find in a
+  top-level unit (a statement of a script, or a whole script) is kept between runs: the
+  `GatherSignatures` events in walk order (a definition of a function, a name that is not
+  inlineable, a renamed property; whether the name is already not inlineable is looked at when
+  the events are applied, in unit order, as one walk applies them) and the calls in the order
+  `InlineTrivialAccessors` visits them. A unit is walked again when it or a function in it
+  changed (`SyntacticScopeCache::cached_subtree_stamp`), when its parent changed or when the
+  extern property set is another one; the calls of the units of the sources are then visited in
+  unit order, which is the order of the walk (a visit changes the tree only at its call, so the
+  later calls are where the walk finds them, and the walk visits no node a visit makes). Java
+  walks the whole program twice in every run. `CLOSURE_RS_ISM_CACHE=off` runs the two walks;
+  `=verify` walks every unit and compares the events and calls with the kept ones.
+- `jscomp/flow_sensitive_inline_variables.rs` (`FlowInlineCleanCache::clean_deep`, `CleanKey`):
+  the record of a function FlowSensitiveInlineVariables inlined nothing into (and refused nothing
+  for a name of an outer scope) is kept for functions with functions in them too, under their
+  `DeepFunctionStamp` (with in-place flags): which of the function's variables the nested
+  functions use decides what may be inlined (`computeEscaped`), and everything else the work
+  reads lies in the function's own change scope or in the environment the cache already checks;
+  a refusal for an outer name is the one input from outside, and such a function is not
+  recorded (Java analyses every function again). `CLOSURE_RS_FSIV_CACHE=off` keeps no records;
+  `=verify` works on every function a record would skip (without the screen) and checks that it
+  inlines nothing.
+- `jscomp/unit_cache.rs` (`UnitStamps`, `UnitCache`), `dead_assignments_elimination.rs`
+  (`DaeUnitRecord`, `collect_candidates_with_unit_cache`), `compiler.rs`, `lib.rs`: the leaf
+  functions with a removable assignment that DeadAssignmentsElimination's candidate walk finds in
+  a top-level unit (a statement of a script or module body) are kept between runs, with the change
+  stamps of the unit and of every function in it and the unit's parent; the change cutoff is
+  applied when they are read. A unit is walked again when one of the stamps advanced (Java walks
+  the whole program in every run). `CLOSURE_RS_DAE_UNIT_CACHE=off` walks it all;
+  `=verify` walks every unit and compares with the kept list.
+- `jscomp/flow_sensitive_inline_variables.rs` (`FsivUnitRecord`,
+  `collect_candidates_with_unit_cache`), `compiler.rs`: the candidate functions (with their
+  analysis kind and whether they are leaves) that FlowSensitiveInlineVariables' walk finds in a
+  top-level unit of a script that is no externs are kept between runs under `UnitStamps`, as for
+  DeadAssignmentsElimination. `CLOSURE_RS_FSIV_UNIT_CACHE=off` walks it all; `=verify` walks
+  every unit and compares with the kept list.
+- `jscomp/inline_functions.rs` (`FunctionFactsCache::candidate_units`,
+  `find_candidate_functions_with_unit_cache`): the `FindCandidateFunctions` events of a top-level
+  unit (a statement of a script, or a script with a module body), as the parallel walk scans them
+  (`scan_candidate_functions_unit`), are kept between runs under `UnitStamps` and whether the
+  reach includes globals; every unit's events are replayed in unit order, as the parallel walk
+  replays its runs of statements (Java walks the whole program in every run).
+  `CLOSURE_RS_INLINE_FUNCTIONS_UNIT_CACHE=off` walks it all; `=verify` scans every unit and
+  compares the events with the kept ones.
+- `jscomp/inline_functions.rs` (`KeptSite::result`, `add_kept_reference`, `supplier_calls`): the
+  kept answers of InlineFunctions' call sites include those that can be inlined: the
+  `canInlineReferenceToFunction` result is kept under the same stamps, and a current one adds the
+  reference (with the scope it is made with) without asking again; most such sites stay
+  uninlined over several runs (cost, conflicts). No answer is kept whose computation asked the
+  compiler's unique name supplier for a name (a block inlining check of a call with more arguments
+  than parameters in a function with inner functions): skipping it would shift every later unique
+  name. The pass wraps the supplier it hands the injector to count the names asked for.
+- `jscomp/inline_functions.rs` (`FunctionFactsCache::reference_units`,
+  `find_candidate_references_with_unit_cache`, `scan_reference_visits`): what the
+  `FindCandidatesReferences` walk may act on in a top-level unit, whatever the candidates (every
+  call, every name that is no candidate usage, the functions with a tagged template literal in
+  them), is kept in walk order under `UnitStamps`, and the visits of every unit are replayed in
+  unit order through the same visit code (Java walks the whole program again in every run).
+  Under `CLOSURE_RS_INLINE_FUNCTIONS_UNIT_CACHE`; `=verify` scans every unit and compares.
+- `jscomp/remove_unused_code.rs` (`LeafRecorder::outer_var_entry`): a recorder's entry for an
+  outer var is found through its index set (the same vars in the same order) instead of a linear
+  search of up to `MAX_LEAF_OUTER_VARS` entries whenever a var is marked not removable.
+- `jscomp/minimized_condition.rs` (`Slot`): the nodes Java makes while it measures the alternative
+  forms of a condition (NOT nodes, the complement of an AND or OR, a comparison with the negated
+  operator) are made only when the form they are in is built into the tree, with the source
+  information of the same node; the others, never attached in Java either, are not made. Node
+  ids are never printed, ordered or compared but for identity, and a built form holds each made
+  node once, as in Java.

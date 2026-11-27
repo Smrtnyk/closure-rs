@@ -38,6 +38,54 @@ use closure_rhino::{
 };
 use std::rc::Rc;
 
+/// Rust-only (performance divergence): the node of a `MeasuredNode`. Java makes the nodes of the
+/// alternative trees (`new Node(token).srcref(n)`: NOT nodes, the complement of an AND or OR, a
+/// comparison with the negated operator) while it measures them, and nearly all of them are
+/// never put in the tree. Here such a node is made only when the tree it is in is built
+/// (`build_replacement`), with the source information of the same node. The nodes made and never
+/// attached are unobservable (an arena id is never printed, ordered or compared but for
+/// identity), and a built tree holds each made node once, as in Java (it holds one of the two
+/// representations of each node of the condition).
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Slot {
+    /// A node of the tree.
+    Node(NodeId),
+    /// A node Java makes here: its token, and the node it takes its source information from.
+    New { token: Token, src: NodeId },
+}
+
+impl Slot {
+    fn token(self, ast: &Ast) -> Token {
+        match self {
+            Slot::Node(n) => n.get_token(ast),
+            Slot::New { token, .. } => token,
+        }
+    }
+
+    /// The node a node made with `srcref(this)` takes its source information from.
+    fn src(self) -> NodeId {
+        match self {
+            Slot::Node(n) | Slot::New { src: n, .. } => n,
+        }
+    }
+
+    /// A node made here, with the source information of `of`.
+    fn new(token: Token, of: Slot) -> Slot {
+        Slot::New {
+            token,
+            src: of.src(),
+        }
+    }
+
+    /// The node itself, made now if it is a new one.
+    fn materialize(self, ast: &mut Ast) -> NodeId {
+        match self {
+            Slot::Node(n) => n,
+            Slot::New { token, src } => ast.new_node(token).srcref(ast, src),
+        }
+    }
+}
+
 /// Definitions of the style of minimization preferred.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MinimizationStyle {
@@ -94,7 +142,7 @@ impl MinimizedCondition {
     // port: MinimizedCondition#getMinimized
     pub fn get_minimized(&self, ast: &mut Ast, style: MinimizationStyle) -> MeasuredNode {
         if style == MinimizationStyle::PREFER_UNNEGATED
-            || self.positive.node.unwrap().is_not(ast)
+            || self.positive.node.unwrap().token(ast) == Token::NOT
             || self.positive.length <= self.negative.length
         {
             self.positive.clone()
@@ -111,7 +159,7 @@ impl MinimizedCondition {
     // port: MinimizedCondition#unoptimized
     pub fn unoptimized(ast: &Ast, n: NodeId) -> MinimizedCondition {
         check_not_null!(n.get_parent(ast));
-        let pos = MeasuredNode::new(Some(n), None, 0, false);
+        let pos = MeasuredNode::new(Some(Slot::Node(n)), None, 0, false);
         let neg = MeasuredNode::new(None, None, i32::MAX, true);
         MinimizedCondition::new(pos, neg)
     }
@@ -134,7 +182,11 @@ impl MinimizedCondition {
                 let first = n.get_first_child(ast).unwrap();
                 let subtree = Self::compute_minimized_condition(ast, first);
                 let positive = Self::pick_best(
-                    MeasuredNode::add_node(ast, n, std::slice::from_ref(&subtree.positive)),
+                    MeasuredNode::add_node(
+                        ast,
+                        Slot::Node(n),
+                        std::slice::from_ref(&subtree.positive),
+                    ),
                     subtree.negative.clone(),
                 );
                 let negative = Self::pick_best(
@@ -146,9 +198,10 @@ impl MinimizedCondition {
                 MinimizedCondition::new(positive, negative)
             }
             Token::AND | Token::OR => {
-                let complement_node = ast
-                    .new_node(if n.is_and(ast) { Token::OR } else { Token::AND })
-                    .srcref(ast, n);
+                let complement_node = Slot::new(
+                    if n.is_and(ast) { Token::OR } else { Token::AND },
+                    Slot::Node(n),
+                );
                 let first = n.get_first_child(ast).unwrap();
                 let left_subtree = Self::compute_minimized_condition(ast, first);
                 let last = n.get_last_child(ast).unwrap();
@@ -156,7 +209,7 @@ impl MinimizedCondition {
                 let positive = Self::pick_best(
                     MeasuredNode::add_node(
                         ast,
-                        n,
+                        Slot::Node(n),
                         &[
                             left_subtree.positive.clone(),
                             right_subtree.positive.clone(),
@@ -175,7 +228,7 @@ impl MinimizedCondition {
                 let negative = Self::pick_best(
                     MeasuredNode::add_node(
                         ast,
-                        n,
+                        Slot::Node(n),
                         &[left_subtree.positive, right_subtree.positive],
                     )
                     .negate(ast),
@@ -196,7 +249,7 @@ impl MinimizedCondition {
                 let else_subtree = Self::compute_minimized_condition(ast, else_node);
                 let positive = MeasuredNode::add_node(
                     ast,
-                    n,
+                    Slot::Node(n),
                     &[
                         MeasuredNode::for_node(cond),
                         then_subtree.positive,
@@ -205,7 +258,7 @@ impl MinimizedCondition {
                 );
                 let negative = MeasuredNode::add_node(
                     ast,
-                    n,
+                    Slot::Node(n),
                     &[
                         MeasuredNode::for_node(cond),
                         then_subtree.negative,
@@ -220,12 +273,12 @@ impl MinimizedCondition {
                 let rhs_subtree = Self::compute_minimized_condition(ast, rhs);
                 let positive = MeasuredNode::add_node(
                     ast,
-                    n,
+                    Slot::Node(n),
                     &[MeasuredNode::for_node(lhs), rhs_subtree.positive],
                 );
                 let negative = MeasuredNode::add_node(
                     ast,
-                    n,
+                    Slot::Node(n),
                     &[MeasuredNode::for_node(lhs), rhs_subtree.negative],
                 );
                 MinimizedCondition::new(positive, negative)
@@ -242,7 +295,7 @@ impl MinimizedCondition {
 /// An AST-node along with some additional metadata.
 #[derive(Clone)]
 pub struct MeasuredNode {
-    node: Option<NodeId>,
+    node: Option<Slot>,
     length: i32,
     changed: bool,
     children: Option<Rc<[MeasuredNode]>>,
@@ -250,18 +303,13 @@ pub struct MeasuredNode {
 
 impl MeasuredNode {
     // port: MinimizedCondition.MeasuredNode#MeasuredNode
-    fn new(n: Option<NodeId>, children: Option<Rc<[MeasuredNode]>>, len: i32, ch: bool) -> Self {
+    fn new(n: Option<Slot>, children: Option<Rc<[MeasuredNode]>>, len: i32, ch: bool) -> Self {
         Self {
             node: n,
             children,
             length: len,
             changed: ch,
         }
-    }
-
-    /// Rust-only: Java's package-private `node` field, read by `PeepholeMinimizeConditions`.
-    pub fn get_node(&self) -> Option<NodeId> {
-        self.node
     }
 
     /// Rust-only: Java's package-private `length` field, read by `PeepholeMinimizeConditions`.
@@ -276,7 +324,7 @@ impl MeasuredNode {
 
     // port: MinimizedCondition.MeasuredNode#isNot
     pub fn is_not(&self, ast: &Ast) -> bool {
-        self.node.unwrap().is_not(ast)
+        self.node.unwrap().token(ast) == Token::NOT
     }
 
     // port: MinimizedCondition.MeasuredNode#withoutNot
@@ -288,7 +336,7 @@ impl MeasuredNode {
 
     // port: MinimizedCondition.MeasuredNode#negate
     fn negate(&self, ast: &mut Ast) -> MeasuredNode {
-        match self.node.unwrap().get_token(ast) {
+        match self.node.unwrap().token(ast) {
             Token::EQ => self.update_token(ast, Token::NE),
             Token::NE => self.update_token(ast, Token::EQ),
             Token::SHEQ => self.update_token(ast, Token::SHNE),
@@ -299,11 +347,15 @@ impl MeasuredNode {
     }
 
     // port: MinimizedCondition.MeasuredNode#normalizeChildren
-    pub fn normalize_children(
+    fn normalize_children(
         ast: &Ast,
-        node: NodeId,
+        node: Slot,
         children: Option<Rc<[MeasuredNode]>>,
     ) -> Option<Rc<[MeasuredNode]>> {
+        // A new node always has its children (`add_node`, `update_token`).
+        let Slot::Node(node) = node else {
+            return children;
+        };
         if children.is_some() || !node.has_children(ast) {
             children
         } else {
@@ -321,7 +373,7 @@ impl MeasuredNode {
     // port: MinimizedCondition.MeasuredNode#updateToken
     fn update_token(&self, ast: &mut Ast, token: Token) -> MeasuredNode {
         let node = self.node.unwrap();
-        let new_node = ast.new_node(token).srcref(ast, node);
+        let new_node = Slot::new(token, node);
         MeasuredNode::new(
             Some(new_node),
             Self::normalize_children(ast, node, self.children.clone()),
@@ -332,7 +384,7 @@ impl MeasuredNode {
 
     // port: MinimizedCondition.MeasuredNode#addNot
     fn add_not(&self, ast: &mut Ast) -> MeasuredNode {
-        let not = ast.new_node(Token::NOT).srcref(ast, self.node.unwrap());
+        let not = Slot::new(Token::NOT, self.node.unwrap());
         Self::add_node(ast, not, std::slice::from_ref(self)).change()
     }
 
@@ -353,12 +405,13 @@ impl MeasuredNode {
     ///
     /// Returns the number of negations and parentheses in the node.
     // port: MinimizedCondition.MeasuredNode#estimateCostOneLevel
-    fn estimate_cost_one_level(ast: &Ast, n: NodeId, children: &[MeasuredNode]) -> i32 {
+    fn estimate_cost_one_level(ast: &Ast, n: Slot, children: &[MeasuredNode]) -> i32 {
         let mut cost: i32 = 0;
-        if n.is_not(ast) {
+        let token = n.token(ast);
+        if token == Token::NOT {
             cost += 1; // A negation is needed.
         }
-        let parent_precedence = NodeUtil::precedence(n.get_token(ast));
+        let parent_precedence = NodeUtil::precedence(token);
         for child in children {
             if child.is_lower_precedence_than(ast, parent_precedence) {
                 cost += 2; // A pair of parenthesis is needed.
@@ -370,12 +423,12 @@ impl MeasuredNode {
     /// Whether the node type has lower precedence than "precedence"
     // port: MinimizedCondition.MeasuredNode#isLowerPrecedenceThan
     pub fn is_lower_precedence_than(&self, ast: &Ast, precedence: i32) -> bool {
-        NodeUtil::precedence(self.node.unwrap().get_token(ast)) < precedence
+        NodeUtil::precedence(self.node.unwrap().token(ast)) < precedence
     }
 
     /// The returned MeasuredNode is only marked as changed if the children are marked as changed.
     // port: MinimizedCondition.MeasuredNode#addNode
-    fn add_node(ast: &Ast, parent: NodeId, children: &[MeasuredNode]) -> MeasuredNode {
+    fn add_node(ast: &Ast, parent: Slot, children: &[MeasuredNode]) -> MeasuredNode {
         let mut cost: i32 = 0;
         let mut changed = false;
         for child in children {
@@ -390,14 +443,14 @@ impl MeasuredNode {
     /// nodes.
     // port: MinimizedCondition.MeasuredNode#forNode
     fn for_node(n: NodeId) -> MeasuredNode {
-        MeasuredNode::new(Some(n), None, 0, false)
+        MeasuredNode::new(Some(Slot::Node(n)), None, 0, false)
     }
 
     /// Whether the MeasuredNode is a change from the original. This can either be a change within
     /// the original AST tree or a replacement of the original node.
     // port: MinimizedCondition.MeasuredNode#willChange
     pub fn will_change(&self, original: NodeId) -> bool {
-        Some(original) != self.node || self.is_changed()
+        Some(Slot::Node(original)) != self.node || self.is_changed()
     }
 
     /// Update the AST for the result of this MeasuredNode. This can either be a change within the
@@ -424,7 +477,7 @@ impl MeasuredNode {
     /// of its position.
     // port: MinimizedCondition.MeasuredNode#buildReplacement
     pub fn build_replacement(&self, ast: &mut Ast) -> NodeId {
-        let node = self.node.unwrap();
+        let node = self.node.unwrap().materialize(ast);
         if let Some(children) = &self.children {
             node.detach_children(ast);
             for child in children.iter() {

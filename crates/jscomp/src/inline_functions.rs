@@ -66,6 +66,25 @@ static FUNCTION_FACTS_MODE: LazyLock<Option<bool>> =
         },
     );
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum UnitCacheMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_INLINE_FUNCTIONS_UNIT_CACHE=off` walks the whole program for candidate functions
+/// in every run (`FunctionFactsCache::candidate_units`); `=verify` scans every unit and compares
+/// with the kept events.
+static UNIT_CACHE_MODE: LazyLock<UnitCacheMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_INLINE_FUNCTIONS_UNIT_CACHE").as_deref() {
+            Ok("off") => UnitCacheMode::Off,
+            Ok("verify") => UnitCacheMode::Verify,
+            _ => UnitCacheMode::On,
+        },
+    );
+
 /// Rust-only (performance divergence): what `updateFunctionStateForInlining` computes from a
 /// candidate function's subtree and name, kept between runs of the pass (each computed when the
 /// pass first asks for it). These are functions of the subtree (nested functions included:
@@ -75,22 +94,33 @@ static FUNCTION_FACTS_MODE: LazyLock<Option<bool>> =
 #[derive(Default)]
 pub(crate) struct FunctionFactsCache {
     functions: IndexMap<NodeId, FunctionFacts>,
-    /// Rust-only (performance divergence): the call sites, by call node, candidate function and
-    /// whether the mode is DIRECT, that `maybeAddReferenceUsingMode` found it could not inline
-    /// (`NoInlineSite`).
-    no_inline_sites: IndexMap<(NodeId, NodeId, bool), NoInlineSite>,
+    /// Rust-only (performance divergence): the answers of `maybeAddReferenceUsingMode` for call
+    /// sites, by call node, candidate function and whether the mode is DIRECT (`KeptSite`).
+    kept_sites: IndexMap<(NodeId, NodeId, bool), KeptSite>,
+    /// Rust-only (performance divergence): the `FindCandidateFunctions` events of each top-level
+    /// unit (`scan_candidate_functions_unit`, a function of the unit's subtree, its script and
+    /// whether the reach includes globals) under the unit's `UnitStamps`, with that reach.
+    candidate_units: crate::unit_cache::UnitCache<(bool, Box<[CandidateFnEvent]>)>,
+    /// Rust-only (performance divergence): what `FindCandidatesReferences` visits in each
+    /// top-level unit that its visit may act on, whatever the candidates (`scan_reference_visits`):
+    /// every call, every name that is no candidate usage and the functions with a tagged template
+    /// literal, in walk order, under the unit's `UnitStamps`.
+    reference_units: crate::unit_cache::UnitCache<Box<[CandidateRefEvent]>>,
 }
 
-/// Rust-only (performance divergence): a call site that `maybeAddReferenceUsingMode` could not
-/// inline the candidate function into. Its answer is a function of the call site's surroundings
-/// up to the function around it (the size limit counts that function, nested functions
-/// included; the scope, loops, the statement and the arguments are inside it), or up to the
-/// statement of the script it is in, and of the candidate's subtree and facts (`FunctionFacts`),
-/// so it holds while both `DeepFunctionStamp`s are current. A statement of a script that moves
-/// stays outside loops and functions.
-struct NoInlineSite {
+/// Rust-only (performance divergence): what `maybeAddReferenceUsingMode` found for a call site
+/// and candidate function: that it could not inline it there (`NO`, the size limit or
+/// `canInlineReferenceToFunction`), or how it can (the reference it added). The answer is a
+/// function of the call site's surroundings up to the function around it (the size limit counts
+/// that function, nested functions included; the scope, loops, the statement and the arguments
+/// are inside it), or up to the statement of the script it is in, and of the candidate's subtree
+/// and facts (`FunctionFacts`), so it holds while both `DeepFunctionStamp`s are current. A
+/// statement of a script that moves stays outside loops and functions. An answer whose
+/// computation asked the compiler for a unique name is not kept (`supplier_calls`).
+struct KeptSite {
     site: Arc<DeepFunctionStamp>,
     target: Arc<DeepFunctionStamp>,
+    result: CanInlineResult,
 }
 
 #[derive(Clone, PartialEq)]
@@ -256,6 +286,11 @@ pub struct InlineFunctions {
 
     enforce_max_size_after_inlining: bool,
     max_size_after_inlining: i32,
+    /// Rust-only: how often the injector asked the compiler's unique name supplier for a name
+    /// (`FindCandidatesReferences::maybe_add_reference_using_mode` keeps no answer whose
+    /// computation asked: a kept answer skips the computation, and the names asked for later
+    /// would differ).
+    supplier_calls: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl InlineFunctions {
@@ -277,6 +312,15 @@ impl InlineFunctions {
 
         let function_argument_injector =
             Rc::new(FunctionArgumentInjector::new(compiler.get_ast_analyzer()));
+        // Rust-only: counts the names asked for (`supplier_calls`).
+        let supplier_calls = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let safe_name_id_supplier: Arc<dyn Fn() -> String + Send + Sync> = {
+            let supplier_calls = Arc::clone(&supplier_calls);
+            Arc::new(move || {
+                supplier_calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                safe_name_id_supplier()
+            })
+        };
         let injector = function_injector::Builder::new(compiler)
             .safe_name_id_supplier(safe_name_id_supplier)
             .assume_strict_this(assume_strict_this)
@@ -291,6 +335,7 @@ impl InlineFunctions {
             enforce_max_size_after_inlining: max_size_after_inlining
                 != CompilerOptions::UNLIMITED_FUN_SIZE_AFTER_INLINING,
             max_size_after_inlining,
+            supplier_calls,
         }
     }
 
@@ -970,6 +1015,278 @@ impl InlineFunctions {
     }
 }
 
+impl InlineFunctions {
+    /// Rust-only (performance divergence): `FindCandidateFunctions` with the events of the units
+    /// unchanged since the last run taken from `FunctionFactsCache::candidate_units`; the others
+    /// are scanned (on worker threads when there are many), and every unit's events are replayed
+    /// in unit order, as the parallel walk replays its runs of statements. The units are the
+    /// statements of the scripts (a script with a module body is one unit), each the only node of
+    /// an `InlineFnUnit` as `collect_inline_fn_units` makes them.
+    fn find_candidate_functions_with_unit_cache(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+    ) {
+        use crate::unit_cache::UnitStamps;
+        let reach_includes_globals = self.reach.includes_globals();
+        let units = cache_units(&compiler.ast, root);
+        UnitStamps::refresh(compiler, root);
+        let mut cache = std::mem::take(&mut compiler.inline_functions_facts.candidate_units);
+        let verify = *UNIT_CACHE_MODE == UnitCacheMode::Verify;
+        type Kept = Option<(UnitStamps, (bool, Box<[CandidateFnEvent]>))>;
+        let kept: Vec<Kept> = units
+            .iter()
+            .map(|unit| {
+                let node = unit.nodes[0];
+                let current = cache
+                    .get(compiler, node)
+                    .is_some_and(|(reach, _)| *reach == reach_includes_globals);
+                cache.take(node).filter(|_| current)
+            })
+            .collect();
+        let stale: Vec<usize> = (0..units.len())
+            .filter(|&i| verify || kept[i].is_none())
+            .collect();
+        type Scanned = Result<(Box<[CandidateFnEvent]>, Vec<NodeId>), ()>;
+        let threads = if compiler.ast.node_count() >= 20_000 {
+            crate::parallel_parse::parallel_thread_count(stale.len(), 2, 8)
+        } else {
+            1
+        };
+        let mut scanned: Vec<Option<Scanned>> = (0..stale.len()).map(|_| None).collect();
+        {
+            let ast = &compiler.ast;
+            let units = &units;
+            for batch in crate::parallel_parse::run_scoped_indexed(
+                "closure-inlinefn1",
+                threads,
+                &stale,
+                |_, &i| {
+                    let mut events = Vec::new();
+                    let mut functions = Vec::new();
+                    let ok = catch_unwind(AssertUnwindSafe(|| {
+                        scan_candidate_functions_unit_listing(
+                            ast,
+                            &units[i],
+                            reach_includes_globals,
+                            &mut events,
+                            &mut Some(&mut functions),
+                        );
+                    }))
+                    .is_ok();
+                    Some(if ok {
+                        Ok((events.into_boxed_slice(), functions))
+                    } else {
+                        Err(())
+                    })
+                },
+            ) {
+                for (idx, out) in batch {
+                    scanned[idx] = Some(out);
+                }
+            }
+        }
+        // Each unit's events, or `None` for a unit whose scan failed (walked instead, where the
+        // failure surfaces as in the walk of the whole tree).
+        let mut scanned = scanned.into_iter();
+        let mut entries: Vec<Option<(UnitStamps, Box<[CandidateFnEvent]>)>> =
+            Vec::with_capacity(units.len());
+        for (unit, kept) in units.iter().zip(kept) {
+            let node = unit.nodes[0];
+            let entry = if verify || kept.is_none() {
+                match scanned.next().unwrap().unwrap() {
+                    Ok((events, functions)) => {
+                        if let Some((_, (_, kept))) = &kept {
+                            assert!(
+                                *kept == events,
+                                "CLOSURE_RS_INLINE_FUNCTIONS_UNIT_CACHE=verify: the kept events \
+                                 of {} differ from a new scan\nkept {:?}\nnew  {:?}",
+                                node.to_string(&compiler.ast),
+                                kept,
+                                events
+                            );
+                        }
+                        Some((UnitStamps::of(compiler, node, &functions), events))
+                    }
+                    Err(()) => None,
+                }
+            } else {
+                kept.map(|(stamps, (_, events))| (stamps, events))
+            };
+            entries.push(entry);
+        }
+        let mut finder = FindCandidateFunctions::new(self, compiler, root);
+        let res = catch_unwind(AssertUnwindSafe(|| {
+            for (unit, entry) in units.iter().zip(&entries) {
+                match entry {
+                    Some((_, events)) => {
+                        for event in events.iter() {
+                            finder.replay_event(compiler, event.clone());
+                        }
+                    }
+                    None => {
+                        finder.current_script = unit.script;
+                        finder.current_chunk =
+                            unit.script.and_then(|s| chunk_of_script(compiler, s));
+                        for &node in &unit.nodes {
+                            finder.walk_node(compiler, node, unit.parent, true);
+                        }
+                    }
+                }
+            }
+        }));
+        if let Err(payload) = res {
+            NodeTraversal::throw_unexpected_exception_at(
+                compiler,
+                finder.current_script,
+                finder.current_node,
+                payload,
+            );
+        }
+        cache.replace(units.iter().zip(entries).filter_map(|(unit, entry)| {
+            let (stamps, events) = entry?;
+            Some((unit.nodes[0], stamps, (reach_includes_globals, events)))
+        }));
+        compiler.inline_functions_facts.candidate_units = cache;
+    }
+
+    /// Rust-only (performance divergence): `FindCandidatesReferences` with what its visit may act
+    /// on in the units unchanged since the last run taken from
+    /// `FunctionFactsCache::reference_units`; the others are scanned (`scan_reference_visits`, on
+    /// worker threads when there are many). The visits are replayed in unit order: every call
+    /// (`visitCallSite` looks at its callee), every name that is no candidate usage
+    /// (`checkNameUsage`) and every function with a tagged template literal in it, which is what
+    /// the walk of the whole tree acts on in that order (the set of functions with a tagged
+    /// template literal is empty again after each unit: an entry is the function around one,
+    /// visited after it in the unit).
+    fn find_candidate_references_with_unit_cache(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+    ) {
+        use crate::unit_cache::UnitStamps;
+        let units = cache_units(&compiler.ast, root);
+        UnitStamps::refresh(compiler, root);
+        let mut cache = std::mem::take(&mut compiler.inline_functions_facts.reference_units);
+        let verify = *UNIT_CACHE_MODE == UnitCacheMode::Verify;
+        let kept: Vec<Option<(UnitStamps, Box<[CandidateRefEvent]>)>> = units
+            .iter()
+            .map(|unit| {
+                let node = unit.nodes[0];
+                let current = cache.get(compiler, node).is_some();
+                cache.take(node).filter(|_| current)
+            })
+            .collect();
+        let stale: Vec<usize> = (0..units.len())
+            .filter(|&i| verify || kept[i].is_none())
+            .collect();
+        type Scanned = Result<(Box<[CandidateRefEvent]>, Vec<NodeId>), ()>;
+        let threads = if compiler.ast.node_count() >= 20_000 {
+            crate::parallel_parse::parallel_thread_count(stale.len(), 2, 8)
+        } else {
+            1
+        };
+        let mut scanned: Vec<Option<Scanned>> = (0..stale.len()).map(|_| None).collect();
+        {
+            let ast = &compiler.ast;
+            let units = &units;
+            for batch in crate::parallel_parse::run_scoped_indexed(
+                "closure-inlinefn2",
+                threads,
+                &stale,
+                |_, &i| {
+                    let mut events = Vec::new();
+                    let mut functions = Vec::new();
+                    let ok = catch_unwind(AssertUnwindSafe(|| {
+                        scan_reference_visits(ast, root, &units[i], &mut functions, &mut events);
+                    }))
+                    .is_ok();
+                    Some(if ok {
+                        Ok((events.into_boxed_slice(), functions))
+                    } else {
+                        Err(())
+                    })
+                },
+            ) {
+                for (idx, out) in batch {
+                    scanned[idx] = Some(out);
+                }
+            }
+        }
+        // Each unit's visits, or `None` for a unit whose scan failed (walked instead, where the
+        // failure surfaces as in the walk of the whole tree).
+        let mut scanned = scanned.into_iter();
+        let mut entries: Vec<Option<(UnitStamps, Box<[CandidateRefEvent]>)>> =
+            Vec::with_capacity(units.len());
+        for (unit, kept) in units.iter().zip(kept) {
+            let node = unit.nodes[0];
+            let entry = if verify || kept.is_none() {
+                match scanned.next().unwrap().unwrap() {
+                    Ok((events, functions)) => {
+                        if let Some((_, kept)) = &kept {
+                            assert!(
+                                *kept == events,
+                                "CLOSURE_RS_INLINE_FUNCTIONS_UNIT_CACHE=verify: the kept visits \
+                                 of {} differ from a new scan\nkept {:?}\nnew  {:?}",
+                                node.to_string(&compiler.ast),
+                                kept,
+                                events
+                            );
+                        }
+                        Some((UnitStamps::of(compiler, node, &functions), events))
+                    }
+                    Err(()) => None,
+                }
+            } else {
+                kept
+            };
+            entries.push(entry);
+        }
+        let mut ref_finder = FindCandidatesReferences::new(
+            compiler,
+            root,
+            &mut self.fns,
+            &self.anon_fns,
+            &mut self.injector,
+            self.enforce_max_size_after_inlining,
+            self.max_size_after_inlining,
+            Arc::clone(&self.supplier_calls),
+        );
+        let res = catch_unwind(AssertUnwindSafe(|| {
+            for (unit, entry) in units.iter().zip(&entries) {
+                match entry {
+                    Some((_, events)) => {
+                        for event in events.iter() {
+                            ref_finder.replay_event(compiler, event.clone());
+                        }
+                    }
+                    None => {
+                        ref_finder.current_script = unit.script;
+                        ref_finder.current_chunk =
+                            unit.script.and_then(|s| chunk_of_script(compiler, s));
+                        for &node in &unit.nodes {
+                            ref_finder.walk_node(compiler, node, unit.parent, None, root);
+                        }
+                    }
+                }
+            }
+        }));
+        if let Err(payload) = res {
+            NodeTraversal::throw_unexpected_exception_at(
+                compiler,
+                ref_finder.current_script,
+                ref_finder.current_node,
+                payload,
+            );
+        }
+        cache.replace(units.iter().zip(entries).filter_map(|(unit, entry)| {
+            let (stamps, events) = entry?;
+            Some((unit.nodes[0], stamps, events))
+        }));
+        compiler.inline_functions_facts.reference_units = cache;
+    }
+}
+
 impl CompilerPass for InlineFunctions {
     // port: InlineFunctions#process
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
@@ -985,7 +1302,9 @@ impl CompilerPass for InlineFunctions {
             Vec::new()
         };
         let threads = crate::parallel_parse::parallel_thread_count(parallel_units.len(), 2, 8);
-        if threads >= 2 {
+        if *UNIT_CACHE_MODE != UnitCacheMode::Off && root.is_root(compiler) {
+            self.find_candidate_functions_with_unit_cache(compiler, root);
+        } else if threads >= 2 {
             let reach_includes_globals = self.reach.includes_globals();
             let ast = &compiler.ast;
             let worker_batches = crate::parallel_parse::run_scoped_indexed(
@@ -1066,7 +1385,9 @@ impl CompilerPass for InlineFunctions {
         if self.fns.is_empty() {
             return; // Nothing left to do.
         }
-        if threads >= 2 {
+        if *UNIT_CACHE_MODE != UnitCacheMode::Off && root.is_root(compiler) {
+            self.find_candidate_references_with_unit_cache(compiler, root);
+        } else if threads >= 2 {
             let name_bloom = CallVisitor::<Inline<'_>>::build_name_bloom(&self.fns);
             let candidate_names: IndexSet<JsString> = self.fns.keys().cloned().collect();
             let anon_fns_ref = &self.anon_fns;
@@ -1114,6 +1435,7 @@ impl CompilerPass for InlineFunctions {
                 &mut self.injector,
                 self.enforce_max_size_after_inlining,
                 self.max_size_after_inlining,
+                Arc::clone(&self.supplier_calls),
             );
             let res = catch_unwind(AssertUnwindSafe(|| {
                 for (idx, item) in ordered.into_iter().enumerate() {
@@ -1153,6 +1475,7 @@ impl CompilerPass for InlineFunctions {
                 &mut self.injector,
                 self.enforce_max_size_after_inlining,
                 self.max_size_after_inlining,
+                Arc::clone(&self.supplier_calls),
             );
             let res = catch_unwind(AssertUnwindSafe(|| {
                 ref_finder.walk_node(compiler, root, None, None, root);
@@ -1224,6 +1547,38 @@ impl CompilerPass for InlineFunctions {
     }
 }
 
+/// Rust-only (performance divergence): the top-level units of `root` (a ROOT) whose walks are kept
+/// (`FunctionFactsCache::candidate_units`, `reference_units`): each statement of a script, or a
+/// script with a module body, as the only node of an `InlineFnUnit`.
+fn cache_units(ast: &Ast, root: NodeId) -> Vec<InlineFnUnit> {
+    let mut units = Vec::new();
+    let mut c = root.get_first_child(ast);
+    while let Some(script) = c {
+        if script.is_script(ast)
+            && let Some(first) = script.get_first_child(ast)
+            && !first.is_module_body(ast)
+        {
+            let mut st = Some(first);
+            while let Some(s) = st {
+                units.push(InlineFnUnit {
+                    script: Some(script),
+                    parent: Some(script),
+                    nodes: vec![s],
+                });
+                st = s.get_next(ast);
+            }
+        } else {
+            units.push(InlineFnUnit {
+                script: script.is_script(ast).then_some(script),
+                parent: Some(root),
+                nodes: vec![script],
+            });
+        }
+        c = script.get_next(ast);
+    }
+    units
+}
+
 fn chunk_of_script(compiler: &AbstractCompiler, script: NodeId) -> Option<JSChunk> {
     script
         .get_input_id(compiler)
@@ -1284,6 +1639,7 @@ fn collect_inline_fn_units(compiler: &AbstractCompiler, root: NodeId) -> Vec<Inl
     units
 }
 
+#[derive(Clone, PartialEq, Debug)]
 enum CandidateFnEvent {
     Named {
         node: NodeId,
@@ -1302,6 +1658,19 @@ fn scan_candidate_functions_unit(
     reach_includes_globals: bool,
     events: &mut Vec<CandidateFnEvent>,
 ) {
+    scan_candidate_functions_unit_listing(ast, unit, reach_includes_globals, events, &mut None);
+}
+
+/// `scan_candidate_functions_unit`, also listing every function it reaches in `functions` when
+/// given (for `UnitStamps`).
+fn scan_candidate_functions_unit_listing(
+    ast: &Ast,
+    unit: &InlineFnUnit,
+    reach_includes_globals: bool,
+    events: &mut Vec<CandidateFnEvent>,
+    functions: &mut Option<&mut Vec<NodeId>>,
+) {
+    #[allow(clippy::too_many_arguments)]
     fn walk(
         ast: &Ast,
         n: NodeId,
@@ -1310,8 +1679,14 @@ fn scan_candidate_functions_unit(
         reach_includes_globals: bool,
         current_script: Option<NodeId>,
         events: &mut Vec<CandidateFnEvent>,
+        functions: &mut Option<&mut Vec<NodeId>>,
     ) {
         let token = n.get_token(ast);
+        if token == Token::FUNCTION
+            && let Some(functions) = functions
+        {
+            functions.push(n);
+        }
         match token {
             Token::SCRIPT => {
                 let mut child = n.get_first_child(ast);
@@ -1324,6 +1699,7 @@ fn scan_candidate_functions_unit(
                         reach_includes_globals,
                         Some(n),
                         events,
+                        functions,
                     );
                     child = c.get_next(ast);
                 }
@@ -1346,6 +1722,7 @@ fn scan_candidate_functions_unit(
                     reach_includes_globals,
                     current_script,
                     events,
+                    functions,
                 );
                 walk(
                     ast,
@@ -1355,6 +1732,7 @@ fn scan_candidate_functions_unit(
                     reach_includes_globals,
                     current_script,
                     events,
+                    functions,
                 );
                 walk(
                     ast,
@@ -1364,6 +1742,7 @@ fn scan_candidate_functions_unit(
                     reach_includes_globals,
                     current_script,
                     events,
+                    functions,
                 );
             }
             Token::MODULE_BODY => {
@@ -1377,6 +1756,7 @@ fn scan_candidate_functions_unit(
                         reach_includes_globals,
                         current_script,
                         events,
+                        functions,
                     );
                     child = c.get_next(ast);
                 }
@@ -1394,6 +1774,7 @@ fn scan_candidate_functions_unit(
                     reach_includes_globals,
                     current_script,
                     events,
+                    functions,
                 );
                 walk(
                     ast,
@@ -1403,6 +1784,7 @@ fn scan_candidate_functions_unit(
                     reach_includes_globals,
                     current_script,
                     events,
+                    functions,
                 );
                 walk(
                     ast,
@@ -1412,6 +1794,7 @@ fn scan_candidate_functions_unit(
                     reach_includes_globals,
                     current_script,
                     events,
+                    functions,
                 );
                 return;
             }
@@ -1427,6 +1810,7 @@ fn scan_candidate_functions_unit(
                             reach_includes_globals,
                             current_script,
                             events,
+                            functions,
                         );
                     }
                     child = c.get_next(ast);
@@ -1443,6 +1827,7 @@ fn scan_candidate_functions_unit(
                                 reach_includes_globals,
                                 current_script,
                                 events,
+                                functions,
                             );
                         }
                         Token::COMPUTED_FIELD_DEF => {
@@ -1455,6 +1840,7 @@ fn scan_candidate_functions_unit(
                                     reach_includes_globals,
                                     current_script,
                                     events,
+                                    functions,
                                 );
                             }
                         }
@@ -1467,6 +1853,7 @@ fn scan_candidate_functions_unit(
                                 reach_includes_globals,
                                 current_script,
                                 events,
+                                functions,
                             );
                         }
                         _ => walk(
@@ -1477,6 +1864,7 @@ fn scan_candidate_functions_unit(
                             reach_includes_globals,
                             current_script,
                             events,
+                            functions,
                         ),
                     }
                     child = c.get_next(ast);
@@ -1496,6 +1884,7 @@ fn scan_candidate_functions_unit(
                         reach_includes_globals,
                         current_script,
                         events,
+                        functions,
                     );
                     child = c.get_next(ast);
                 }
@@ -1512,6 +1901,7 @@ fn scan_candidate_functions_unit(
                         reach_includes_globals,
                         current_script,
                         events,
+                        functions,
                     );
                     child = c.get_next(ast);
                 }
@@ -1572,10 +1962,12 @@ fn scan_candidate_functions_unit(
             reach_includes_globals,
             unit.script,
             events,
+            functions,
         );
     }
 }
 
+#[derive(Clone, PartialEq, Debug)]
 enum CandidateRefEvent {
     Call {
         call_node: NodeId,
@@ -1602,15 +1994,61 @@ fn scan_candidate_refs_unit(
     anon_fns: &IndexMap<NodeId, JsString>,
     events: &mut Vec<CandidateRefEvent>,
 ) {
-    struct Scanner<'a> {
+    scan_candidate_refs_unit_in(
+        ast,
+        root,
+        unit,
+        Some((name_bloom, candidate_names, anon_fns)),
+        &mut None,
+        events,
+    );
+}
+
+/// Rust-only (performance divergence): what `FindCandidatesReferences` visits in `unit` that its
+/// visit may act on, whatever the candidates: every call, every name that is no candidate usage
+/// (`checkNameUsage` returns for the others without effect) and the functions with a tagged
+/// template literal, in walk order, listing every function in `functions`.
+fn scan_reference_visits(
+    ast: &Ast,
+    root: NodeId,
+    unit: &InlineFnUnit,
+    functions: &mut Vec<NodeId>,
+    events: &mut Vec<CandidateRefEvent>,
+) {
+    scan_candidate_refs_unit_in(ast, root, unit, None, &mut Some(functions), events);
+}
+
+type CandidateFilter<'a> = (
+    [u64; 64],
+    &'a IndexSet<JsString>,
+    &'a IndexMap<NodeId, JsString>,
+);
+
+/// `scan_candidate_refs_unit` with the candidates' filter (`None`: `scan_reference_visits`).
+fn scan_candidate_refs_unit_in(
+    ast: &Ast,
+    root: NodeId,
+    unit: &InlineFnUnit,
+    filter: Option<CandidateFilter<'_>>,
+    functions: &mut Option<&mut Vec<NodeId>>,
+    events: &mut Vec<CandidateRefEvent>,
+) {
+    let empty_names = IndexSet::default();
+    let empty_anon = IndexMap::default();
+    let superset = filter.is_none();
+    let (name_bloom, candidate_names, anon_fns) =
+        filter.unwrap_or(([0; 64], &empty_names, &empty_anon));
+    struct Scanner<'a, 'f> {
         ast: &'a Ast,
         name_bloom: [u64; 64],
         candidate_names: &'a IndexSet<JsString>,
         anon_fns: &'a IndexMap<NodeId, JsString>,
         tagged_fns: IndexSet<NodeId>,
         events: &'a mut Vec<CandidateRefEvent>,
+        superset: bool,
+        functions: &'a mut Option<&'f mut Vec<NodeId>>,
     }
-    impl Scanner<'_> {
+    impl Scanner<'_, '_> {
         #[inline]
         fn may_contain_name(&self, name: &JsString) -> bool {
             let h = name.hash_code() as usize;
@@ -1627,6 +2065,11 @@ fn scan_candidate_refs_unit(
         ) {
             let ast = self.ast;
             let token = n.get_token(ast);
+            if token == Token::FUNCTION
+                && let Some(functions) = self.functions
+            {
+                functions.push(n);
+            }
             match token {
                 Token::SCRIPT => {
                     let mut child = n.get_first_child(ast);
@@ -1764,7 +2207,9 @@ fn scan_candidate_refs_unit(
             match token {
                 Token::OPTCHAIN_CALL | Token::CALL => {
                     let child = n.get_first_child(ast).unwrap();
-                    let matched = if child.is_name(ast) {
+                    let matched = if self.superset {
+                        true
+                    } else if child.is_name(ast) {
                         let name = child.get_string_ref(ast);
                         self.may_contain_name(name) && self.candidate_names.contains(name)
                     } else if child.is_function(ast) {
@@ -1797,8 +2242,8 @@ fn scan_candidate_refs_unit(
                 }
                 Token::NAME => {
                     let name = n.get_string_ref(ast);
-                    if self.may_contain_name(name)
-                        && self.candidate_names.contains(name)
+                    if (self.superset
+                        || (self.may_contain_name(name) && self.candidate_names.contains(name)))
                         && !InlineFunctions::is_candidate_usage(ast, n)
                     {
                         self.events.push(CandidateRefEvent::Name {
@@ -1834,6 +2279,8 @@ fn scan_candidate_refs_unit(
         anon_fns,
         tagged_fns: IndexSet::default(),
         events,
+        superset,
+        functions,
     };
     for &node in &unit.nodes {
         scanner.walk(node, unit.parent, None, root, unit.script);
@@ -2254,9 +2701,11 @@ struct FindCandidatesReferences<'a> {
     current_chunk: Option<JSChunk>,
     current_node: Option<NodeId>,
     /// Rust-only (performance divergence): the `DeepFunctionStamp` of each root of call sites and
-    /// candidate function taken in this run, and the kept stamps found current (`NoInlineSite`).
+    /// candidate function taken in this run, and the kept stamps found current (`KeptSite`).
     stamps_now: IndexMap<NodeId, Arc<DeepFunctionStamp>>,
     stamps_checked: IndexMap<NodeId, (Arc<DeepFunctionStamp>, bool)>,
+    /// Rust-only: `InlineFunctions::supplier_calls`.
+    supplier_calls: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl<'a> FindCandidatesReferences<'a> {
@@ -2313,6 +2762,7 @@ impl<'a> FindCandidatesReferences<'a> {
     }
 
     // port: InlineFunctions.FindCandidatesReferences#FindCandidatesReferences
+    #[allow(clippy::too_many_arguments)]
     fn new(
         compiler: &AbstractCompiler,
         root: NodeId,
@@ -2321,6 +2771,7 @@ impl<'a> FindCandidatesReferences<'a> {
         injector: &'a mut FunctionInjector,
         enforce_max_size_after_inlining: bool,
         max_size_after_inlining: i32,
+        supplier_calls: Arc<std::sync::atomic::AtomicU64>,
     ) -> Self {
         let name_bloom = CallVisitor::<Inline<'_>>::build_name_bloom(fns);
         let current_script = NodeUtil::get_enclosing_script(compiler, root);
@@ -2338,6 +2789,7 @@ impl<'a> FindCandidatesReferences<'a> {
             scope_memo: IndexMap::default(),
             stamps_now: IndexMap::default(),
             stamps_checked: IndexMap::default(),
+            supplier_calls,
             current_script,
             current_chunk,
             current_node: None,
@@ -2777,7 +3229,7 @@ impl<'a> FindCandidatesReferences<'a> {
         enclosing_fn: Option<NodeId>,
         scope_root: NodeId,
     ) -> bool {
-        // Rust-only (performance divergence): see `NoInlineSite`.
+        // Rust-only (performance divergence): see `KeptSite`.
         let site = (*FUNCTION_FACTS_MODE).and_then(|verify| {
             let root = Self::site_root(compiler, call_node, enclosing_fn)?;
             let fn_node = self.function_map[fn_key]
@@ -2793,31 +3245,47 @@ impl<'a> FindCandidatesReferences<'a> {
         if let Some((root, fn_node, key, verify)) = site
             && let Some(kept) = compiler
                 .inline_functions_facts
-                .no_inline_sites
+                .kept_sites
                 .get(&key)
-                .map(|kept| (Arc::clone(&kept.site), Arc::clone(&kept.target)))
+                .map(|kept| {
+                    (
+                        Arc::clone(&kept.site),
+                        Arc::clone(&kept.target),
+                        kept.result,
+                    )
+                })
             && self.is_current(compiler, root, &kept.0)
             && self.is_current(compiler, fn_node, &kept.1)
         {
-            if !verify {
+            if verify {
+                let result = self.add_reference_using_mode(
+                    compiler,
+                    fn_key,
+                    call_node,
+                    chunk,
+                    mode,
+                    enclosing_fn,
+                    scope_root,
+                );
+                assert!(
+                    result == kept.2,
+                    "InlineFunctions: the kept answer {:?} for a call site differs from a new \
+                     computation {:?}",
+                    kept.2,
+                    result
+                );
+                return result != CanInlineResult::NO;
+            }
+            if kept.2 == CanInlineResult::NO {
                 return false;
             }
-            let added = self.add_reference_using_mode(
-                compiler,
-                fn_key,
-                call_node,
-                chunk,
-                mode,
-                enclosing_fn,
-                scope_root,
-            );
-            assert!(
-                !added,
-                "InlineFunctions: a call site kept as not inlinable can be inlined"
-            );
-            return false;
+            self.add_kept_reference(compiler, fn_key, call_node, chunk, mode, scope_root, kept.2);
+            return true;
         }
-        let added = self.add_reference_using_mode(
+        let calls_before = self
+            .supplier_calls
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let result = self.add_reference_using_mode(
             compiler,
             fn_key,
             call_node,
@@ -2826,20 +3294,52 @@ impl<'a> FindCandidatesReferences<'a> {
             enclosing_fn,
             scope_root,
         );
-        if !added && let Some((root, fn_node, key, _)) = site {
-            let kept = NoInlineSite {
+        let asked_for_names = self
+            .supplier_calls
+            .load(std::sync::atomic::Ordering::Relaxed)
+            != calls_before;
+        if !asked_for_names && let Some((root, fn_node, key, _)) = site {
+            let kept = KeptSite {
                 site: self.stamp_now(compiler, root),
                 target: self.stamp_now(compiler, fn_node),
+                result,
             };
-            compiler
-                .inline_functions_facts
-                .no_inline_sites
-                .insert(key, kept);
+            compiler.inline_functions_facts.kept_sites.insert(key, kept);
         }
-        added
+        result != CanInlineResult::NO
     }
 
-    /// The Java method's body (see `maybe_add_reference_using_mode`).
+    /// Rust-only (performance divergence): what `add_reference_using_mode` does when the kept
+    /// answer `result` says the reference can be inlined (`KeptSite`): the reference it adds, with
+    /// the scope it makes for it.
+    #[allow(clippy::too_many_arguments)]
+    fn add_kept_reference(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        fn_key: &JsString,
+        call_node: NodeId,
+        chunk: Option<JSChunk>,
+        mode: InliningMode,
+        scope_root: NodeId,
+        result: CanInlineResult,
+    ) {
+        let scope = ensure_ancestor_scope(
+            compiler,
+            &mut self.scope_creator,
+            &mut self.scope_memo,
+            self.root,
+            scope_root,
+        );
+        let mut candidate = Reference::new(call_node, scope, chunk, mode);
+        candidate.set_requires_decomposition(result == CanInlineResult::AFTER_PREPARATION);
+        self.function_map
+            .get_mut(fn_key)
+            .unwrap()
+            .add_reference(candidate);
+    }
+
+    /// The Java method's body (see `maybe_add_reference_using_mode`); `NO` where Java returns
+    /// false, the `canInlineReferenceToFunction` answer of the reference it adds otherwise.
     #[allow(clippy::too_many_arguments)]
     fn add_reference_using_mode(
         &mut self,
@@ -2850,7 +3350,7 @@ impl<'a> FindCandidatesReferences<'a> {
         mode: InliningMode,
         enclosing_fn: Option<NodeId>,
         scope_root: NodeId,
-    ) -> bool {
+    ) -> CanInlineResult {
         let function_state = &self.function_map[fn_key];
         if self.enforce_max_size_after_inlining
             && InlineFunctions::target_size_after_inline_exceeds_limit(
@@ -2860,7 +3360,7 @@ impl<'a> FindCandidatesReferences<'a> {
                 function_state,
             )
         {
-            return false;
+            return CanInlineResult::NO;
         }
 
         let scope = ensure_ancestor_scope(
@@ -2888,10 +3388,8 @@ impl<'a> FindCandidatesReferences<'a> {
                 .get_mut(fn_key)
                 .unwrap()
                 .add_reference(candidate);
-            return true;
         }
-
-        false
+        result
     }
 }
 

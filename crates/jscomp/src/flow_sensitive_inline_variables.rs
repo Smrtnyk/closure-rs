@@ -56,7 +56,7 @@ use crate::node_util::NodeUtil;
 use crate::parallel_parse::ParallelAnalysisMode;
 use crate::scope::ScopeId;
 use crate::scope_creator::ScopeCreator;
-use crate::syntactic_scope_cache::SyntacticScopeCache;
+use crate::syntactic_scope_cache::{DeepFunctionStamp, SyntacticScopeCache};
 use crate::syntactic_scope_creator::{SyntacticScopeCreator, ensure_ancestor_scope};
 use crate::var::VarId;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
@@ -71,6 +71,24 @@ use std::sync::{Arc, LazyLock};
 static USE_CLEAN_CACHE: LazyLock<bool> =
     LazyLock::new(|| std::env::var("CLOSURE_RS_FSIV_CACHE").as_deref() != Ok("off"));
 
+/// `CLOSURE_RS_FSIV_CACHE=verify`: a function the clean records would skip is inlined into
+/// anyway, and must inline nothing.
+static VERIFY_CLEAN_CACHE: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_FSIV_CACHE").as_deref() == Ok("verify"));
+
+/// Rust-only (performance divergence): the stamp a function's clean record is taken under
+/// (`FlowInlineCleanCache`).
+#[derive(Clone)]
+enum CleanKey {
+    /// No record is taken (the cache is off).
+    None,
+    /// A leaf function: `SyntacticScopeCache::subtree_stamp_with_flags`.
+    Leaf((u32, u32)),
+    /// A function with functions in it: their stamps too (`DeepFunctionStamp`), as which of
+    /// its variables they use decides what may be inlined (`computeEscaped`).
+    Deep(Arc<DeepFunctionStamp>),
+}
+
 /// Rust-only (performance divergence): compiler-owned cache of unchanged leaf functions known to
 /// produce zero flow-sensitive inlines under the current purity environment (`AccessorSummary`,
 /// `has_reg_exp_global_references`, and `assume_getters_are_pure`). Per-function `SIDE_EFFECT_FLAGS`
@@ -81,6 +99,8 @@ pub(crate) struct FlowInlineCleanCache {
     has_reg_exp_global_references: bool,
     assume_getters_are_pure: bool,
     clean_leaves: IndexMap<NodeId, (u32, u32)>,
+    /// The same for functions with functions in them, under their `DeepFunctionStamp`.
+    clean_deep: IndexMap<NodeId, Arc<DeepFunctionStamp>>,
 }
 
 impl FlowInlineCleanCache {
@@ -100,10 +120,71 @@ impl FlowInlineCleanCache {
             || self.assume_getters_are_pure != assume_getters_are_pure
         {
             self.clean_leaves.clear();
+            self.clean_deep.clear();
         }
         self.accessor_summary = accessor_summary.cloned();
         self.has_reg_exp_global_references = has_reg_exp_global_references;
         self.assume_getters_are_pure = assume_getters_are_pure;
+    }
+
+    /// Whether `fn_node` has a clean record that still holds: it would inline nothing.
+    fn is_clean(compiler: &mut AbstractCompiler, fn_node: NodeId, is_leaf: bool) -> bool {
+        let own = SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node);
+        let cache = &compiler.flow_inline_clean_cache;
+        if is_leaf {
+            cache.clean_leaves.get(&fn_node) == Some(&own)
+        } else {
+            cache.clean_deep.get(&fn_node).is_some_and(|kept| {
+                compiler
+                    .syntactic_scope_cache
+                    .deep_function_stamp_is_current(own, kept)
+            })
+        }
+    }
+
+    /// The stamp to take `fn_node`'s clean record under, before its work.
+    fn key_now(compiler: &mut AbstractCompiler, fn_node: NodeId, is_leaf: bool) -> CleanKey {
+        if is_leaf {
+            CleanKey::Leaf(SyntacticScopeCache::subtree_stamp_with_flags(
+                compiler, fn_node,
+            ))
+        } else {
+            CleanKey::Deep(Arc::new(SyntacticScopeCache::deep_function_stamp(
+                compiler, fn_node,
+            )))
+        }
+    }
+
+    /// Records `fn_node` as clean (it inlined nothing and no inlining was refused for a name of
+    /// an outer scope) under `key`, unless it changed since the key was taken (`worked`: its work
+    /// ran in between).
+    fn record(compiler: &mut AbstractCompiler, fn_node: NodeId, key: &CleanKey, worked: bool) {
+        match key {
+            CleanKey::None => {}
+            CleanKey::Leaf(stamp) => {
+                if !worked
+                    || SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node) == *stamp
+                {
+                    compiler
+                        .flow_inline_clean_cache
+                        .clean_leaves
+                        .insert(fn_node, *stamp);
+                }
+            }
+            CleanKey::Deep(stamp) => {
+                if !worked || {
+                    let own = SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node);
+                    compiler
+                        .syntactic_scope_cache
+                        .deep_function_stamp_is_current(own, stamp)
+                } {
+                    compiler
+                        .flow_inline_clean_cache
+                        .clean_deep
+                        .insert(fn_node, Arc::clone(stamp));
+                }
+            }
+        }
     }
 }
 
@@ -191,13 +272,36 @@ impl SideEffectPredicate {
 
 /// Rust-only (performance divergence): `(fn_node, body, analysis, is_leaf)` of
 /// `collect_candidate_functions`.
-type CollectedCandidate = (NodeId, NodeId, InlineAnalysis, bool);
+pub(crate) type CollectedCandidate = (NodeId, NodeId, InlineAnalysis, bool);
+
+/// Rust-only (performance divergence): the candidate functions a walk finds in a top-level unit
+/// of a script that is no externs, in walk order (`collect_candidate_functions_in`): a function of
+/// the subtree alone.
+pub(crate) type FsivUnitRecord = Box<[CollectedCandidate]>;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum UnitCacheMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_FSIV_UNIT_CACHE=off` walks the whole program for candidates in every run
+/// (`FsivUnitRecord`); `=verify` walks every unit and compares with the kept record.
+static UNIT_CACHE_MODE: LazyLock<UnitCacheMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_FSIV_UNIT_CACHE").as_deref() {
+            Ok("off") => UnitCacheMode::Off,
+            Ok("verify") => UnitCacheMode::Verify,
+            _ => UnitCacheMode::On,
+        },
+    );
 
 /// A function can be ruled out before allocating a control-flow graph. A surviving
 /// replacement needs a definition and a non-loop read with the same spelling. Collisions
 /// in the two name masks only admit additional functions to the ordinary analysis.
-#[derive(Clone, Copy)]
-enum InlineAnalysis {
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum InlineAnalysis {
     NoCandidate,
     DeferUses,
     Full,
@@ -397,16 +501,36 @@ impl FlowSensitiveInlineVariables {
         n: NodeId,
         out: &mut Vec<CollectedCandidate>,
     ) -> bool {
+        Self::collect_candidate_functions_listing(ast, is_extern_script, n, out, &mut None)
+    }
+
+    /// `collect_candidate_functions_in`, also listing every function it reaches in `functions`
+    /// when given (for `UnitStamps`).
+    fn collect_candidate_functions_listing(
+        ast: &Ast,
+        is_extern_script: &dyn Fn(NodeId) -> bool,
+        n: NodeId,
+        out: &mut Vec<CollectedCandidate>,
+        functions: &mut Option<&mut Vec<NodeId>>,
+    ) -> bool {
         if n.is_script(ast) && is_extern_script(n) {
             return false;
         }
         match n.get_token(ast) {
             Token::FUNCTION => {
+                if let Some(functions) = functions {
+                    functions.push(n);
+                }
                 let fn_name = n.get_first_child(ast).unwrap();
                 let params = fn_name.get_next(ast).unwrap();
                 let body = params.get_next(ast).unwrap();
-                let params_has_nested =
-                    Self::collect_candidate_functions_in(ast, is_extern_script, params, out);
+                let params_has_nested = Self::collect_candidate_functions_listing(
+                    ast,
+                    is_extern_script,
+                    params,
+                    out,
+                    functions,
+                );
                 let slot = if body.is_block(ast) && Self::is_candidate_function(ast, n) {
                     let analysis = InlineAnalysis::for_body(ast, body, usize::MAX);
                     if !matches!(analysis, InlineAnalysis::NoCandidate) {
@@ -419,8 +543,13 @@ impl FlowSensitiveInlineVariables {
                 } else {
                     None
                 };
-                let body_has_nested =
-                    Self::collect_candidate_functions_in(ast, is_extern_script, body, out);
+                let body_has_nested = Self::collect_candidate_functions_listing(
+                    ast,
+                    is_extern_script,
+                    body,
+                    out,
+                    functions,
+                );
                 if let Some(idx) = slot {
                     out[idx].3 = !params_has_nested && !body_has_nested;
                 }
@@ -430,9 +559,27 @@ impl FlowSensitiveInlineVariables {
                 let class_name = n.get_first_child(ast).unwrap();
                 let extends_clause = class_name.get_next(ast).unwrap();
                 let body = extends_clause.get_next(ast).unwrap();
-                Self::collect_candidate_functions_in(ast, is_extern_script, extends_clause, out);
-                Self::collect_candidate_functions_in(ast, is_extern_script, class_name, out);
-                Self::collect_candidate_functions_in(ast, is_extern_script, body, out);
+                Self::collect_candidate_functions_listing(
+                    ast,
+                    is_extern_script,
+                    extends_clause,
+                    out,
+                    functions,
+                );
+                Self::collect_candidate_functions_listing(
+                    ast,
+                    is_extern_script,
+                    class_name,
+                    out,
+                    functions,
+                );
+                Self::collect_candidate_functions_listing(
+                    ast,
+                    is_extern_script,
+                    body,
+                    out,
+                    functions,
+                );
                 true
             }
             _ => {
@@ -440,8 +587,13 @@ impl FlowSensitiveInlineVariables {
                 let mut child = n.get_first_child(ast);
                 while let Some(c) = child {
                     let next = c.get_next(ast);
-                    has_nested |=
-                        Self::collect_candidate_functions_in(ast, is_extern_script, c, out);
+                    has_nested |= Self::collect_candidate_functions_listing(
+                        ast,
+                        is_extern_script,
+                        c,
+                        out,
+                        functions,
+                    );
                     child = next;
                 }
                 has_nested
@@ -488,6 +640,131 @@ impl FlowSensitiveInlineVariables {
         }
         let mut candidates = Vec::new();
         Self::collect_candidate_functions(compiler, root, &mut candidates);
+        candidates
+    }
+
+    /// Rust-only (performance divergence): what follows the work on `fn_node`: its clean record
+    /// when it inlined nothing and no inlining was refused for a name of an outer scope (and, for
+    /// `CLOSURE_RS_FSIV_CACHE=verify`, the check that a function a clean record skips inlined
+    /// nothing).
+    fn after_work(
+        compiler: &mut AbstractCompiler,
+        fn_node: NodeId,
+        key: &CleanKey,
+        did_inline: bool,
+        rejected_by_outer: bool,
+        verify_clean: &IndexSet<NodeId>,
+    ) {
+        check_state!(
+            !(did_inline && verify_clean.contains(&fn_node)),
+            "CLOSURE_RS_FSIV_CACHE=verify: FlowSensitiveInlineVariables inlined into %s, which its clean record skips",
+            fn_node.to_string(&compiler.ast)
+        );
+        if !did_inline && !rejected_by_outer {
+            FlowInlineCleanCache::record(compiler, fn_node, key, true);
+        }
+    }
+
+    /// Rust-only (performance divergence): `collect_candidates` with the candidates of the units
+    /// unchanged since the last run taken from their records (`FsivUnitRecord`); the others are
+    /// walked (on worker threads when there are many). The units are those of the parallel walk
+    /// of `collect_candidates`, whose concatenated candidates are those of a walk of `root`.
+    fn collect_candidates_with_unit_cache(
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+    ) -> Vec<CollectedCandidate> {
+        use crate::unit_cache::UnitStamps;
+        if !root.is_root(&compiler.ast) {
+            return Self::collect_candidates(compiler, root);
+        }
+        let mut units = Vec::new();
+        let mut script = root.get_first_child(&compiler.ast);
+        while let Some(s) = script {
+            if !s.is_script(&compiler.ast) {
+                units.push(s);
+            } else if !Self::is_extern_script(compiler, s) {
+                units.extend(crate::parallel_parse::statement_units(&compiler.ast, s));
+            }
+            script = s.get_next(&compiler.ast);
+        }
+        UnitStamps::refresh(compiler, root);
+        let mut cache = std::mem::take(&mut compiler.fsiv_unit_cache);
+        let verify = *UNIT_CACHE_MODE == UnitCacheMode::Verify;
+        let kept: Vec<Option<(UnitStamps, FsivUnitRecord)>> = units
+            .iter()
+            .map(|&unit| {
+                let current = cache.get(compiler, unit).is_some();
+                cache.take(unit).filter(|_| current)
+            })
+            .collect();
+        let stale: Vec<NodeId> = units
+            .iter()
+            .zip(&kept)
+            .filter(|(_, kept)| verify || kept.is_none())
+            .map(|(&unit, _)| unit)
+            .collect();
+        let walk = |ast: &Ast, unit: NodeId| {
+            let mut found = Vec::new();
+            let mut functions = Vec::new();
+            Self::collect_candidate_functions_listing(
+                ast,
+                &|_| false,
+                unit,
+                &mut found,
+                &mut Some(&mut functions),
+            );
+            (found.into_boxed_slice(), functions)
+        };
+        let threads = if *crate::parallel_parse::PARALLEL_ANALYSIS != ParallelAnalysisMode::Off
+            && compiler.ast.node_count() >= 50_000
+        {
+            crate::parallel_parse::parallel_thread_count(stale.len(), 2, 8)
+        } else {
+            1
+        };
+        let mut walked: Vec<Option<(FsivUnitRecord, Vec<NodeId>)>> =
+            (0..stale.len()).map(|_| None).collect();
+        {
+            let ast = &compiler.ast;
+            for batch in crate::parallel_parse::run_scoped_indexed(
+                "closure-fsiv",
+                threads,
+                &stale,
+                |_, &unit| Some(walk(ast, unit)),
+            ) {
+                for (idx, out) in batch {
+                    walked[idx] = Some(out);
+                }
+            }
+        }
+        let mut walked = walked.into_iter();
+        let mut records = Vec::with_capacity(units.len());
+        for (&unit, kept) in units.iter().zip(kept) {
+            let entry = match kept {
+                Some(kept) if !verify => kept,
+                kept => {
+                    let (found, functions) = walked.next().unwrap().unwrap();
+                    if let Some((_, kept)) = &kept {
+                        assert!(
+                            *kept == found,
+                            "CLOSURE_RS_FSIV_UNIT_CACHE=verify: the kept candidates of {} differ from \
+                             a new walk\nkept {:?}\nnew  {:?}",
+                            unit.to_string(&compiler.ast),
+                            kept,
+                            found
+                        );
+                    }
+                    (UnitStamps::of(compiler, unit, &functions), found)
+                }
+            };
+            records.push((unit, entry.0, entry.1));
+        }
+        let candidates = records
+            .iter()
+            .flat_map(|(_, _, found)| found.iter().copied())
+            .collect();
+        cache.replace(records);
+        compiler.fsiv_unit_cache = cache;
         candidates
     }
 
@@ -586,7 +863,7 @@ struct PreparedFlowJob {
     body: NodeId,
     analysis: InlineAnalysis,
     is_leaf: bool,
-    start_stamp: (u32, u32),
+    start_stamp: CleanKey,
     prepared: PreparedMustDef,
     catch_vars: IndexSet<VarId>,
     exported_local_names: IndexSet<JsString>,
@@ -690,7 +967,7 @@ impl PreparedFlowJob {
             body,
             analysis,
             is_leaf,
-            start_stamp: (0, 0),
+            start_stamp: CleanKey::None,
             prepared: PreparedMustDef::from_function_vars(&vars, &escaped),
             catch_vars,
             exported_local_names,
@@ -721,20 +998,28 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                     assume_getters_pure,
                 );
             }
-            let raw_candidates = Self::collect_candidates(compiler, root);
+            let raw_candidates = if *UNIT_CACHE_MODE == UnitCacheMode::Off {
+                Self::collect_candidates(compiler, root)
+            } else {
+                Self::collect_candidates_with_unit_cache(compiler, root)
+            };
             if raw_candidates.is_empty() {
                 return;
             }
             let mut candidates = Vec::with_capacity(raw_candidates.len());
+            // Rust-only: with `CLOSURE_RS_FSIV_CACHE=verify`, the functions a clean record skips.
+            let mut verify_clean = IndexSet::<NodeId>::default();
             for (fn_node, body, analysis, is_leaf) in raw_candidates {
-                let start_stamp = if use_cache && is_leaf {
-                    let stamp = SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node);
-                    if compiler.flow_inline_clean_cache.clean_leaves.get(&fn_node) == Some(&stamp) {
-                        continue;
+                let start_stamp = if use_cache {
+                    if FlowInlineCleanCache::is_clean(compiler, fn_node, is_leaf) {
+                        if !*VERIFY_CLEAN_CACHE {
+                            continue;
+                        }
+                        verify_clean.insert(fn_node);
                     }
-                    stamp
+                    FlowInlineCleanCache::key_now(compiler, fn_node, is_leaf)
                 } else {
-                    (0, 0)
+                    CleanKey::None
                 };
                 candidates.push((fn_node, body, analysis, is_leaf, start_stamp));
             }
@@ -753,8 +1038,50 @@ impl CompilerPass for FlowSensitiveInlineVariables {
             let mut scope_memo = IndexMap::default();
             let use_parallel =
                 crate::parallel_parse::parallel_thread_count(candidates.len(), 64, 8) > 1;
-            if !use_parallel {
-                for (fn_node, body, analysis, is_leaf, start_stamp) in candidates {
+            let mode = *crate::parallel_parse::PARALLEL_ANALYSIS;
+            let verify = mode == ParallelAnalysisMode::Verify;
+            if !use_parallel && !verify {
+                // Rust-only (performance divergence): without worker threads the candidates are
+                // screened on this thread, as on workers below (`verify` takes that path): the
+                // screen needs no scopes, which the candidates it rules out then never get; a
+                // leaf gets the clean-leaf record the work would give it.
+                if mode == ParallelAnalysisMode::On {
+                    let ast = &compiler.ast;
+                    let convention = compiler.get_coding_convention();
+                    let screened: Vec<bool> = candidates
+                        .iter()
+                        .map(|&(fn_node, body, analysis, is_leaf, _)| {
+                            crate::parallel_parse::catch_unwind_quietly(|| {
+                                PreparedFlowJob::screen(
+                                    ast,
+                                    convention,
+                                    can_continue_after_errors,
+                                    fn_node,
+                                    body,
+                                    analysis,
+                                    is_leaf,
+                                )
+                            })
+                            .flatten()
+                                == Some(false)
+                        })
+                        .collect();
+                    let mut rest = Vec::with_capacity(candidates.len());
+                    for (candidate, screened) in candidates.into_iter().zip(screened) {
+                        if !screened || verify_clean.contains(&candidate.0) {
+                            rest.push(candidate);
+                        } else {
+                            FlowInlineCleanCache::record(
+                                compiler,
+                                candidate.0,
+                                &candidate.4,
+                                false,
+                            );
+                        }
+                    }
+                    candidates = rest;
+                }
+                for (fn_node, body, analysis, _, start_stamp) in candidates {
                     let fn_scope = ensure_ancestor_scope(
                         compiler,
                         &mut scope_creator,
@@ -766,12 +1093,7 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                     if live_variables_analysis::MAX_VARIABLES_TO_ANALYZE
                         < block_scope.get_var_count(compiler)
                     {
-                        if use_cache && is_leaf {
-                            compiler
-                                .flow_inline_clean_cache
-                                .clean_leaves
-                                .insert(fn_node, start_stamp);
-                        }
+                        FlowInlineCleanCache::record(compiler, fn_node, &start_stamp, false);
                         continue;
                     }
                     let (did_inline, rejected_by_outer) = self.inline_function_body(
@@ -782,26 +1104,20 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                         block_scope,
                         analysis,
                     );
-                    if use_cache
-                        && is_leaf
-                        && !did_inline
-                        && !rejected_by_outer
-                        && SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node)
-                            == start_stamp
-                    {
-                        compiler
-                            .flow_inline_clean_cache
-                            .clean_leaves
-                            .insert(fn_node, start_stamp);
-                    }
+                    Self::after_work(
+                        compiler,
+                        fn_node,
+                        &start_stamp,
+                        did_inline,
+                        rejected_by_outer,
+                        &verify_clean,
+                    );
                 }
                 return;
             }
             // Rust-only (performance divergence): the candidates `PreparedFlowJob::screen` finds
             // nothing in need no scopes and no work, only the clean-leaf record a leaf would get
             // (with `verify`, they get both, and the work must find nothing).
-            let mode = *crate::parallel_parse::PARALLEL_ANALYSIS;
-            let verify = mode == ParallelAnalysisMode::Verify;
             let screened: IndexSet<NodeId> = if mode == ParallelAnalysisMode::Off {
                 IndexSet::default()
             } else {
@@ -839,13 +1155,10 @@ impl CompilerPass for FlowSensitiveInlineVariables {
             } else {
                 let mut rest = Vec::with_capacity(candidates.len() - screened.len());
                 for candidate in candidates {
-                    if !screened.contains(&candidate.0) {
+                    if !screened.contains(&candidate.0) || verify_clean.contains(&candidate.0) {
                         rest.push(candidate);
-                    } else if use_cache && candidate.3 {
-                        compiler
-                            .flow_inline_clean_cache
-                            .clean_leaves
-                            .insert(candidate.0, candidate.4);
+                    } else {
+                        FlowInlineCleanCache::record(compiler, candidate.0, &candidate.4, false);
                     }
                 }
                 rest
@@ -853,7 +1166,9 @@ impl CompilerPass for FlowSensitiveInlineVariables {
             const CHUNK_SIZE: usize = 4096;
             for chunk in candidates.chunks(CHUNK_SIZE) {
                 let mut jobs = Vec::with_capacity(chunk.len());
-                for &(fn_node, body, analysis, is_leaf, start_stamp) in chunk {
+                for (fn_node, body, analysis, is_leaf, start_stamp) in chunk {
+                    let (fn_node, body, analysis, is_leaf) = (*fn_node, *body, *analysis, *is_leaf);
+                    let start_stamp = start_stamp.clone();
                     let fn_scope = ensure_ancestor_scope(
                         compiler,
                         &mut scope_creator,
@@ -891,12 +1206,7 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                     if live_variables_analysis::MAX_VARIABLES_TO_ANALYZE
                         < block_scope.get_var_count(compiler)
                     {
-                        if use_cache && is_leaf {
-                            compiler
-                                .flow_inline_clean_cache
-                                .clean_leaves
-                                .insert(fn_node, start_stamp);
-                        }
+                        FlowInlineCleanCache::record(compiler, fn_node, &start_stamp, false);
                         continue;
                     }
                     let all_vars = NodeUtil::get_all_vars_declared_in_function(
@@ -965,18 +1275,14 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                             block_scope,
                             job.analysis,
                         );
-                        if use_cache
-                            && job.is_leaf
-                            && !did_inline
-                            && !rejected_by_outer
-                            && SyntacticScopeCache::subtree_stamp_with_flags(compiler, job.fn_node)
-                                == job.start_stamp
-                        {
-                            compiler
-                                .flow_inline_clean_cache
-                                .clean_leaves
-                                .insert(job.fn_node, job.start_stamp);
-                        }
+                        Self::after_work(
+                            compiler,
+                            job.fn_node,
+                            &job.start_stamp,
+                            did_inline,
+                            rejected_by_outer,
+                            &verify_clean,
+                        );
                     }
                     continue;
                 }
@@ -1010,16 +1316,18 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                             job.is_leaf,
                             job.start_stamp,
                         ));
-                    } else if use_cache && job.is_leaf {
-                        compiler
-                            .flow_inline_clean_cache
-                            .clean_leaves
-                            .insert(job.fn_node, job.start_stamp);
+                    } else {
+                        FlowInlineCleanCache::record(
+                            compiler,
+                            job.fn_node,
+                            &job.start_stamp,
+                            false,
+                        );
                     }
                 }
                 if !survivors.is_empty() {
                     scope_memo.clear();
-                    for (fn_node, body, analysis, is_leaf, start_stamp) in survivors {
+                    for (fn_node, body, analysis, _, start_stamp) in survivors {
                         let fn_scope = ensure_ancestor_scope(
                             compiler,
                             &mut scope_creator,
@@ -1037,18 +1345,14 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                             block_scope,
                             analysis,
                         );
-                        if use_cache
-                            && is_leaf
-                            && !did_inline
-                            && !rejected_by_outer
-                            && SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node)
-                                == start_stamp
-                        {
-                            compiler
-                                .flow_inline_clean_cache
-                                .clean_leaves
-                                .insert(fn_node, start_stamp);
-                        }
+                        Self::after_work(
+                            compiler,
+                            fn_node,
+                            &start_stamp,
+                            did_inline,
+                            rejected_by_outer,
+                            &verify_clean,
+                        );
                     }
                 }
             }

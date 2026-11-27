@@ -24,7 +24,6 @@
 use crate::{
     abstract_compiler::AbstractCompiler,
     abstract_peephole_optimization::{AbstractPeepholeOptimization, FastTokenFilter},
-    change_tracker::ChangeTracker,
     compiler_pass::CompilerPass,
     node_traversal::NodeTraversal,
     node_util::NodeUtil,
@@ -153,6 +152,8 @@ impl CompilerPass for PeepholeOptimizationsPass {
 /// user-provided sequence retains the ordinary loop.
 struct CandidateRules {
     tokens: [u16; Token::PLACEHOLDER3 as usize + 1],
+    /// The optimizations that may add features (`may_add_features`).
+    adds_features: u16,
     unrestricted: u16,
     name_always: u16,
     name_undefined: u16,
@@ -168,6 +169,7 @@ impl CandidateRules {
         }
         let mut rules = Box::new(Self {
             tokens: [0; Token::PLACEHOLDER3 as usize + 1],
+            adds_features: 0,
             unrestricted: 0,
             name_always: 0,
             name_undefined: 0,
@@ -177,6 +179,9 @@ impl CandidateRules {
         });
         for (index, optimization) in optimizations.iter().enumerate() {
             let bit = 1 << index;
+            if optimization.may_add_features() {
+                rules.adds_features |= bit;
+            }
             match optimization.candidate_tokens() {
                 Some(tokens) => {
                     for &token in tokens {
@@ -332,10 +337,11 @@ impl PeepWalker<'_> {
         n: NodeId,
         current_script: Option<NodeId>,
     ) {
-        if n != scope_node && ChangeTracker::is_change_scope_root(compiler, n) {
+        let token = n.get_token(compiler);
+        // `ChangeTracker::is_change_scope_root` of the token read once.
+        if n != scope_node && matches!(token, Token::SCRIPT | Token::FUNCTION) {
             return;
         }
-        let token = n.get_token(compiler);
         let script = if token == Token::SCRIPT {
             if Platform::is_thread_interrupted() {
                 self.last_script = Some(n);
@@ -379,15 +385,13 @@ impl PeepWalker<'_> {
             loop {
                 let i = candidates.trailing_zeros() as usize;
                 let optim = &mut self.peephole_optimizations[i];
-                let Some(result) = optim.optimize_subtree(compiler, current_node) else {
-                    if !optim.get_new_features().is_empty() {
-                        self.has_pending_features = true;
-                    }
-                    return;
-                };
-                if !optim.get_new_features().is_empty() {
+                let result = optim.optimize_subtree(compiler, current_node);
+                if rules.adds_features & (1 << i) != 0 && optim.has_new_features() {
                     self.has_pending_features = true;
                 }
+                let Some(result) = result else {
+                    return;
+                };
                 current_node = result;
                 next = i + 1;
                 if next >= self.peephole_optimizations.len() {
@@ -408,13 +412,13 @@ impl PeepWalker<'_> {
         for optim in &mut self.peephole_optimizations[next..] {
             match optim.optimize_subtree(compiler, current_node) {
                 Some(node) => {
-                    if !optim.get_new_features().is_empty() {
+                    if optim.has_new_features() {
                         self.has_pending_features = true;
                     }
                     current_node = node;
                 }
                 None => {
-                    if !optim.get_new_features().is_empty() {
+                    if optim.has_new_features() {
                         self.has_pending_features = true;
                     }
                     return;

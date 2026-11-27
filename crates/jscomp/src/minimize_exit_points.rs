@@ -58,6 +58,10 @@ impl AbstractPeepholeOptimization for MinimizeExitPoints {
         &mut self.fields
     }
 
+    fn may_add_features(&self) -> bool {
+        false
+    }
+
     fn get_class_name(&self) -> &'static str {
         "com.google.javascript.jscomp.MinimizeExitPoints"
     }

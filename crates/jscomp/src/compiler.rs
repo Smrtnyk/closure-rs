@@ -154,6 +154,15 @@ pub struct Compiler {
     pub(crate) optimize_calls_unit_cache: crate::optimize_calls::UnitReferenceCache,
     /// Kept facts of candidate functions of `InlineFunctions`.
     pub(crate) inline_functions_facts: crate::inline_functions::FunctionFactsCache,
+    /// What the walks of `InlineSimpleMethods` found in unchanged top-level statements.
+    pub(crate) inline_simple_methods_cache: crate::inline_simple_methods::InlineSimpleMethodsCache,
+    /// The leaf functions of unchanged top-level statements for `DeadAssignmentsElimination`.
+    pub(crate) dae_unit_cache:
+        crate::unit_cache::UnitCache<crate::dead_assignments_elimination::DaeUnitRecord>,
+    /// The candidate functions of unchanged top-level statements for
+    /// `FlowSensitiveInlineVariables`.
+    pub(crate) fsiv_unit_cache:
+        crate::unit_cache::UnitCache<crate::flow_sensitive_inline_variables::FsivUnitRecord>,
     accessor_summary: Option<Arc<crate::accessor_summary::AccessorSummary>>,
     unique_name_id: Arc<std::sync::atomic::AtomicI32>,
     unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier,
@@ -302,6 +311,9 @@ impl Compiler {
             inline_object_literals_clean_cache: Default::default(),
             optimize_calls_unit_cache: Default::default(),
             inline_functions_facts: Default::default(),
+            inline_simple_methods_cache: Default::default(),
+            dae_unit_cache: Default::default(),
+            fsiv_unit_cache: Default::default(),
             accessor_summary: None,
             unique_name_id: Arc::new(std::sync::atomic::AtomicI32::new(0)),
             unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier::default(),
@@ -1104,6 +1116,9 @@ impl Compiler {
             self.inline_vars_clean_cache = Default::default();
             self.inline_object_literals_clean_cache = Default::default();
             self.inline_functions_facts = Default::default();
+            self.inline_simple_methods_cache = Default::default();
+            self.dae_unit_cache = Default::default();
+            self.fsiv_unit_cache = Default::default();
             self.flow_inline_clean_cache = Default::default();
             self.remove_unused_code_cache = Default::default();
             self.function_reference_sites = Default::default();
@@ -1541,6 +1556,9 @@ impl Compiler {
         self.inline_vars_clean_cache = Default::default();
         self.inline_object_literals_clean_cache = Default::default();
         self.inline_functions_facts = Default::default();
+        self.inline_simple_methods_cache = Default::default();
+        self.dae_unit_cache = Default::default();
+        self.fsiv_unit_cache = Default::default();
         self.extern_and_js_root = Some(IR::root(self, &[externs, js]));
     }
     // port: Compiler#getChunkGraph
@@ -6198,6 +6216,9 @@ impl Compiler {
         self.inline_vars_clean_cache = Default::default();
         self.inline_object_literals_clean_cache = Default::default();
         self.inline_functions_facts = Default::default();
+        self.inline_simple_methods_cache = Default::default();
+        self.dae_unit_cache = Default::default();
+        self.fsiv_unit_cache = Default::default();
         self.js_root = Some(js_root);
         self.inputs_by_id.clear();
         self.excerpt_provider.files.lock().unwrap().clear();

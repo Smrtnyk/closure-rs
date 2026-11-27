@@ -331,6 +331,14 @@ impl JsStrLike for str {
         if units.len() > self.len() {
             return false;
         }
+        // Rust-only (performance divergence): an ASCII first byte is the first code unit, so a
+        // different first unit decides without looking at the rest of the str.
+        if let (Some(&first), Some(&unit)) = (self.as_bytes().first(), units.first())
+            && first.is_ascii()
+            && unit != u16::from(first)
+        {
+            return false;
+        }
         if self.is_ascii() {
             return ascii_units_eq(units, self);
         }
@@ -468,15 +476,9 @@ impl PartialOrd for JsString {
 }
 impl PartialEq<str> for JsString {
     fn eq(&self, s: &str) -> bool {
-        // A str of n bytes has at most n UTF-16 code units (cheap early exit).
-        if self.as_units().len() > s.len() {
-            return false;
-        }
-        // Rust-only fast path: an ASCII str has one code unit per byte.
-        if self.as_units().len() == s.len() && s.is_ascii() {
-            return ascii_units_eq(self.as_units(), s);
-        }
-        self.as_units().iter().copied().eq(s.encode_utf16())
+        // Rust-only fast path (performance divergence): an ASCII str has one code unit per byte,
+        // so a string of another length differs without converting the str.
+        s.equals_units(self.as_units())
     }
 }
 impl PartialEq<&str> for JsString {

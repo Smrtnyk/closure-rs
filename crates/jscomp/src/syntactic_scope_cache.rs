@@ -497,6 +497,9 @@ impl SyntacticScopeCache {
             compiler.inline_object_literals_clean_cache = Default::default();
             compiler.optimize_calls_unit_cache = Default::default();
             compiler.inline_functions_facts = Default::default();
+            compiler.inline_simple_methods_cache = Default::default();
+            compiler.dae_unit_cache = Default::default();
+            compiler.fsiv_unit_cache = Default::default();
         }
         if !changed.is_empty() {
             let cache = &mut compiler.syntactic_scope_cache;
