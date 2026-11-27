@@ -81,7 +81,7 @@ pub(crate) static MODE: LazyLock<Mode> =
 const BASE: u32 = u32::MAX;
 
 /// The free references of a kept function, in the order they were added.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Default)]
 pub(crate) struct FreeSites {
     /// The first NAME of each spelling, in the order of the first references.
     pub(super) first_names: Box<[NodeId]>,
@@ -176,6 +176,29 @@ impl CleanSubtreeCache {
             cache(compiler).entries.swap_remove(&fn_node);
             None
         }
+    }
+}
+
+impl CleanSubtreeCache {
+    /// Keeps the leaf function `fn_node`, which `leaf_screen::screen` found clean with the free
+    /// references `free`, as `finish_frame` keeps a clean leaf a traversal left.
+    pub(super) fn keep_screened(
+        compiler: &mut AbstractCompiler,
+        cache: CacheOf,
+        fn_node: NodeId,
+        free: FreeSites,
+    ) {
+        let entry = CleanSubtree {
+            own: SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node),
+            nested: Arc::new([]),
+            is_declaration: NodeUtil::is_function_declaration(compiler, fn_node),
+            is_expression: NodeUtil::is_function_expression(compiler, fn_node),
+            is_arrow: fn_node.is_arrow_function(compiler),
+            // No function is declared in a leaf.
+            jump_free: true,
+            free: Arc::new(free),
+        };
+        cache(compiler).entries.insert(fn_node, entry);
     }
 }
 

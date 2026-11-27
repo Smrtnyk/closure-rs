@@ -1803,3 +1803,42 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   number of entries, which also counts the bins for the tree-bin check without a map (the
   multimap of PureFunctionIdentifier holds every name and property the program and the externs
   use).
+- `jscomp/reference_collector.rs` (`try_verify_bundled_externs_refer_only_to_externs`): the scan
+  that makes the summary of the externs without traversing them also takes a function with plain
+  parameters and an empty body (the extern stub of a user externs file), whose parameters are vars
+  of its own scope and whose declared name is checked like any other global name; such a file sent
+  the first InlineVariables run through a traversal of all externs (Java traverses them in every
+  run). `CLOSURE_RS_EXTERN_STUBS=off` leaves them to the traversal, `=verify` traverses the externs
+  whenever the scan took them and checks that the traversal makes the same summary.
+- `jscomp/reference_collector/leaf_screen.rs`, `reference_collector.rs` (`try_skip_clean_subtree`),
+  `clean_subtree.rs` (`keep_screened`): a leaf function that InlineVariables (`Mode::ALL`) reaches
+  without a kept clean entry, with plain parameters and a body with reference sites, is screened
+  from the `Ast`: when every variable declared in its body (or, in a normalized tree, in a block
+  of it) is refused by the cheap checks of `StandardVarExpert#analyze` / `#analyzeWithInitialValue`
+  and `canInline` (other basic blocks, a property read becoming a call target) before any check
+  that may inline it or look up an alias (parameters and a plain function's `arguments` are
+  refused at once), its scope exits change nothing and look up nothing, and it is kept with the
+  free references its traversal's frame would note (the sites of the spellings no scope of it
+  declares that resolve in the scope around it, with the blocks of the function, the body and the
+  blocks inside, and the first NAME of each such spelling that resolves to nothing) and skipped
+  like a function a traversal found clean (Java traverses it). Another name that may be an
+  implicit variable leaves the function to the traversal. `CLOSURE_RS_CLEAN_SEEDS=off` screens
+  nothing; under `CLOSURE_RS_CLEAN_SUBTREES=verify` a screened function is traversed and checked
+  like every kept one.
+- `jscomp/reference_collector.rs` (`try_skip_clean_subtree`, `resolve_kept`), `leaf_screen.rs`
+  (`LeafScreen`), `cross_chunk_reference_collector.rs`: a kept clean function whose free
+  references no longer resolve as recorded (CrossChunkCodeMotion's scopes leave out the externs, so
+  the clean functions it takes from InlineVariables fail at every extern name) is screened before
+  it is traversed; for CrossChunkReferenceCollector, whose scope exits do nothing, every leaf with
+  reference sites is clean and only its free references are made. Under `CLOSURE_RS_CLEAN_SEEDS`
+  and `CLOSURE_RS_CLEAN_SUBTREES` like the other screens.
+- `jscomp/reference_collector.rs` (`try_skip_clean_subtree`): a skipped clean function notes its
+  absent names in the frames of the functions around it, as its traversal does; the record of a
+  function around it then checks them too (before, a function recorded while a nested function was
+  skipped did not, and would have been skipped after a declaration of such a name appeared).
+- `jscomp/reference_collector/function_body.rs` (`FunctionBodySites::nested_names_escape`),
+  `reference_collector.rs` (`collect_body_from_sites`), `inline_variables.rs`, `leaf_screen.rs`: the
+  sites of a body in which a spelling declared by a `let` or `const` of a nested scope also occurs
+  outside that scope are not replayed (the replay binds a spelling once), nor used to tell declared
+  names from free ones. A normalized tree has unique declared names, but an undeclared name keeps
+  its spelling (`function f() { use(x); { let x = 1; g(x); } }` lost the inlining of the inner `x`).

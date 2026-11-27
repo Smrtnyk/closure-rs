@@ -20,6 +20,9 @@
 
 mod clean_subtree;
 mod function_body;
+mod leaf_screen;
+
+pub use leaf_screen::LeafScreen;
 
 pub(crate) use clean_subtree::{CacheOf, CleanSubtreeCache as KeptCleanSubtrees};
 use clean_subtree::{CleanSubtreeCache, Frame, FreeSites, FunctionFrame};
@@ -60,6 +63,25 @@ static DELEGATING_SITES: LazyLock<bool> =
 /// collected by the ordinary visitor instead of `replay_body_sites_with_jumps`.
 static REPLAY_JUMPS: LazyLock<bool> =
     LazyLock::new(|| std::env::var("CLOSURE_RS_REPLAY_JUMPS").as_deref() != Ok("off"));
+
+/// `CLOSURE_RS_EXTERN_STUBS`: whether the scan that makes the summary of the externs without a
+/// traversal (`try_verify_bundled_externs_refer_only_to_externs`) takes function stubs; `verify`
+/// traverses the externs whenever it did and checks that the traversal makes the same summary.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ExternStubs {
+    Off,
+    On,
+    Verify,
+}
+
+static EXTERN_STUBS: LazyLock<ExternStubs> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_EXTERN_STUBS").as_deref() {
+            Ok("off") => ExternStubs::Off,
+            Ok("verify") => ExternStubs::Verify,
+            _ => ExternStubs::On,
+        },
+    );
 
 /// A helper class for passes that want to access all information about where a variable is
 /// referenced and declared at once and then make a decision as to how it should be handled,
@@ -164,6 +186,11 @@ pub struct CollectorCallback<'a, B: Behavior> {
     /// anyway and its kept free references.
     verify_next: Option<(NodeId, std::sync::Arc<FreeSites>)>,
 }
+
+/// Rust-only (performance divergence): a free spelling of a kept clean function where it is skipped:
+/// its variable, whether the filter accepts it, its entry in the reference map once made and
+/// whether it may be a hoisted function the traversal jumps to (`try_skip_clean_subtree`).
+type KeptBinding = (VarId, bool, Option<usize>, bool);
 
 /// Rust-only (performance divergence): what a behavior's scope exit did, for the collector's
 /// clean function subtrees (`Behavior::take_scope_exit_report`).
@@ -421,19 +448,26 @@ impl<B: Behavior> CompilerPass for ReferenceCollector<'_, B> {
         {
             function_body::FunctionReferenceCache::precompute_parallel(compiler, root);
         }
+
         if callback.may_skip_externs && compiler.get_externs_root() == Some(externs) {
             // Rust-only (performance divergence): see `skip_externs_when_unread`.
             let version = ExternsReferenceSummary::externs_version(compiler, externs);
+            let mut scanned_only_externs = false;
             let cached_only_externs = match compiler.externs_reference_summary {
                 Some(summary) if summary.externs_version == version => {
                     Some(summary.refers_only_to_externs)
                 }
                 _ => {
-                    if try_verify_bundled_externs_refer_only_to_externs(
+                    let scanned = try_verify_bundled_externs_refer_only_to_externs(
                         compiler,
                         &mut **scope_creator,
                         externs,
-                    ) {
+                    );
+                    if scanned && *EXTERN_STUBS == ExternStubs::Verify {
+                        // `CLOSURE_RS_EXTERN_STUBS=verify`: the traversal below makes the summary.
+                        scanned_only_externs = true;
+                        None
+                    } else if scanned {
                         compiler.externs_reference_summary = Some(ExternsReferenceSummary {
                             externs_version: version,
                             refers_only_to_externs: true,
@@ -459,6 +493,11 @@ impl<B: Behavior> CompilerPass for ReferenceCollector<'_, B> {
                         .traverse_roots(externs, root);
                     let refers_only_to_externs =
                         callback.externs_refer_only_to_externs.take().unwrap();
+                    assert!(
+                        !scanned_only_externs || refers_only_to_externs,
+                        "CLOSURE_RS_EXTERN_STUBS=verify: the scan of the externs found that they \
+                         refer only to themselves, their traversal found that they do not"
+                    );
                     compiler.externs_reference_summary = Some(ExternsReferenceSummary {
                         externs_version: version,
                         refers_only_to_externs,
@@ -496,6 +535,35 @@ fn try_verify_bundled_externs_refer_only_to_externs(
     fn collect_global_only_names(ast: &Ast, n: NodeId, out: &mut Vec<NodeId>) -> bool {
         let token = n.get_token(ast);
         match token {
+            // Rust-only (performance divergence): a function with plain parameters and an empty
+            // body (the usual extern stub, `function F(a, b) {}` or `F.m = function(a) {};`)
+            // is scanned too (Java traverses all externs). Its parameters are vars of its own
+            // scope, declared in the externs; its body references nothing; the name of a
+            // declaration (which sits in a script, as blocks end the scan) is a global name
+            // checked like the others, the name of an expression a var of its own scope.
+            // `CLOSURE_RS_EXTERN_STUBS=off` leaves such externs to the traversal, `=verify`
+            // traverses them too and checks the summary it makes.
+            Token::FUNCTION if *EXTERN_STUBS != ExternStubs::Off => {
+                let name = n.get_first_child(ast).unwrap();
+                let params = name.get_next(ast).unwrap();
+                let body = params.get_next(ast).unwrap();
+                let fn_name = name.get_string_ref(ast);
+                if !body.is_block(ast)
+                    || body.has_children(ast)
+                    || params.children(ast).any(|p| {
+                        !p.is_name(ast)
+                            || p.has_children(ast)
+                            || p.get_string_ref(ast) == fn_name
+                            || p.get_string_ref(ast) == "arguments"
+                    })
+                {
+                    return false;
+                }
+                if !fn_name.is_empty() && NodeUtil::is_function_declaration(ast, n) {
+                    out.push(name);
+                }
+                return true;
+            }
             Token::FUNCTION
             | Token::CLASS
             | Token::BLOCK
@@ -730,9 +798,10 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             return true;
         }
         // A name declared in a nested scope is found by its spelling alone, which holds only
-        // while every declared name is unique.
+        // while every declared name is unique and no other name is spelled like it.
         if body.declares_in_nested_scopes
-            && !t.get_compiler().get_life_cycle_stage().is_normalized()
+            && (body.nested_names_escape
+                || !t.get_compiler().get_life_cycle_stage().is_normalized())
         {
             return false;
         }
@@ -1855,6 +1924,44 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         }
     }
 
+    /// Rust-only (performance divergence): per free spelling of a kept function, its variable in
+    /// `enclosing_scope`, whether the filter accepts it, its entry in the reference map once made
+    /// (none yet) and whether it may be a hoisted function the traversal jumps to; `None` when a
+    /// spelling no longer resolves or an absent name now does (`try_skip_clean_subtree`).
+    fn resolve_kept(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        enclosing_scope: ScopeId,
+        free: &FreeSites,
+    ) -> Option<Vec<KeptBinding>> {
+        let mut bindings: Vec<KeptBinding> = Vec::with_capacity(free.first_names.len());
+        for &name in &free.first_names {
+            t.position_at_node(name);
+            if !self.needs_name(t, name) {
+                return None;
+            }
+            let var = enclosing_scope.get_var_of_node(t.get_compiler(), name)?;
+            let may_jump = self.collect_hoisted_functions_in_reference_order
+                && var
+                    .get_parent_node(t.get_compiler())
+                    .is_some_and(|f| NodeUtil::is_hoisted_function_declaration(t, f));
+            bindings.push((var, false, None, may_jump));
+        }
+        for &name in &free.absent_names {
+            if enclosing_scope
+                .get_var_of_node(t.get_compiler(), name)
+                .is_some()
+            {
+                return None;
+            }
+        }
+        for binding in &mut bindings {
+            binding.1 = (self.var_filter)(t.get_compiler(), binding.0)
+                && self.behavior.needs_variable(t.get_compiler(), binding.0);
+        }
+        Some(bindings)
+    }
+
     /// Rust-only (performance divergence): skips `fn_node` when it is kept as clean and unchanged
     /// (`clean_subtree`): adds its declaration's name and its free references as its traversal
     /// would, with the basic block around it if it is a block boundary.
@@ -1875,41 +1982,32 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                     CleanSubtreeCache::current_jump_free(t.get_compiler(), fallback, fn_node)
                 })
         });
-        let Some((free, nested)) = kept else {
+        let kind = self.behavior.leaf_screen();
+        if kept.is_none() && kind == LeafScreen::None {
             return false;
-        };
+        }
         // Every spelling resolves in the scope around the function: no scope in it declares one.
         let enclosing_scope = t.get_scope();
-        // Per spelling: its variable, whether the filter accepts it, its entry in the reference
-        // map once made, and whether it may be a hoisted function the traversal jumps to.
-        let mut bindings: Vec<(VarId, bool, Option<usize>, bool)> =
-            Vec::with_capacity(free.first_names.len());
-        for &name in &free.first_names {
-            t.position_at_node(name);
-            if !self.needs_name(t, name) {
-                return false;
-            }
-            let Some(var) = enclosing_scope.get_var_of_node(t.get_compiler(), name) else {
-                return false;
-            };
-            let may_jump = self.collect_hoisted_functions_in_reference_order
-                && var
-                    .get_parent_node(t.get_compiler())
-                    .is_some_and(|f| NodeUtil::is_hoisted_function_declaration(t, f));
-            bindings.push((var, false, None, may_jump));
+        let mut bindings = kept
+            .as_ref()
+            .and_then(|(free, _)| self.resolve_kept(t, enclosing_scope, free));
+        // Rust-only (performance divergence): a leaf function found clean without a traversal
+        // (`leaf_screen`) is kept and skipped as one a traversal found clean; so is one whose kept
+        // free references no longer resolve as they did (those of another behavior may have
+        // resolved in other scopes).
+        let mut kept = kept;
+        if bindings.is_none()
+            && kind != LeafScreen::None
+            && leaf_screen::screen_and_keep(t.get_compiler(), cache, fn_node, enclosing_scope, kind)
+        {
+            kept = CleanSubtreeCache::current(t.get_compiler(), cache, fn_node);
+            bindings = kept
+                .as_ref()
+                .and_then(|(free, _)| self.resolve_kept(t, enclosing_scope, free));
         }
-        for binding in &mut bindings {
-            binding.1 = (self.var_filter)(t.get_compiler(), binding.0)
-                && self.behavior.needs_variable(t.get_compiler(), binding.0);
-        }
-        for &name in &free.absent_names {
-            if enclosing_scope
-                .get_var_of_node(t.get_compiler(), name)
-                .is_some()
-            {
-                return false;
-            }
-        }
+        let (Some((free, nested)), Some(mut bindings)) = (kept, bindings) else {
+            return false;
+        };
         if *clean_subtree::MODE == clean_subtree::Mode::Verify {
             self.verify_next = Some((fn_node, free));
             return false;
@@ -1941,6 +2039,13 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                     }
                     None => self.note_unresolved(fn_name),
                 }
+            }
+        }
+        // The names that resolve to nothing in the function are noted in the frames around it, as
+        // its traversal notes them (the record of a function around it depends on them too).
+        if !self.frames.is_empty() {
+            for &name in &free.absent_names {
+                self.note_unresolved(name);
             }
         }
         if has_free_refs {
@@ -2538,6 +2643,13 @@ pub trait Behavior {
         None
     }
 
+    /// Rust-only (performance divergence): for a behavior with `clean_subtree_cache` whose scope
+    /// exits `leaf_screen::screen` knows, which: a leaf function the traversal reaches without a
+    /// kept entry is then screened, and kept and skipped when found clean.
+    fn leaf_screen(&self) -> LeafScreen {
+        LeafScreen::None
+    }
+
     /// Rust-only (performance divergence): for a behavior with `clean_subtree_cache` whose
     /// traversal makes no jumps to hoisted functions, the kept clean functions of another
     /// behavior whose traversal makes them, which this one may use as its own when they were
@@ -2639,6 +2751,9 @@ impl<T: Behavior + ?Sized> Behavior for &mut T {
     }
     fn clean_subtree_fallback(&self) -> Option<CacheOf> {
         (**self).clean_subtree_fallback()
+    }
+    fn leaf_screen(&self) -> LeafScreen {
+        (**self).leaf_screen()
     }
     fn take_scope_exit_report(&mut self) -> ScopeExitReport {
         (**self).take_scope_exit_report()
