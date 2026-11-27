@@ -33,6 +33,16 @@ use closure_rhino::node::{Ast, NodeId};
 // port: ClosureCodeRemoval#ABSTRACT_METHOD_NAME
 pub const ABSTRACT_METHOD_NAME: &str = "goog.abstractMethod";
 
+/// `CLOSURE_RS_CLOSURE_CODE_REMOVAL_WALK=off` finds the removable code with a `NodeTraversal`;
+/// `=verify` finds it both ways and compares.
+static WALK_MODE: std::sync::LazyLock<Option<bool>> = std::sync::LazyLock::new(|| {
+    match std::env::var("CLOSURE_RS_CLOSURE_CODE_REMOVAL_WALK").as_deref() {
+        Ok("off") => None,
+        Ok("verify") => Some(true),
+        _ => Some(false),
+    }
+});
+
 /// Compiler pass that removes Closure-specific code patterns.
 ///
 /// Currently does the following:
@@ -143,6 +153,13 @@ impl Callback for FindAbstractMethods {
 
     // port: ClosureCodeRemoval.FindAbstractMethods#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
+        self.visit_node(t, n, parent);
+    }
+}
+
+impl FindAbstractMethods {
+    // port: ClosureCodeRemoval.FindAbstractMethods#visit
+    fn visit_node(&mut self, t: &Ast, n: NodeId, parent: Option<NodeId>) {
         if n.is_assign(t) {
             let name_node = n.get_first_child(t).unwrap();
             let value_node = n.get_last_child(t).unwrap();
@@ -210,17 +227,23 @@ impl Callback for FindAssertionCalls {
 
     // port: ClosureCodeRemoval.FindAssertionCalls#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        if !n.is_call(t) {
+        self.visit_node(t.get_compiler(), n);
+    }
+}
+
+impl FindAssertionCalls {
+    // port: ClosureCodeRemoval.FindAssertionCalls#visit
+    fn visit_node(&mut self, compiler: &AbstractCompiler, n: NodeId) {
+        if !n.is_call(compiler) {
             return;
         }
 
-        let callee = n.get_first_child(t).unwrap();
+        let callee = n.get_first_child(compiler).unwrap();
 
-        let compiler = t.get_compiler();
-        let (registry, ast) = compiler.get_type_registry_field_and_ast();
+        let (registry, ast) = (compiler.type_registry_if_present(), &compiler.ast);
         if self
             .assertion_names
-            .lookup_by_callee_with_optional_registry(ast, registry.as_deref(), callee)
+            .lookup_by_callee_with_optional_registry(ast, registry, callee)
             .is_some() // type-based
             || callee.get_color_ref(ast).is_some_and(|c| c.is_closure_assert())
         {
@@ -266,7 +289,54 @@ impl CompilerPass for ClosureCodeRemoval {
             assertion_calls: std::mem::take(&mut self.assertion_calls),
             ..FindAssertionCalls::new(compiler)
         });
-        {
+        let verify = *WALK_MODE == Some(true);
+        let (mut traversed_abstract, mut traversed_asserts) = (None, None);
+        if verify {
+            let mut abstract_methods = FindAbstractMethods {
+                abstract_method_assignment_nodes: Vec::new(),
+                abstract_member_function_nodes: Vec::new(),
+            };
+            let mut assertion_calls = self
+                .remove_assertion_calls
+                .then(|| FindAssertionCalls::new(compiler));
+            let mut passes: Vec<&mut dyn Callback> = Vec::new();
+            if self.remove_abstract_methods {
+                passes.push(&mut abstract_methods);
+            }
+            if let Some(pass) = assertion_calls.as_mut() {
+                passes.push(pass);
+            }
+            CombinedCompilerPass::traverse(compiler, root, passes);
+            traversed_abstract = Some(abstract_methods);
+            traversed_asserts = Some(assertion_calls.map(|pass| pass.assertion_calls));
+        }
+        if WALK_MODE.is_some() {
+            // Rust-only (performance divergence): both finders only read the tree and report
+            // nothing, so instead of a combined `NodeTraversal` (which visits every node after its
+            // children, in child order for what they collect) a plain post-order walk visits them.
+            let remove_abstract_methods = self.remove_abstract_methods;
+            let ast: &AbstractCompiler = compiler;
+            let mut pending = vec![(root, None, false)];
+            while let Some((n, parent, children_done)) = pending.pop() {
+                if !children_done {
+                    pending.push((n, parent, true));
+                    let first = pending.len();
+                    let mut child = n.get_first_child(ast);
+                    while let Some(c) = child {
+                        pending.push((c, Some(n), false));
+                        child = c.get_next(ast);
+                    }
+                    pending[first..].reverse();
+                    continue;
+                }
+                if remove_abstract_methods {
+                    find_abstract_methods.visit_node(ast, n, parent);
+                }
+                if let Some(pass) = find_assertion_calls.as_mut() {
+                    pass.visit_node(ast, n);
+                }
+            }
+        } else {
             let mut passes: Vec<&mut dyn Callback> = Vec::new();
             if self.remove_abstract_methods {
                 passes.push(&mut find_abstract_methods);
@@ -275,6 +345,21 @@ impl CompilerPass for ClosureCodeRemoval {
                 passes.push(pass);
             }
             CombinedCompilerPass::traverse(compiler, root, passes);
+        }
+        if let (Some(abstract_methods), Some(asserts)) = (traversed_abstract, traversed_asserts) {
+            let nodes =
+                |list: &[RemovableAssignment]| list.iter().map(|a| a.node).collect::<Vec<_>>();
+            assert!(
+                nodes(&abstract_methods.abstract_method_assignment_nodes)
+                    == nodes(&find_abstract_methods.abstract_method_assignment_nodes)
+                    && abstract_methods.abstract_member_function_nodes
+                        == find_abstract_methods.abstract_member_function_nodes
+                    && asserts
+                        == find_assertion_calls
+                            .as_ref()
+                            .map(|p| p.assertion_calls.clone()),
+                "ClosureCodeRemoval: the walk found other nodes than the traversal"
+            );
         }
         self.abstract_method_assignment_nodes =
             find_abstract_methods.abstract_method_assignment_nodes;

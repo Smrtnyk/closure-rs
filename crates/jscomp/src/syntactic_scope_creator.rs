@@ -36,9 +36,12 @@ pub struct SyntacticScopeCreator<'a> {
     redeclaration_handler: Box<dyn RedeclarationHandler + 'a>,
     treat_provides_as_redeclarations: bool,
     /// Rust-only (performance divergence): whether this creator's scopes are reused across passes,
-    /// true for the default redeclaration handler (which has no effects); see
-    /// `SyntacticScopeCache`.
+    /// true unless provides count as redeclarations; see `SyntacticScopeCache`.
     reusable: bool,
+    /// Rust-only (performance divergence): whether the redeclaration handler is the default one,
+    /// which has no effects. A creator with another handler reuses, and keeps, only scopes whose
+    /// scan called no handler, so that its handler would not have been called either.
+    default_handler: bool,
 }
 
 const ARGUMENTS: &str = "arguments";
@@ -56,7 +59,7 @@ impl<'a> SyntacticScopeCreator<'a> {
     pub fn new() -> Self {
         let mut creator =
             Self::new_with_redeclaration_handler(Box::new(DEFAULT_REDECLARATION_HANDLER));
-        creator.reusable = true;
+        creator.default_handler = true;
         creator
     }
 
@@ -75,7 +78,9 @@ impl<'a> SyntacticScopeCreator<'a> {
         Self {
             redeclaration_handler,
             treat_provides_as_redeclarations,
-            reusable: false,
+            reusable: !treat_provides_as_redeclarations
+                && *crate::syntactic_scope_cache::REDECLARATION_FREE_REUSE,
+            default_handler: false,
         }
     }
 }
@@ -103,17 +108,18 @@ impl SyntacticScopeCreator<'_> {
         // Rust-only (performance divergence): a scope that an earlier pass scanned from code nobody
         // has changed since is handed out again instead of being scanned anew (see
         // SyntacticScopeCache).
-        let context = if self.reusable {
+        let context = if self.reusable || self.default_handler {
             ScopeContext::of(compiler, n, parent)
         } else {
             None
         };
         if let Some(context) = &context
-            && let Some(scope) = SyntacticScopeCache::reuse(compiler, n, parent, context)
+            && let Some(scope) =
+                SyntacticScopeCache::reuse(compiler, n, parent, context, !self.default_handler)
         {
             if SyntacticScopeCache::verifying() {
-                let fresh = self.scan(compiler, n, parent, false);
-                SyntacticScopeCache::verify(compiler, scope, fresh);
+                let (fresh, redeclared) = self.scan(compiler, n, parent, false);
+                SyntacticScopeCache::verify(compiler, scope, fresh, redeclared);
             }
             return scope;
         }
@@ -123,14 +129,21 @@ impl SyntacticScopeCreator<'_> {
             0
         };
         // A global scope takes the declarations of unchanged scripts from the cache too.
-        let replay_scripts = context.as_ref().is_some_and(ScopeContext::is_global_root);
-        let scope = self.scan(compiler, n, parent, replay_scripts);
+        let replay_scripts =
+            self.default_handler && context.as_ref().is_some_and(ScopeContext::is_global_root);
+        let (scope, redeclared) = self.scan(compiler, n, parent, replay_scripts);
         if replay_scripts && SyntacticScopeCache::verifying() {
-            let fresh = self.scan(compiler, n, parent, false);
-            SyntacticScopeCache::verify(compiler, scope, fresh);
+            let (fresh, fresh_redeclared) = self.scan(compiler, n, parent, false);
+            assert_eq!(
+                redeclared, fresh_redeclared,
+                "syntactic scope cache: replayed redeclarations"
+            );
+            SyntacticScopeCache::verify(compiler, scope, fresh, redeclared);
         }
-        if let Some(context) = context {
-            SyntacticScopeCache::keep(compiler, n, scope, scanned_at, context);
+        if let Some(context) = context
+            && (self.default_handler || !redeclared)
+        {
+            SyntacticScopeCache::keep(compiler, n, scope, scanned_at, context, redeclared);
         }
         scope
     }
@@ -138,13 +151,14 @@ impl SyntacticScopeCreator<'_> {
     // port: SyntacticScopeCreator#createScope(Node, Scope)
     /// The Java method's body: a new scope scanned from `n` (Rust-only: `replay_scripts`, see
     /// `ScopeScanner::scan_script`).
+    /// Also returns whether the scan called the redeclaration handler.
     fn scan(
         &mut self,
         compiler: &mut AbstractCompiler,
         n: NodeId,
         parent: Option<ScopeId>,
         replay_scripts: bool,
-    ) -> ScopeId {
+    ) -> (ScopeId, bool) {
         let scope = match parent {
             None => ScopeId::create_global_scope(compiler, n),
             Some(parent) => ScopeId::create_child_scope(compiler, parent, n),
@@ -158,7 +172,7 @@ impl SyntacticScopeCreator<'_> {
         );
         scanner.replay_scripts = replay_scripts;
         scanner.populate(compiler);
-        scope
+        (scope, scanner.redeclared)
     }
 }
 
@@ -178,6 +192,8 @@ struct ScopeScanner<'a> {
     /// Rust-only (performance divergence): the declarations of the script being scanned, while
     /// recorded; None once a declaration went to another scope (the record is then not kept).
     recording: Option<Option<Vec<ScriptDeclaration>>>,
+    /// Rust-only (performance divergence): whether the redeclaration handler was called.
+    redeclared: bool,
 }
 
 impl<'a> ScopeScanner<'a> {
@@ -199,6 +215,7 @@ impl<'a> ScopeScanner<'a> {
             input_cache: None,
             replay_scripts: false,
             recording: None,
+            redeclared: false,
         }
     }
 
@@ -523,6 +540,7 @@ impl<'a> ScopeScanner<'a> {
             || ((s.is_function_scope(compiler) || s.is_function_block_scope(compiler))
                 && name == ARGUMENTS)
         {
+            self.redeclared = true;
             self.redeclaration_handler
                 .on_redeclaration(compiler, s, &name, n, input);
         } else {
@@ -561,6 +579,7 @@ impl<'a> ScopeScanner<'a> {
                         .and_then(|input_id| compiler.get_input(input_id))
                         .cloned();
                     let declaration = check_not_null!(existing.get_node(compiler));
+                    self.redeclared = true;
                     self.redeclaration_handler.on_redeclaration(
                         compiler,
                         s,

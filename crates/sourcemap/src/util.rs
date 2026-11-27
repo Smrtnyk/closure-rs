@@ -32,6 +32,12 @@ impl Util {
         table
     };
 
+    /// `SAFE_JSON_ASCII` without a table lookup.
+    #[inline(always)]
+    fn is_safe_json_ascii(u: u16) -> bool {
+        (u.wrapping_sub(0x20) < 0x60) & (u != 0x22) & (u != 0x3c) & (u != 0x3e) & (u != 0x5c)
+    }
+
     // port: Util#escapeString
     pub fn escape_string(s: impl Into<JsString>) -> JsString {
         let s = s.into();
@@ -61,6 +67,22 @@ impl Util {
             if c < 128 && Self::SAFE_JSON_ASCII[c as usize] {
                 let run_limit = (i + avail).min(n);
                 let mut j = i;
+                // Rust-only (performance divergence): eight units per step while all are safe; a
+                // fixed-size reduction lets LLVM test and narrow them together.
+                while j + 8 <= run_limit {
+                    let block: &[u16; 8] = units[j..j + 8].try_into().unwrap();
+                    if !block
+                        .iter()
+                        .fold(true, |all, &u| all & Self::is_safe_json_ascii(u))
+                    {
+                        break;
+                    }
+                    for (dst, &u) in buf[len..len + 8].iter_mut().zip(block) {
+                        *dst = u as u8;
+                    }
+                    len += 8;
+                    j += 8;
+                }
                 while j < run_limit {
                     let u = units[j];
                     if u >= 128 || !Self::SAFE_JSON_ASCII[u as usize] {
@@ -158,5 +180,44 @@ impl Util {
     #[allow(dead_code)]
     fn new() -> Self {
         Self
+    }
+}
+
+#[cfg(test)]
+mod escape_block_tests {
+    use super::*;
+
+    #[test]
+    fn safe_json_ascii_matches_the_table() {
+        for u in 0..=u16::MAX {
+            let table = u < 128 && Util::SAFE_JSON_ASCII[u as usize];
+            assert_eq!(Util::is_safe_json_ascii(u), table, "{u:#x}");
+        }
+    }
+
+    #[test]
+    fn block_escaping_matches_unit_escaping() {
+        let text = "abcdefgh\"ijklmnop\\qrstuvwx<yz</script>--> \u{7f}\u{80}\u{2028}tab\there\n0123456789abcdef";
+        for start in 0..text.len() {
+            let Some(tail) = text.get(start..) else {
+                continue;
+            };
+            let mut expected = String::from("\"");
+            for c in tail.encode_utf16() {
+                let mut one = String::new();
+                Util::write_escaped_string(&mut one, &JsString::from_units(vec![c])).unwrap();
+                expected.push_str(&one[1..one.len() - 1]);
+            }
+            expected.push('"');
+            let mut actual = String::new();
+            Util::write_escaped_string(&mut actual, &JsString::from(tail)).unwrap();
+            if !tail.contains('<') && !tail.contains('>') {
+                assert_eq!(actual, expected, "{tail:?}");
+            } else {
+                // The HTML sequences look at neighbouring units; compare with the escapes of the
+                // scalar path, which the blocks never take for '<' or '>'.
+                assert!(actual.starts_with('"') && actual.ends_with('"'));
+            }
+        }
     }
 }

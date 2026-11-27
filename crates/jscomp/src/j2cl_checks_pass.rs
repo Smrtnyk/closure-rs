@@ -112,14 +112,19 @@ impl Callback for J2clChecksPass {
     }
 
     // port: J2clChecksPass#visit
-    // port: J2clChecksPass#checkReferenceEquality
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
+        self.check_reference_equality(t.get_compiler(), n);
+    }
+}
+
+impl J2clChecksPass {
+    // port: J2clChecksPass#checkReferenceEquality
+    fn check_reference_equality(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
         // Rust-only (performance divergence): filter equality operators once and borrow each
         // operand's constructor source name once instead of allocating per pattern.
-        if !(n.is_sheq(t) || n.is_eq(t) || n.is_shne(t) || n.is_ne(t)) {
+        if !Self::is_equality(compiler, n) {
             return;
         }
-        let compiler = t.get_compiler();
         let first_js_type = n.get_first_child(compiler).unwrap().get_jstype(compiler);
         let last_js_type = n.get_last_child(compiler).unwrap().get_jstype(compiler);
         if first_js_type.is_none() && last_js_type.is_none() {
@@ -154,9 +159,48 @@ impl Callback for J2clChecksPass {
     }
 }
 
+impl J2clChecksPass {
+    fn is_equality(ast: &Ast, n: NodeId) -> bool {
+        n.is_sheq(ast) || n.is_eq(ast) || n.is_shne(ast) || n.is_ne(ast)
+    }
+}
+
+/// `CLOSURE_RS_J2CL_CHECKS_WALK=off` checks the equality operators in a `NodeTraversal`.
+static DIRECT_WALK: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+    std::env::var("CLOSURE_RS_J2CL_CHECKS_WALK").as_deref() != Ok("off")
+});
+
 impl CompilerPass for J2clChecksPass {
     // port: J2clChecksPass#process
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
-        NodeTraversal::traverse(compiler, root, self);
+        if !*DIRECT_WALK {
+            NodeTraversal::traverse(compiler, root, self);
+            return;
+        }
+        // Rust-only (performance divergence): the visitor acts on equality operators alone and
+        // changes no tree, so a plain walk lists them in the traversal's order (a node after its
+        // children, children in order) and each is checked after the walk, reporting in the same
+        // order.
+        let mut equalities = Vec::new();
+        let mut pending = vec![(root, false)];
+        while let Some((n, children_done)) = pending.pop() {
+            if children_done {
+                if Self::is_equality(compiler, n) {
+                    equalities.push(n);
+                }
+                continue;
+            }
+            pending.push((n, true));
+            let first = pending.len();
+            let mut child = n.get_first_child(compiler);
+            while let Some(c) = child {
+                pending.push((c, false));
+                child = c.get_next(compiler);
+            }
+            pending[first..].reverse();
+        }
+        for n in equalities {
+            self.check_reference_equality(compiler, n);
+        }
     }
 }

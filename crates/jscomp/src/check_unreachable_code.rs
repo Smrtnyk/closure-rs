@@ -36,7 +36,152 @@ use closure_rhino::{
     fast_hash::IndexSet,
     jscomp_base::tri::Tri,
     node::{Ast, NodeId},
+    token::Token,
 };
+use std::sync::LazyLock;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ShortcutMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_REACHABLE_SHORTCUT=off` computes every graph; `=verify` computes the graphs the
+/// shortcut skips too and checks that nothing in them is reported.
+static SHORTCUT_MODE: LazyLock<ShortcutMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_REACHABLE_SHORTCUT").as_deref() {
+            Ok("off") => ShortcutMode::Off,
+            Ok("verify") => ShortcutMode::Verify,
+            _ => ShortcutMode::On,
+        },
+    );
+
+/// Rust-only (performance divergence): whether the CFG root `root` needs no graph: every node of
+/// its control flow graph is reachable along the edges `CheckUnreachableCode::is_reachable`
+/// keeps, read from the statements alone; false when unsure. Java computes the graph and its
+/// reachability for every CFG root; when this holds no node is reported. It holds for every
+/// function `ControlFlowAnalysis::linear_function` accepts (statements run once, in order).
+///
+/// `ControlFlowAnalysis` makes graph nodes of the statements of statement lists, of the branches
+/// and bodies of control structures and of a loop's head parts; nested functions are none (a
+/// statement list and the search for the next statement pass over them). A node is reachable
+/// when the statements before it in its list can complete normally. Lists are read in order:
+/// `return`, `throw`, unlabeled `break` and `continue` do not complete normally, an `if`
+/// completes when one branch does, a loop always does (its condition can be false). The shortcut
+/// gives up on a statement after one that cannot complete, on a condition with a known boolean
+/// value (a branch is not followed), on a `for` without a condition, on a `for` whose increment
+/// follows only a body that cannot complete, and on `do`, `switch`, `try`, labels, `with`,
+/// labeled jumps and synthetic blocks, whose edges depend on more than this.
+pub(crate) fn needs_no_graph(ast: &Ast, root: NodeId) -> bool {
+    // Whether `n` can complete normally; None when unsure.
+    fn statement(ast: &Ast, n: NodeId) -> Option<bool> {
+        let token = n.get_token(ast);
+        match token {
+            Token::BLOCK => {
+                if n.is_synthetic_block(ast) {
+                    return None;
+                }
+                list(ast, n)
+            }
+            Token::ROOT | Token::SCRIPT | Token::MODULE_BODY => list(ast, n),
+            Token::EXPR_RESULT
+            | Token::VAR
+            | Token::LET
+            | Token::CONST
+            | Token::EMPTY
+            | Token::DEBUGGER
+            | Token::CLASS
+            | Token::IMPORT
+            | Token::EXPORT
+            | Token::RETURN
+            | Token::THROW => {
+                // `ControlFlowAnalysis` considers a TRY child before its parent, even in a
+                // malformed tree.
+                if n.children(ast).any(|child| child.is_try(ast)) {
+                    return None;
+                }
+                Some(!matches!(token, Token::RETURN | Token::THROW))
+            }
+            Token::BREAK | Token::CONTINUE => (!n.has_children(ast)).then_some(false),
+            Token::IF => {
+                let condition = n.get_first_child(ast)?;
+                if NodeUtil::get_boolean_value(ast, condition) != Tri::UNKNOWN {
+                    return None;
+                }
+                let then_branch = condition.get_next(ast)?;
+                let then_completes = statement(ast, then_branch)?;
+                let else_completes = match then_branch.get_next(ast) {
+                    Some(else_branch) => statement(ast, else_branch)?,
+                    None => true,
+                };
+                Some(then_completes || else_completes)
+            }
+            Token::WHILE => {
+                let condition = n.get_first_child(ast)?;
+                if NodeUtil::get_boolean_value(ast, condition) != Tri::UNKNOWN {
+                    return None;
+                }
+                statement(ast, condition.get_next(ast)?)?;
+                Some(true)
+            }
+            Token::FOR => {
+                let init = n.get_first_child(ast)?;
+                let condition = init.get_next(ast)?;
+                let increment = condition.get_next(ast)?;
+                let body = increment.get_next(ast)?;
+                if condition.is_empty(ast)
+                    || NodeUtil::get_boolean_value(ast, condition) != Tri::UNKNOWN
+                {
+                    return None;
+                }
+                if !statement(ast, body)? && !increment.is_empty(ast) {
+                    return None;
+                }
+                Some(true)
+            }
+            Token::FOR_IN | Token::FOR_OF | Token::FOR_AWAIT_OF => {
+                statement(ast, n.get_last_child(ast)?)?;
+                Some(true)
+            }
+            _ => None,
+        }
+    }
+    // Whether the statements of `n` can complete normally; None when unsure.
+    fn list(ast: &Ast, n: NodeId) -> Option<bool> {
+        let mut completes = true;
+        for child in n.children(ast) {
+            if child.is_function(ast) {
+                continue;
+            }
+            if !completes {
+                return None;
+            }
+            completes = statement(ast, child)?;
+        }
+        Some(completes)
+    }
+    match root.get_token(ast) {
+        Token::FUNCTION => {
+            let Some(body) = root.get_last_child(ast) else {
+                return false;
+            };
+            !body.is_block(ast) || (!body.is_synthetic_block(ast) && list(ast, body).is_some())
+        }
+        Token::ROOT | Token::SCRIPT | Token::MODULE_BODY | Token::BLOCK => {
+            list(ast, root).is_some()
+        }
+        _ => false,
+    }
+}
+
+/// Rust-only (performance divergence): whether the shortcut settles the CFG root `root` without
+/// a graph (`needs_no_graph`, unless `CLOSURE_RS_REACHABLE_SHORTCUT=off`). Neither the traversal
+/// nor the worker precheck builds a graph for such a root.
+pub(crate) fn settled_without_graph(ast: &Ast, root: NodeId) -> bool {
+    *SHORTCUT_MODE != ShortcutMode::Off && needs_no_graph(ast, root)
+}
 
 // port: CheckUnreachableCode#UNREACHABLE_CODE
 pub static UNREACHABLE_CODE: DiagnosticType =
@@ -78,8 +223,9 @@ impl CheckUnreachableCode<'_> {
     /// `get_control_flow_graph` and `initScope` do, and keep the roots without such a node. The
     /// traversal skips the graph of those (`AbstractCfgCallback::is_current_cfg_skipped`) and
     /// computes the others as before. A root whose check panics on a worker is not kept, so the
-    /// traversal meets the panic where Java would throw. Straight-line functions are left out:
-    /// `enter_scope_with_cfg` knows their graphs to be fully reachable without building them.
+    /// traversal meets the panic where Java would throw. The roots `settled_without_graph` settles
+    /// are left out: `enter_scope_with_cfg` knows their graphs to report nothing without building
+    /// them.
     /// The workers build the graph with `compute_cfg_readonly`, the function the traversal's
     /// `get_control_flow_graph` builds it with.
     fn precheck(compiler: &crate::AbstractCompiler, root: NodeId) -> Option<IndexSet<NodeId>> {
@@ -96,9 +242,7 @@ impl CheckUnreachableCode<'_> {
         let mut roots = Vec::new();
         // The scopes `NodeTraversal` enters below `root` that are CFG roots: functions, module
         // bodies and class static blocks (a SCRIPT is no scope root below the global one).
-        if NodeUtil::is_valid_cfg_root(ast, root)
-            && ControlFlowAnalysis::linear_function(ast, root).is_none()
-        {
+        if NodeUtil::is_valid_cfg_root(ast, root) && !settled_without_graph(ast, root) {
             roots.push(root);
         }
         let mut stack = Vec::new();
@@ -108,10 +252,11 @@ impl CheckUnreachableCode<'_> {
             child = c.get_previous(ast);
         }
         while let Some(n) = stack.pop() {
-            // A straight-line function needs no graph at all (`enter_scope_with_cfg`).
-            if (n.is_function(ast) && ControlFlowAnalysis::linear_function(ast, n).is_none())
+            // A root `needs_no_graph` settles needs no graph at all (`enter_scope_with_cfg`).
+            if (n.is_function(ast)
                 || n.is_module_body(ast)
-                || NodeUtil::is_class_static_block(ast, n)
+                || NodeUtil::is_class_static_block(ast, n))
+                && !settled_without_graph(ast, n)
             {
                 roots.push(n);
             }
@@ -180,23 +325,34 @@ impl CheckUnreachableCode<'_> {
     fn enter_scope_with_cfg(this: &mut AbstractCfgCallback<'_>, t: &mut NodeTraversal<'_>) {
         let scope_root = t.get_scope_root().unwrap();
         if NodeUtil::is_valid_cfg_root(t, scope_root) {
-            // Rust-only (performance divergence): the graph of a function whose body runs its
-            // statements once, in order (`ControlFlowAnalysis::linear_function`), joins its nodes
-            // by unconditional edges from the entry, so every node is reachable and none is
-            // reported: the graph is neither built nor walked.
-            if ControlFlowAnalysis::linear_function(t, scope_root).is_some() {
-                #[cfg(debug_assertions)]
-                {
+            // Rust-only (performance divergence): a root whose graph has every node reachable
+            // (`needs_no_graph`) reports none: the graph is neither built nor walked.
+            if settled_without_graph(t, scope_root) {
+                if cfg!(debug_assertions) || *SHORTCUT_MODE == ShortcutMode::Verify {
                     let compiler = t.get_compiler();
                     let mut cfg = ControlFlowAnalysis::builder()
                         .set_cfg_root(scope_root)
                         .set_include_edge_annotations(true)
                         .compute_cfg(compiler);
                     Self::init_scope(compiler, &mut cfg);
-                    debug_assert!(cfg.all_valued_nodes_reachable);
+                    // An unreachable node that `should_traverse` would not report (no line, an
+                    // empty statement, a break; such as the empty increment of a `for` whose body
+                    // cannot complete) is allowed.
+                    assert!(
+                        Self::graph_reports_nothing(compiler, &cfg),
+                        "CheckUnreachableCode shortcut: a node would be reported in the root at {}",
+                        scope_root.get_location(compiler)
+                    );
                 }
                 this.mark_front_fully_reachable();
                 return;
+            }
+            if *SHORTCUT_MODE == ShortcutMode::Verify {
+                assert!(
+                    ControlFlowAnalysis::linear_function(t, scope_root).is_none(),
+                    "CheckUnreachableCode shortcut: a straight-line function needs a graph at {}",
+                    scope_root.get_location(t)
+                );
             }
             let skipped = this.is_current_cfg_skipped();
             if skipped && *crate::parallel_parse::PARALLEL_ANALYSIS != ParallelAnalysisMode::Verify

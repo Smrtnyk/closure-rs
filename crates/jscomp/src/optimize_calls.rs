@@ -614,6 +614,71 @@ struct ReferenceMapBuilder<'a> {
     current_node: Option<NodeId>,
     names: IndexMap<JsString, Vec<NodeId>>,
     props: IndexMap<JsString, Vec<NodeId>>,
+    /// Rust-only (performance divergence): when set, the references of the walked unit are
+    /// recorded here, names before the global-name filter (`UnitReferenceCache`).
+    recording: Option<UnitReferences>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum UnitCacheMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_OPTIMIZE_CALLS_CACHE=off` walks every top-level statement in every run;
+/// `=verify` walks them all and compares the cached references with the walk.
+static UNIT_CACHE_MODE: std::sync::LazyLock<UnitCacheMode> = std::sync::LazyLock::new(|| {
+    match std::env::var("CLOSURE_RS_OPTIMIZE_CALLS_CACHE").as_deref() {
+        Ok("off") => UnitCacheMode::Off,
+        Ok("verify") => UnitCacheMode::Verify,
+        _ => UnitCacheMode::On,
+    }
+});
+
+/// Rust-only (performance divergence): what the walk of one top-level unit (a statement of a
+/// script, or a whole script) contributes to the reference map, with what it read beyond the
+/// tree's structure. Java walks the whole program in every `OptimizeCalls` run; the optimization
+/// loop runs it several times, and most statements are unchanged in between.
+#[derive(Default, PartialEq)]
+struct UnitReferences {
+    /// The unit's script argument of the walk.
+    script: Option<NodeId>,
+    /// The unit and every function in it, with the change stamp of each
+    /// (`SyntacticScopeCache::cached_subtree_stamp`): a change anywhere in the unit advances one
+    /// of them (a function is a change scope of its own; a function added later changes the
+    /// change scope it is added to).
+    stamps: Vec<(NodeId, u32)>,
+    /// `maybe_add_name_reference(name_node, n)`: the name and `n`, before the global-name filter.
+    names: Vec<(JsString, NodeId)>,
+    /// `maybe_add_prop_reference` calls that passed the extern-property filter.
+    props: Vec<(JsString, NodeId)>,
+    /// Every `is_quoted_string_key` read and its result (a property, not the structure).
+    quoted: Vec<(NodeId, bool)>,
+}
+
+/// Rust-only (performance divergence): the references of the top-level units of the last
+/// `OptimizeCalls` walk that ignored the externs, by unit node (see `UnitReferences`).
+#[derive(Default)]
+pub(crate) struct UnitReferenceCache {
+    /// The extern-property set the props were filtered with (None: none was set).
+    extern_props: Option<std::sync::Arc<IndexSet<JsString>>>,
+    units: IndexMap<NodeId, std::sync::Arc<UnitReferences>>,
+}
+
+impl UnitReferences {
+    /// Whether nothing the walk of the unit read has changed since.
+    fn is_current(&self, compiler: &AbstractCompiler, script: Option<NodeId>) -> bool {
+        self.script == script
+            && self.stamps.iter().all(|&(n, stamp)| {
+                crate::syntactic_scope_cache::SyntacticScopeCache::cached_subtree_stamp(compiler, n)
+                    == stamp
+            })
+            && self
+                .quoted
+                .iter()
+                .all(|&(n, quoted)| n.is_quoted_string_key(compiler) == quoted)
+    }
 }
 
 struct WalkFailure {
@@ -687,6 +752,18 @@ impl ReferenceMapBuilder<'_> {
             }
         }
 
+        if !consider_externs && *UNIT_CACHE_MODE != UnitCacheMode::Off {
+            Self::collect_with_unit_cache(
+                compiler,
+                &units,
+                &global_names,
+                global_name_bloom,
+                &extern_props,
+                references,
+            );
+            return;
+        }
+
         let threads = if compiler.ast.node_count() >= 20_000 {
             parallel_thread_count(units.len(), 2, 8)
         } else {
@@ -708,6 +785,7 @@ impl ReferenceMapBuilder<'_> {
                     current_node: None,
                     names: std::mem::take(&mut references.names),
                     props: std::mem::take(&mut references.props),
+                    recording: None,
                 };
                 let result = catch_unwind(AssertUnwindSafe(|| {
                     for &(unit, script) in &units {
@@ -767,6 +845,7 @@ impl ReferenceMapBuilder<'_> {
                         current_node: None,
                         names: IndexMap::default(),
                         props: IndexMap::default(),
+                        recording: None,
                     };
                     let res = catch_unwind(AssertUnwindSafe(|| {
                         for &(unit, script) in *slice {
@@ -830,10 +909,206 @@ impl ReferenceMapBuilder<'_> {
         }
     }
 
+    /// Rust-only (performance divergence): `collect` with the references of unchanged units
+    /// taken from `UnitReferenceCache`; the others are walked (on workers when there are many),
+    /// and all are merged in unit order, as one walk in order would add them.
+    fn collect_with_unit_cache(
+        compiler: &mut AbstractCompiler,
+        units: &[(NodeId, Option<NodeId>)],
+        global_names: &IndexSet<JsString>,
+        global_name_bloom: [u64; 64],
+        extern_props: &std::sync::Arc<IndexSet<JsString>>,
+        references: &mut ReferenceMap,
+    ) {
+        use crate::syntactic_scope_cache::SyntacticScopeCache;
+        use std::sync::Arc;
+        // Brings the change stamps up to date.
+        if let Some(&(unit, _)) = units.first() {
+            SyntacticScopeCache::subtree_stamp(compiler, unit);
+        }
+        let set_props = compiler.get_extern_property_set_js().cloned();
+        let mut cache = std::mem::take(&mut compiler.optimize_calls_unit_cache);
+        let same_props = match (&cache.extern_props, &set_props) {
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+            (None, None) => true,
+            _ => false,
+        };
+        if !same_props {
+            cache.units.clear();
+        }
+        let verify = *UNIT_CACHE_MODE == UnitCacheMode::Verify;
+        let mut entries: Vec<Option<Arc<UnitReferences>>> = units
+            .iter()
+            .map(|&(unit, script)| {
+                cache
+                    .units
+                    .get(&unit)
+                    .filter(|entry| entry.is_current(compiler, script))
+                    .cloned()
+            })
+            .collect();
+        let stale: Vec<usize> = (0..units.len())
+            .filter(|&i| verify || entries[i].is_none())
+            .collect();
+
+        // Walks the stale units; a failure is reported at the first failing unit in order, which
+        // is where one walk in order would fail (an unchanged unit did not fail before).
+        // The script a walk in order has at the start of each unit (for a failure report).
+        let mut script_before = Vec::with_capacity(units.len());
+        let mut last_script = None;
+        for &(_, script) in units {
+            if script.is_some() {
+                last_script = script;
+            }
+            script_before.push(last_script);
+        }
+        let walk_unit = |ast: &Ast,
+                         coding_convention: &dyn CodingConvention,
+                         i: usize|
+         -> Result<UnitReferences, WalkFailure> {
+            let (unit, script) = units[i];
+            let mut builder = ReferenceMapBuilder {
+                ast,
+                coding_convention,
+                extern_props,
+                global_names,
+                global_name_bloom,
+                consider_externs: false,
+                current_script: script_before[i],
+                current_node: None,
+                names: IndexMap::default(),
+                props: IndexMap::default(),
+                recording: Some(UnitReferences {
+                    script,
+                    stamps: vec![(unit, 0)],
+                    ..UnitReferences::default()
+                }),
+            };
+            match catch_unwind(AssertUnwindSafe(|| builder.walk_node(unit, true))) {
+                Ok(()) => Ok(builder.recording.take().unwrap()),
+                Err(payload) => Err(WalkFailure {
+                    script: builder.current_script,
+                    node: builder.current_node,
+                    payload,
+                }),
+            }
+        };
+        let threads = if compiler.ast.node_count() >= 20_000 {
+            parallel_thread_count(stale.len(), 2, 8)
+        } else {
+            1
+        };
+        let mut fresh: Vec<Option<Result<UnitReferences, WalkFailure>>> =
+            (0..stale.len()).map(|_| None).collect();
+        {
+            let ast: &Ast = &compiler.ast;
+            let coding_convention = compiler.get_coding_convention();
+            if threads <= 1 {
+                for (slot, &i) in fresh.iter_mut().zip(&stale) {
+                    let result = walk_unit(ast, coding_convention, i);
+                    let failed = result.is_err();
+                    *slot = Some(result);
+                    if failed {
+                        break;
+                    }
+                }
+            } else {
+                let num_buckets = (threads * 2).min(stale.len());
+                let bucket_size = stale.len().div_ceil(num_buckets);
+                let slices: Vec<&[usize]> = stale.chunks(bucket_size).collect();
+                let batches = crate::parallel_parse::run_scoped_indexed(
+                    "closure-optcalls",
+                    threads,
+                    &slices,
+                    |_idx, slice| {
+                        let mut out = Vec::with_capacity(slice.len());
+                        for &i in *slice {
+                            let result = walk_unit(ast, coding_convention, i);
+                            let failed = result.is_err();
+                            out.push(result);
+                            if failed {
+                                break;
+                            }
+                        }
+                        Some(out)
+                    },
+                );
+                for batch in batches {
+                    for (idx, out) in batch {
+                        let start = idx * bucket_size;
+                        for (k, result) in out.into_iter().enumerate() {
+                            fresh[start + k] = Some(result);
+                        }
+                    }
+                }
+            }
+        }
+        for (k, &i) in stale.iter().enumerate() {
+            match fresh[k].take() {
+                Some(Ok(mut walked)) => {
+                    for (n, stamp) in &mut walked.stamps {
+                        *stamp = SyntacticScopeCache::cached_subtree_stamp(compiler, *n);
+                    }
+                    if verify && let Some(cached) = &entries[i] {
+                        assert!(
+                            cached.names == walked.names
+                                && cached.props == walked.props
+                                && cached.quoted == walked.quoted,
+                            "OptimizeCalls unit cache: cached references of {} differ from a walk",
+                            units[i].0.to_string(compiler)
+                        );
+                    }
+                    entries[i] = Some(Arc::new(walked));
+                }
+                Some(Err(fail)) => {
+                    NodeTraversal::throw_unexpected_exception_at(
+                        compiler,
+                        fail.script,
+                        fail.node,
+                        fail.payload,
+                    );
+                }
+                // Not reached: an earlier unit of the bucket failed.
+                None => {}
+            }
+        }
+
+        let mut names = std::mem::take(&mut references.names);
+        let mut props = std::mem::take(&mut references.props);
+        for entry in entries.iter().flatten() {
+            for (name, n) in &entry.names {
+                let h = name.hash_code() as usize;
+                if (global_name_bloom[(h >> 6) & 63] & (1u64 << (h & 63))) != 0
+                    && global_names.contains(name)
+                {
+                    ReferenceMap::add_reference(&mut names, name.clone(), *n);
+                }
+            }
+            for (name, n) in &entry.props {
+                ReferenceMap::add_reference(&mut props, name.clone(), *n);
+            }
+        }
+        references.names = names;
+        references.props = props;
+        compiler.optimize_calls_unit_cache = UnitReferenceCache {
+            extern_props: set_props,
+            units: units
+                .iter()
+                .zip(entries)
+                .filter_map(|(&(unit, _), entry)| Some((unit, entry?)))
+                .collect(),
+        };
+    }
+
     // port: OptimizeCalls.ReferenceMapBuildingCallback#shouldTraverse
     fn walk_node(&mut self, n: NodeId, in_global_scope: bool) {
         let ast = self.ast;
         let token = n.get_token(ast);
+        if token == Token::FUNCTION
+            && let Some(recording) = &mut self.recording
+        {
+            recording.stamps.push((n, 0));
+        }
         match token {
             Token::SCRIPT => {
                 if !((self.consider_externs && in_global_scope) || !n.is_from_externs(ast)) {
@@ -934,6 +1209,10 @@ impl ReferenceMapBuilder<'_> {
     #[inline]
     fn maybe_add_name_reference(&mut self, name_node: NodeId, n: NodeId) {
         let name = name_node.get_string_ref(self.ast);
+        if let Some(recording) = &mut self.recording {
+            recording.names.push((name.clone(), n));
+            return;
+        }
         let h = name.hash_code() as usize;
         if (self.global_name_bloom[(h >> 6) & 63] & (1u64 << (h & 63))) == 0 {
             return;
@@ -947,8 +1226,22 @@ impl ReferenceMapBuilder<'_> {
     #[inline]
     fn maybe_add_prop_reference(&mut self, name: &JsString, n: NodeId) {
         if self.consider_externs || !self.extern_props.contains(name) {
+            if let Some(recording) = &mut self.recording {
+                recording.props.push((name.clone(), n));
+                return;
+            }
             ReferenceMap::add_reference(&mut self.props, name.clone(), n);
         }
+    }
+
+    /// `n.is_quoted_string_key()`, recorded while recording.
+    #[inline]
+    fn is_quoted_string_key(&mut self, n: NodeId) -> bool {
+        let quoted = n.is_quoted_string_key(self.ast);
+        if let Some(recording) = &mut self.recording {
+            recording.quoted.push((n, quoted));
+        }
+        quoted
     }
 
     // port: OptimizeCalls.ReferenceMapBuildingCallback#visit
@@ -983,7 +1276,7 @@ impl ReferenceMapBuilder<'_> {
             | Token::MEMBER_FUNCTION_DEF
             | Token::MEMBER_FIELD_DEF
                 // ignore quoted keys.
-                if !n.is_quoted_string_key(ast) =>
+                if !self.is_quoted_string_key(n) =>
             {
                 self.maybe_add_prop_reference(n.get_string_ref(ast), n);
             }
