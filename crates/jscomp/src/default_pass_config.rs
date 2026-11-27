@@ -299,14 +299,15 @@ impl DefaultPassConfig {
             .build();
         let check_js_doc_and_es6_modules = PassFactory::builder()
             .set_name("checkJsDocAndEs6Modules")
-            .set_internal_factory(Arc::new(|compiler| {
-                Self::combine_checks(
-                    compiler,
-                    vec![
+            .set_internal_factory(Arc::new(|_compiler| {
+                // Rust-only (performance divergence): the traversal is shared with later checks
+                // (`strict_mode_check::CheckLookahead`).
+                Box::new(CombinedChecksLeadingLookahead {
+                    callbacks: vec![
                         Box::new(crate::check_jsdoc::CheckJSDoc::new()),
                         Box::new(crate::es6_check_module::Es6CheckModule::new()),
                     ],
-                )
+                })
             }))
             .build();
         let generate_exports = PassFactory::builder()
@@ -3245,6 +3246,31 @@ impl crate::compiler_pass::CompilerPass for CombinedChecks {
         externs: NodeId,
         root: NodeId,
     ) {
+        let callbacks: Vec<&mut dyn Callback> = self
+            .callbacks
+            .iter_mut()
+            .map(|callback| callback.as_mut() as &mut dyn Callback)
+            .collect();
+        CombinedCompilerPass::new(compiler, callbacks).process(compiler, Some(externs), root);
+    }
+}
+
+/// Rust-only (performance divergence): checkJsDocAndEs6Modules, a CombinedCompilerPass whose
+/// traversal also runs the callbacks of later checks (`strict_mode_check::CheckLookahead`).
+struct CombinedChecksLeadingLookahead {
+    callbacks: Vec<Box<dyn Callback>>,
+}
+impl crate::compiler_pass::CompilerPass for CombinedChecksLeadingLookahead {
+    // port: CombinedCompilerPass#process
+    fn process(
+        &mut self,
+        compiler: &mut crate::abstract_compiler::AbstractCompiler,
+        externs: NodeId,
+        root: NodeId,
+    ) {
+        if crate::strict_mode_check::traverse_leading(compiler, &mut self.callbacks, root) {
+            return;
+        }
         let callbacks: Vec<&mut dyn Callback> = self
             .callbacks
             .iter_mut()

@@ -24,6 +24,9 @@ use crate::{
     diagnostic_type::DiagnosticType,
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
+    strict_mode_check::{
+        CheckLookahead, LOOKAHEAD_MODE, LookaheadMode, LookaheadReads, report_all, verify_kept,
+    },
 };
 use closure_regex::reg_exp_tree::RegExpTree;
 use closure_rhino::{js_string::JsString, node::NodeId, token::Token};
@@ -72,6 +75,8 @@ pub struct CheckRegExp {
     report_errors: bool,
     global_reg_exp_properties_used: bool,
     assume_all_global_regexp_usages_visible: bool,
+    /// Rust-only (performance divergence): see `CheckSuper::capture`.
+    pub(crate) capture: Option<Vec<crate::js_error::JSError>>,
 }
 
 impl CheckRegExp {
@@ -89,6 +94,7 @@ impl CheckRegExp {
             assume_all_global_regexp_usages_visible,
             report_errors,
             global_reg_exp_properties_used: false,
+            capture: None,
         }
     }
 }
@@ -114,6 +120,30 @@ impl CheckRegExp {
 impl CompilerPass for CheckRegExp {
     // port: CheckRegExp#process
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
+        // Rust-only (performance divergence): see `strict_mode_check::CheckLookahead`.
+        if let Some(mut kept) =
+            CheckLookahead::take(compiler, root, LookaheadReads::CodeStructure, |lookahead| {
+                lookahead.check_reg_exp.take()
+            })
+            && kept.report_errors == self.report_errors
+            && kept.assume_all_global_regexp_usages_visible
+                == self.assume_all_global_regexp_usages_visible
+        {
+            let errors = kept.capture.take().expect("captured");
+            if *LOOKAHEAD_MODE == LookaheadMode::Verify {
+                self.capture = Some(Vec::new());
+                NodeTraversal::traverse(compiler, root, self);
+                verify_kept("CheckRegExp", &errors, &self.capture.take().unwrap());
+                assert_eq!(
+                    kept.global_reg_exp_properties_used, self.global_reg_exp_properties_used,
+                    "CLOSURE_RS_CHECK_LOOKAHEAD=verify: CheckRegExp globalRegExpPropertiesUsed \
+                     (shared traversal, own traversal)"
+                );
+            }
+            *self = kept;
+            report_all(compiler, errors);
+            return;
+        }
         NodeTraversal::traverse(compiler, root, self);
     }
 }
@@ -157,7 +187,13 @@ impl Callback for CheckRegExp {
                     }))
                 {
                     if self.report_errors {
-                        t.report(n, &REGEXP_REFERENCE, &[]);
+                        crate::check_super::report_or_capture(
+                            &mut self.capture,
+                            t,
+                            n,
+                            &REGEXP_REFERENCE,
+                            &[],
+                        );
                     }
                     self.global_reg_exp_properties_used = true;
                 }
@@ -176,7 +212,13 @@ impl Callback for CheckRegExp {
                 let message = ex
                     .get_message()
                     .map_or_else(|| "null".to_owned(), ToString::to_string);
-                t.report(n, &MALFORMED_REGEXP, &[message.as_str()]);
+                crate::check_super::report_or_capture(
+                    &mut self.capture,
+                    t,
+                    n,
+                    &MALFORMED_REGEXP,
+                    &[message.as_str()],
+                );
             }
         }
     }

@@ -1728,3 +1728,33 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/inline_variables.rs` (`InlineVarsEnvKey::matches`): the caches of InlineVariables are
   kept across a new accessor summary when getters are assumed pure, as `AstAnalyzer` then never
   reads it (GatherGetterAndSetterProperties makes a new one between the first run and the loop).
+- `jscomp/variable_reference_check.rs`, `infer_consts.rs` (`InferConstsHandoff`, `HandoffBuilder`),
+  `syntactic_scope_cache.rs` (`change_rounds`, `nodes_changed_since`), `compiler.rs`: at each scope
+  exit VariableReferenceCheck, which has all references of the scope's variables, evaluates
+  InferConsts' filter and `isInferredConst` for every variable declared in the code, and the
+  InferConsts run of the checks that follows calls `considerVar` with those answers instead of
+  collecting the references of the code again (Java collects them). Both collectors traverse the
+  code in the same order, so a local variable has references of the same shape; a global variable
+  with a reference from the externs, a global name the externs also declare (a different variable
+  in InferConsts' global scope), an answer that would throw and a variable without a name node that
+  the filter passes make InferConsts collect as before, and so does any change below the root of
+  the code since VariableReferenceCheck ended (changes to the externs, such as VarCheck's
+  synthetic declarations, do not count). `CLOSURE_RS_INFER_CONSTS_HANDOFF=off` collects as before;
+  `=verify` collects and compares the constant flags of every name in the code.
+- `jscomp/strict_mode_check.rs` (`CheckLookahead`, `traverse_leading`), `check_super.rs`,
+  `check_side_effects.rs` (`SideEffectEvent`), `check_reg_exp.rs`, `default_pass_config.rs`
+  (`CombinedChecksLeadingLookahead`), `compiler.rs`, `syntactic_scope_cache.rs` (`change_mark`,
+  `nodes_changed_since`, `ChangeLog`: the changed nodes since a mark, kept while few, else found
+  from the stamps): the traversal of checkJsDocAndEs6Modules also runs the callbacks of
+  StrictModeCheck (both), CheckSuper, CheckSideEffects and CheckRegExp, keeping what they would
+  report (Java: one traversal of the code for each, two for StrictModeCheck); its own callbacks run
+  as in the CombinedCompilerPass. Each later pass reports what was kept for it when it runs and
+  takes over the result of its traversal while nothing it reads in the code changed since (the
+  structure for CheckSuper and CheckRegExp, also JSDoc and flags for the others) and its
+  configuration is the same; what reads the externs, which change in between, is done when the
+  pass runs (StrictModeCheck's traversal of the externs, CheckSideEffects' collection of them,
+  against which it decides the calls it kept). The callbacks see the scopes of their own
+  traversals of the code; StrictModeCheck's own callback, which reads scopes made from both roots
+  only for `delete name`, keeps nothing after such a DELPROP. Nothing is kept when the traversal
+  halts or changes the tree. `CLOSURE_RS_CHECK_LOOKAHEAD=off` traverses as before; `=verify` also
+  makes every traversal and compares diagnostics and results.

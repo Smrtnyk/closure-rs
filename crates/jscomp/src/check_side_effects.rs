@@ -25,6 +25,9 @@ use crate::{
     j2cl_source_utils::J2clSourceUtils,
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
+    strict_mode_check::{
+        CheckLookahead, LOOKAHEAD_MODE, LookaheadMode, LookaheadReads, report_all, verify_kept,
+    },
 };
 use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::node::SnapshotUse;
@@ -57,6 +60,29 @@ pub struct CheckSideEffects {
     protect_side_effect_free_code: bool,
     /// Whether the synthetic extern for JSCOMPILER_PRESERVE has been injected
     preserve_function_injected: bool,
+    /// Rust-only (performance divergence): see `CheckSuper::capture`.
+    pub(crate) capture: Option<Vec<crate::js_error::JSError>>,
+    /// Rust-only (performance divergence): while checkJsDocAndEs6Modules makes this pass's
+    /// traversal of the code ahead of time (`strict_mode_check::CheckLookahead`), what the
+    /// traversal would do, in order; the calls that the collection of the externs decides are
+    /// decided when the pass runs (`replay`).
+    deferred: Option<Vec<SideEffectEvent>>,
+}
+
+/// Rust-only (performance divergence): what the traversal of the code does (`deferred`).
+pub(crate) enum SideEffectEvent {
+    /// `t.report(n, USELESS_CODE_ERROR, msg)`.
+    Report(crate::js_error::JSError),
+    /// `problemNodes.add(n)`.
+    Problem(NodeId),
+    /// A call whose result is unused, of the qualified name `qname`: a problem node and a
+    /// report if a function of the externs with that name has no side effects and the root of the
+    /// name is not declared in the code (`defined_in_src`).
+    ExternCall {
+        n: NodeId,
+        qname: JsString,
+        defined_in_src: bool,
+    },
 }
 
 impl CheckSideEffects {
@@ -80,6 +106,8 @@ impl CheckSideEffects {
             no_side_effect_externs: IndexSet::<_>::default(),
             protect_side_effect_free_code,
             preserve_function_injected: false,
+            capture: None,
+            deferred: None,
         }
     }
 
@@ -110,12 +138,106 @@ impl CheckSideEffects {
     }
 }
 
+impl CheckSideEffects {
+    /// Rust-only (performance divergence): makes the traversal of the code keep what it does
+    /// (`deferred`).
+    pub(crate) fn defer_externs(&mut self) {
+        self.deferred = Some(Vec::new());
+    }
+
+    /// Rust-only (performance divergence): does what the traversal of the code kept (`deferred`),
+    /// in order, with the externs as `collect_no_side_effect_externs` found them now: the reports
+    /// go to `capture` or the compiler, the problem nodes to `problem_nodes`.
+    fn replay(&mut self, compiler: &mut AbstractCompiler, events: Vec<SideEffectEvent>) {
+        for event in events {
+            match event {
+                SideEffectEvent::Report(error) => self.report_or_capture(compiler, error),
+                SideEffectEvent::Problem(n) => self.problem_nodes.push(n),
+                SideEffectEvent::ExternCall {
+                    n,
+                    qname,
+                    defined_in_src,
+                } => {
+                    if self.no_side_effect_externs.contains(&Some(qname.clone())) && !defined_in_src
+                    {
+                        self.problem_nodes.push(n);
+                        if self.report {
+                            let msg = format!(
+                                "The result of the extern function call '{qname}' is not being used."
+                            );
+                            let error = crate::js_error::JSError::make(
+                                compiler,
+                                n,
+                                &USELESS_CODE_ERROR,
+                                &[&msg],
+                            );
+                            self.report_or_capture(compiler, error);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn report_or_capture(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        error: crate::js_error::JSError,
+    ) {
+        match &mut self.capture {
+            Some(errors) => errors.push(error),
+            None => compiler.report(error),
+        }
+    }
+
+    /// The traversal of the externs `process` makes before that of the code.
+    pub(crate) fn collect_no_side_effect_externs(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        externs: NodeId,
+    ) {
+        NodeTraversal::traverse(compiler, externs, &mut GetNoSideEffectExterns(self));
+    }
+}
+
 impl CompilerPass for CheckSideEffects {
     // port: CheckSideEffects#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
-        NodeTraversal::traverse(compiler, externs, &mut GetNoSideEffectExterns(self));
-
-        NodeTraversal::traverse(compiler, root, self);
+        // Rust-only (performance divergence): see `strict_mode_check::CheckLookahead`.
+        let kept = CheckLookahead::take(compiler, root, LookaheadReads::Code, |lookahead| {
+            lookahead.check_side_effects.take()
+        })
+        .filter(|kept| {
+            kept.report == self.report
+                && kept.protect_side_effect_free_code == self.protect_side_effect_free_code
+        });
+        self.collect_no_side_effect_externs(compiler, externs);
+        if let Some(events) = kept.and_then(|mut kept| kept.deferred.take()) {
+            if *LOOKAHEAD_MODE == LookaheadMode::Verify {
+                self.capture = Some(Vec::new());
+                self.replay(compiler, events);
+                let kept_errors = self.capture.replace(Vec::new()).unwrap();
+                let kept_problem_nodes = std::mem::take(&mut self.problem_nodes);
+                NodeTraversal::traverse(compiler, root, self);
+                verify_kept(
+                    "CheckSideEffects",
+                    &kept_errors,
+                    &self.capture.take().unwrap(),
+                );
+                assert!(
+                    kept_problem_nodes == self.problem_nodes,
+                    "CLOSURE_RS_CHECK_LOOKAHEAD=verify: CheckSideEffects problem nodes differ\n\
+                     shared traversal: {:?}\nown traversal: {:?}",
+                    kept_problem_nodes,
+                    self.problem_nodes
+                );
+                report_all(compiler, kept_errors);
+            } else {
+                self.replay(compiler, events);
+            }
+        } else {
+            NodeTraversal::traverse(compiler, root, self);
+        }
 
         // Code with hidden side-effect code is common, for example
         // accessing "el.offsetWidth" forces a reflow in browsers, to allow this
@@ -199,12 +321,31 @@ impl Callback for CheckSideEffects {
                         );
                     }
 
-                    t.report(n, &USELESS_CODE_ERROR, &[&msg]);
+                    if let Some(events) = &mut self.deferred {
+                        events.push(SideEffectEvent::Report(crate::js_error::JSError::make(
+                            t,
+                            n,
+                            &USELESS_CODE_ERROR,
+                            &[&msg],
+                        )));
+                    } else {
+                        crate::check_super::report_or_capture(
+                            &mut self.capture,
+                            t,
+                            n,
+                            &USELESS_CODE_ERROR,
+                            &[&msg],
+                        );
+                    }
                 }
                 // TODO(johnlenz): determine if it is necessary to
                 // try to protect side-effect free statements as well.
                 if !NodeUtil::is_statement(t, n) {
-                    self.problem_nodes.push(n);
+                    if let Some(events) = &mut self.deferred {
+                        events.push(SideEffectEvent::Problem(n));
+                    } else {
+                        self.problem_nodes.push(n);
+                    }
                 }
             } else if n.is_call(t) && {
                 let first = n.get_first_child(t).unwrap();
@@ -230,7 +371,15 @@ impl Callback for CheckSideEffects {
                     }
                 }
 
-                if let Some(qname) = qname
+                if let Some(events) = &mut self.deferred {
+                    if let Some(qname) = qname {
+                        events.push(SideEffectEvent::ExternCall {
+                            n,
+                            qname,
+                            defined_in_src: is_defined_in_src,
+                        });
+                    }
+                } else if let Some(qname) = qname
                     && self.no_side_effect_externs.contains(&Some(qname.clone()))
                     && !is_defined_in_src
                 {
@@ -239,7 +388,13 @@ impl Callback for CheckSideEffects {
                         let msg = format!(
                             "The result of the extern function call '{qname}' is not being used."
                         );
-                        t.report(n, &USELESS_CODE_ERROR, &[&msg]);
+                        crate::check_super::report_or_capture(
+                            &mut self.capture,
+                            t,
+                            n,
+                            &USELESS_CODE_ERROR,
+                            &[&msg],
+                        );
                     }
                 }
             }

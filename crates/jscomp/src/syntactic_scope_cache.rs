@@ -404,6 +404,70 @@ pub(crate) struct DeepFunctionStamp {
     nested: Box<[(NodeId, (u32, u32))]>,
 }
 
+/// Rust-only (performance divergence): the changed nodes `record_changes` drained since the first
+/// `change_mark`, while they are few, so that `nodes_changed_since` need not scan the stamps of the
+/// whole arena. Once longer than `CHANGE_LOG_CAP` it is dropped for good.
+#[derive(Default)]
+struct ChangeLog {
+    active: bool,
+    dropped: bool,
+    structural: LogBlocks,
+    flags: LogBlocks,
+}
+
+const CHANGE_LOG_CAP: usize = 1 << 16;
+
+/// Nodes in order, in blocks of `LOG_BLOCK`, so that no allocation is large (the allocator would
+/// keep the pages of a large one).
+#[derive(Default)]
+struct LogBlocks {
+    blocks: Vec<Vec<NodeId>>,
+    len: usize,
+}
+
+const LOG_BLOCK: usize = 4096;
+
+impl LogBlocks {
+    fn extend(&mut self, mut nodes: &[NodeId]) {
+        self.len += nodes.len();
+        while !nodes.is_empty() {
+            if self
+                .blocks
+                .last()
+                .is_none_or(|block| block.len() == LOG_BLOCK)
+            {
+                self.blocks.push(Vec::with_capacity(LOG_BLOCK));
+            }
+            let block = self.blocks.last_mut().expect("a block");
+            let taken = (LOG_BLOCK - block.len()).min(nodes.len());
+            block.extend_from_slice(&nodes[..taken]);
+            nodes = &nodes[taken..];
+        }
+    }
+
+    fn since(&self, start: usize) -> Vec<NodeId> {
+        let mut nodes = Vec::with_capacity(self.len - start);
+        for (i, block) in self.blocks.iter().enumerate().skip(start / LOG_BLOCK) {
+            let from = if i == start / LOG_BLOCK {
+                start % LOG_BLOCK
+            } else {
+                0
+            };
+            nodes.extend_from_slice(&block[from..]);
+        }
+        nodes
+    }
+}
+
+/// Rust-only (performance divergence): a point in the changes of the tree (`change_mark`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ChangeMark {
+    /// `change_rounds` at the mark.
+    pub(crate) rounds: (u32, u32, u32),
+    /// The lengths of the `ChangeLog` at the mark, if it was kept.
+    logged: Option<(usize, usize)>,
+}
+
 /// The most changed functions `SyntacticScopeCache` lists between two `take_changed_functions`.
 const MAX_CHANGED_FUNCTIONS: usize = 1 << 18;
 
@@ -427,6 +491,11 @@ pub(crate) struct SyntacticScopeCache {
     flag_stamps: Vec<u32>,
     /// The number of `record_changes` rounds that found flag-changed nodes.
     flag_round: u32,
+    /// Rust-only (performance divergence): how often `record_changes` dropped the kept analyses
+    /// for a change log that was not continuous (`change_rounds`).
+    resets: u32,
+    /// Rust-only (performance divergence): see `ChangeLog`.
+    change_log: ChangeLog,
     cursor: AstChangeCursor,
     /// Rust-only (performance divergence): the functions whose change scope a `record_changes`
     /// round stamped since `take_changed_functions` last ran, once per round; `None` when the list
@@ -500,6 +569,21 @@ impl SyntacticScopeCache {
             compiler.inline_simple_methods_cache = Default::default();
             compiler.dae_unit_cache = Default::default();
             compiler.fsiv_unit_cache = Default::default();
+            compiler.syntactic_scope_cache.resets += 1;
+        }
+        let log = &mut compiler.syntactic_scope_cache.change_log;
+        if log.active {
+            if log.structural.len + log.flags.len + changed.len() + changed_flags.len()
+                > CHANGE_LOG_CAP
+            {
+                *log = ChangeLog {
+                    dropped: true,
+                    ..ChangeLog::default()
+                };
+            } else {
+                log.structural.extend(&changed);
+                log.flags.extend(&changed_flags);
+            }
         }
         if !changed.is_empty() {
             let cache = &mut compiler.syntactic_scope_cache;
@@ -719,6 +803,95 @@ impl SyntacticScopeCache {
             .syntactic_scope_cache
             .changed_functions
             .replace(Vec::new())
+    }
+
+    /// Rust-only (performance divergence): the last rounds of `record_changes` that found a
+    /// structural change and an in-place flag change, after recording what the AST logged since,
+    /// and how often the kept analyses were dropped for a log that was not continuous. Equal values
+    /// at two points mean that the tree did not change in between.
+    pub(crate) fn change_rounds(compiler: &mut AbstractCompiler) -> (u32, u32, u32) {
+        compiler.ast.track_changes();
+        Self::record_changes(compiler);
+        let cache = &compiler.syntactic_scope_cache;
+        (cache.round, cache.flag_round, cache.resets)
+    }
+
+    /// Rust-only (performance divergence): a point in the changes of the tree, for
+    /// `nodes_changed_since`.
+    pub(crate) fn change_mark(compiler: &mut AbstractCompiler) -> ChangeMark {
+        let rounds = Self::change_rounds(compiler);
+        let log = &mut compiler.syntactic_scope_cache.change_log;
+        if !log.active && !log.dropped {
+            log.active = true;
+        }
+        ChangeMark {
+            rounds,
+            logged: log.active.then_some((log.structural.len, log.flags.len)),
+        }
+    }
+
+    /// Rust-only (performance divergence): nodes from which every structural change (or with
+    /// `flags`, every in-place flag change) made since `mark` is found by walking up the tree: a change below a
+    /// node `root` puts a node that is `root` or below it among them. These are the changed nodes
+    /// themselves while the `ChangeLog` holds them (for a removed node also its former parent,
+    /// which changed), otherwise the nodes a round since stamped that are SCRIPT, FUNCTION or ROOT
+    /// nodes or have no parent (a stamped node's ancestors up to its change scope root are stamped
+    /// too). None when the kept analyses were dropped since.
+    pub(crate) fn nodes_changed_since(
+        compiler: &mut AbstractCompiler,
+        mark: &ChangeMark,
+        flags: bool,
+    ) -> Option<Vec<NodeId>> {
+        let rounds = mark.rounds;
+        let now = Self::change_rounds(compiler);
+        if now.2 != rounds.2 {
+            return None;
+        }
+        let cache = &compiler.syntactic_scope_cache;
+        if let Some((structural_start, flags_start)) = mark.logged
+            && cache.change_log.active
+        {
+            return Some(if flags {
+                cache.change_log.flags.since(flags_start)
+            } else {
+                cache.change_log.structural.since(structural_start)
+            });
+        }
+        let (stamps, round, now_round) = if flags {
+            (&cache.flag_stamps, rounds.1, now.1)
+        } else {
+            (&cache.stamps, rounds.0, now.0)
+        };
+        let mut nodes = Vec::new();
+        if now_round == round {
+            return Some(nodes);
+        }
+        let ast = &compiler.ast;
+        // Most of the arena is unchanged: blocks without a later stamp are passed over at once.
+        const BLOCK: usize = 64;
+        for (block, chunk) in stamps.chunks(BLOCK).enumerate() {
+            if chunk
+                .iter()
+                .copied()
+                .max()
+                .is_some_and(|stamp| stamp > round)
+            {
+                nodes.extend(
+                    chunk
+                        .iter()
+                        .enumerate()
+                        .filter(|&(_, &stamp)| stamp > round)
+                        .map(|(i, _)| NodeId::from_arena_index(block * BLOCK + i))
+                        .filter(|n| {
+                            n.is_script(ast)
+                                || n.is_function(ast)
+                                || n.is_root(ast)
+                                || n.get_parent(ast).is_none()
+                        }),
+                );
+            }
+        }
+        Some(nodes)
     }
 
     /// The round from which a change makes a scope scanned now stale.
