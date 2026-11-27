@@ -27,7 +27,7 @@ use crate::node_traversal::NodeTraversal;
 use crate::node_util::NodeUtil;
 use crate::reference::Reference;
 use crate::reference_collection::ReferenceCollection;
-use crate::reference_collector::{Behavior, ReferenceCollector};
+use crate::reference_collector::{Behavior, CacheOf, ReferenceCollector};
 use crate::reference_map::ReferenceMap;
 use crate::scope::ScopeId;
 use crate::scope_creator::ScopeCreator;
@@ -512,6 +512,23 @@ impl Behavior for TopLevelStatementCollectingBehavior {
 
     fn observes_replayed_references(&self) -> bool {
         true
+    }
+
+    // Rust-only (performance divergence): the scope exits do nothing, and the filter depends on
+    // the variable alone (whether it is global, and its name). Of what a function subtree holds,
+    // this behavior reads the references added (`after_replayed_reference` stands in for
+    // `after_visit_node`) and acts on no other node but the function itself, which it is told
+    // about. Of a reference, it reads the scope to find the variable (`Reference::get_symbol`),
+    // of a declared name (never inside a function) to look up names in `can_move_value`, and in
+    // `ReferenceCollection::is_well_defined` and `is_assigned_once_in_lifetime` as
+    // InlineVariables does (see there).
+    fn clean_subtree_cache(&self) -> Option<CacheOf> {
+        Some(|compiler| &mut compiler.function_reference_sites.cross_chunk_subtrees)
+    }
+
+    // InlineVariables keeps clean functions in which it found nothing to change.
+    fn clean_subtree_fallback(&self) -> Option<CacheOf> {
+        Some(|compiler| &mut compiler.inline_vars_clean_cache.clean_subtrees)
     }
 
     fn after_replayed_reference(&mut self, t: &mut NodeTraversal<'_>, reference: &Reference) {

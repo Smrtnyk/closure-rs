@@ -188,6 +188,15 @@ impl FunctionBodySites {
         })
     }
 
+    /// Whether a site of spelling `slot` declares it (a `let` or `const`, the only declarations
+    /// a body with sites holds outside its own scope).
+    pub(crate) fn declares_slot(&self, ast: &Ast, slot: usize) -> bool {
+        self.sites.iter().any(|site| {
+            matches!(site.decode(), SiteKind::Reference(node, s)
+                if s as usize == slot && crate::reference::Reference::is_declaration_node(ast, node))
+        })
+    }
+
     /// Whether `a` and `b` hold the same sites (for `CLOSURE_RS_DELEGATING_SITES=verify`).
     fn same(a: Option<&Self>, b: Option<&Self>) -> bool {
         match (a, b) {
@@ -419,6 +428,9 @@ impl FunctionBodySites {
 
 #[derive(Default)]
 pub(crate) struct FunctionReferenceCache {
+    /// Rust-only (performance divergence): the clean function subtrees of
+    /// `CrossChunkReferenceCollector` (`super::clean_subtree`).
+    pub(crate) cross_chunk_subtrees: super::clean_subtree::CleanSubtreeCache,
     bodies: IndexMap<NodeId, (u32, Option<Arc<FunctionBodySites>>)>,
     /// Rust-only (performance divergence): the delegating sites (`collect_delegating`) of
     /// blocks without sites of their own, by the same stamp.
