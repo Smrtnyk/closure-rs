@@ -57,7 +57,13 @@
 //! `CLOSURE_RS_SCOPE_REDECLARATION_FREE_REUSE=off` keeps creators with a handler of their own out
 //! of the cache.
 
-use crate::{abstract_compiler::AbstractCompiler, node_util::NodeUtil, scope::ScopeId, var::VarId};
+use crate::{
+    abstract_compiler::AbstractCompiler,
+    compiler_input::CompilerInput,
+    node_util::NodeUtil,
+    scope::{RescannedVar, ScopeId},
+    var::VarId,
+};
 use closure_rhino::{
     fast_hash::{IndexMap, IndexSet},
     js_string::JsString,
@@ -1181,6 +1187,216 @@ impl SyntacticScopeCache {
         entry.handed_out_in = pass_index;
         entry.context_tag = current_tag;
         entry.redeclared = redeclared;
+        Some(scope)
+    }
+
+    /// Rust-only (performance divergence): the kept global scope of `root`, updated to what a scan
+    /// of it makes now, without making again the vars that a scan would make the same (Java scans
+    /// the global scope anew for every request; a loop pass changes a few scripts, while each
+    /// scan declares every extern and program global).
+    ///
+    /// A scan of a global scope rooted at a ROOT node makes the declarations of the top level of
+    /// each of its scripts, in script order (`ScopeScanner::scan_script`), each through
+    /// `declareVar`: the first declaration of a name makes a var of that name for the name node,
+    /// with the input of its script and the next number; a later one finds the name declared and
+    /// calls the redeclaration handler, unless the name's var is for the same node (a global scope
+    /// allows shadowing and has no `arguments`). The declarations of each script are those kept
+    /// for it while it is unchanged (no change recorded in its change scope since the scope was
+    /// scanned, and each declared name node still in place under the same parent with a name),
+    /// else those a scan of its top level makes now (`declarations_now`, `None` when one would go
+    /// to another scope); the string of each name node is read now (the name of a function
+    /// declaration lies in the function's change scope). Going through them in order, this finds
+    /// the vars the scan makes, in its order: where the scope has a var of the name that no
+    /// earlier declaration took, for the same node and with the same input, that var (renumbered;
+    /// its fields are those a new var would have), else a new var; and whether the scan calls the
+    /// redeclaration handler. A var of the scope that no declaration takes is dropped. A Closure
+    /// namespace (an implicit var, which later declarations change or undeclare) in any script
+    /// leaves the scope to a new scan. When `without_redeclarations` and the scan calls the
+    /// handler, nothing is changed. `CLOSURE_RS_GLOBAL_SCOPE_MERGE=off` leaves the update to the
+    /// other ways; `CLOSURE_RS_SCOPE_CACHE=verify` checks the result against a new scan.
+    pub(crate) fn reuse_global_merged(
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        context: &ScopeContext,
+        without_redeclarations: bool,
+        declarations_now: DeclarationsNow<'_>,
+    ) -> Option<ScopeId> {
+        static ENABLED: LazyLock<bool> = LazyLock::new(|| {
+            std::env::var("CLOSURE_RS_GLOBAL_SCOPE_MERGE").as_deref() != Ok("off")
+        });
+        let scripts = context.scripts.as_ref()?;
+        if !*ENABLED {
+            return None;
+        }
+        Self::record_changes(compiler);
+        let cache = &compiler.syntactic_scope_cache;
+        let slot = *cache.by_root.get(root.arena_index())?;
+        let scope = ScopeId(NonZeroU32::new(slot)?);
+        let entry = cache.entries[scope.index()];
+        if entry.handed_out_in == compiler.scope_handout_round()
+            || entry.script.is_some()
+            || entry.change_root.is_some()
+            || scope.get_parent(compiler).is_some()
+        {
+            return None;
+        }
+        let old_scripts = cache.global_scripts.get(&scope)?;
+        let old_lists = cache.global_declarations.get(&scope)?;
+        let same_scripts = **old_scripts == **scripts;
+        let old_positions: IndexMap<NodeId, usize> = if same_scripts {
+            IndexMap::default()
+        } else {
+            old_scripts
+                .iter()
+                .enumerate()
+                .map(|(i, &script)| (script, i))
+                .collect()
+        };
+        // The declarations of each script now: the kept ones of an unchanged script, else `None`
+        // (found below).
+        let ast = &compiler.ast;
+        let mut lists: Vec<Option<Arc<[ScriptDeclaration]>>> = Vec::with_capacity(scripts.len());
+        for (i, &script) in scripts.iter().enumerate() {
+            let old = if same_scripts {
+                Some(i)
+            } else {
+                old_positions.get(&script).copied()
+            };
+            let kept = old
+                .and_then(|old| old_lists.get(old))
+                .and_then(Option::as_ref)
+                .filter(|list| {
+                    !cache.changed_since(script, entry.scanned_at)
+                        && list.iter().all(|declaration| match *declaration {
+                            ScriptDeclaration::Name { name, parent } => {
+                                name.get_parent(ast) == parent
+                                    && (!name.is_name(ast) || !name.get_string_ref(ast).is_empty())
+                            }
+                            ScriptDeclaration::GoogNamespace(_) => false,
+                        })
+                })
+                .cloned();
+            lists.push(kept);
+        }
+        let mut renewed = Vec::new();
+        for (i, &script) in scripts.iter().enumerate() {
+            if lists[i].is_none() {
+                let now: Arc<[ScriptDeclaration]> =
+                    declarations_now(compiler, scope, script)?.into();
+                if now
+                    .iter()
+                    .any(|declaration| matches!(declaration, ScriptDeclaration::GoogNamespace(_)))
+                {
+                    return None;
+                }
+                lists[i] = Some(Arc::clone(&now));
+                renewed.push((i, now));
+            }
+        }
+        let inputs: Vec<Option<CompilerInput>> = scripts
+            .iter()
+            .map(|script| {
+                script
+                    .get_input_id(compiler)
+                    .and_then(|id| compiler.get_input(&id).cloned())
+            })
+            .collect();
+        // The vars the scan makes, in order, and whether it calls the redeclaration handler.
+        let ast = &compiler.ast;
+        let arena = crate::scope::ScopeArena::read(compiler);
+        let vars = &arena.scopes[scope.index()].abstract_scope.vars;
+        // Per var of the scope: the name node of the var the scan makes for its name, once a
+        // declaration made it.
+        let mut taken: Vec<Option<NodeId>> = vec![None; vars.len()];
+        let mut new_names: IndexMap<&JsString, NodeId> = IndexMap::default();
+        let mut order: Vec<RescannedVar> = Vec::with_capacity(vars.len());
+        let mut redeclared = false;
+        // The position after the last var kept so far: in code that changed little, the next
+        // declaration that makes a var makes the var at this position, which is checked first.
+        let mut next = 0;
+        for (i, list) in lists.iter().enumerate() {
+            for declaration in list.as_deref().unwrap() {
+                let ScriptDeclaration::Name { name: node, .. } = *declaration else {
+                    return None;
+                };
+                let name = node.get_string_ref(ast);
+                // The var at `next` has this name (so a lookup of the name finds it there) and
+                // this node: unless an earlier declaration took it, it is kept.
+                if let Some((next_name, next_var)) = vars.get_index(next)
+                    && taken[next].is_none()
+                    && let var = &arena.vars[next_var.index()]
+                    && var.name_node == Some(node)
+                    && next_name == name
+                    && var.input == inputs[i]
+                    && var.implicit_goog_namespace_strength.is_none()
+                {
+                    taken[next] = Some(node);
+                    order.push(RescannedVar::Kept(next));
+                    next += 1;
+                    continue;
+                }
+                if let Some(position) = vars.get_index_of(name) {
+                    if let Some(made_for) = taken[position] {
+                        redeclared |= made_for != node;
+                        continue;
+                    }
+                    taken[position] = Some(node);
+                    let var = &arena.vars[vars.get_index(position).unwrap().1.index()];
+                    if var.name_node == Some(node)
+                        && var.input == inputs[i]
+                        && var.implicit_goog_namespace_strength.is_none()
+                    {
+                        order.push(RescannedVar::Kept(position));
+                        next = next.max(position + 1);
+                    } else {
+                        order.push(RescannedVar::New {
+                            name_node: node,
+                            input: inputs[i].clone(),
+                        });
+                    }
+                } else if let Some(&made_for) = new_names.get(name) {
+                    redeclared |= made_for != node;
+                    continue;
+                } else {
+                    new_names.insert(name, node);
+                    order.push(RescannedVar::New {
+                        name_node: node,
+                        input: inputs[i].clone(),
+                    });
+                }
+            }
+        }
+        if without_redeclarations && redeclared {
+            return None;
+        }
+        let declares_new_function = order.iter().any(|var| match var {
+            RescannedVar::New { name_node, .. } => name_node
+                .get_parent(ast)
+                .is_some_and(|parent| parent.is_function(ast)),
+            RescannedVar::Kept(_) => false,
+        });
+        scope.rebuild_vars_as_rescanned(compiler, &order);
+        let scanned_at = Self::scan_round(compiler);
+        let pass_index = compiler.scope_handout_round();
+        let cache = &mut compiler.syntactic_scope_cache;
+        let current_tag = cache.round.wrapping_add(1);
+        for (i, now) in renewed {
+            cache
+                .script_declarations
+                .insert(scripts[i], (scanned_at, now));
+        }
+        cache
+            .global_declarations
+            .insert(scope, lists.into_boxed_slice());
+        if !same_scripts {
+            cache.global_scripts.insert(scope, scripts.clone());
+        }
+        let entry = &mut cache.entries[scope.index()];
+        entry.scanned_at = scanned_at;
+        entry.handed_out_in = pass_index;
+        entry.context_tag = current_tag;
+        entry.redeclared = redeclared;
+        entry.declares_functions |= declares_new_function;
         Some(scope)
     }
 

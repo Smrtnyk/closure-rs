@@ -61,6 +61,11 @@ use closure_rhino::{
     token::Token,
 };
 use std::rc::Rc;
+use std::sync::LazyLock;
+
+/// Rust-only (performance divergence): see `Normalize::process`.
+static NORMALIZE_SCOPE_ROUND: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_NORMALIZE_SCOPE_ROUND").as_deref() != Ok("off"));
 
 pub struct Normalize {
     ast_factory: AstFactory,
@@ -127,6 +132,16 @@ impl CompilerPass for Normalize {
         let mut normalize_statements =
             NormalizeStatements::new(compiler, self.assert_on_change, Some(renamer));
         NodeTraversal::traverse_roots(compiler, &mut normalize_statements, externs, root);
+        // Rust-only (performance divergence): the traversal below makes its scopes anew, as in
+        // Java, and nothing it does reads the scopes of the traversal above, which are done with
+        // (a scope a pass declares or undeclares a name in is never handed out again, and one
+        // whose code changed is scanned anew); so it may receive the scopes the traversal above
+        // received (`SyntacticScopeCache`), those whose scan called no redeclaration handler, as
+        // a scan with its handler would not call it either. `CLOSURE_RS_NORMALIZE_SCOPE_ROUND=off`
+        // scans them anew.
+        if *NORMALIZE_SCOPE_ROUND {
+            compiler.start_scope_handout_round();
+        }
 
         let mut propagate_constant_property_over_vars =
             PropagateConstantPropertyOverVars::new(self.assert_on_change);
