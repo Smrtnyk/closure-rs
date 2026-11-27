@@ -1851,3 +1851,50 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `rhino/rhino_string_pool.rs` (`LazyInternedStringList`): each string's interned form is set once
   in its own cell (`OnceLock`) instead of a locked slot plus a bitset, so a repeated `get` (the
   runtime library string pool read by the color pool) takes no lock.
+- `jscomp/inline_and_collapse_properties.rs` (`AggressiveInlineAliases::alias_references`,
+  `KeptAliasReferences`): the references `inlineAliasIfPossible` collects for an alias variable
+  (a `ReferenceCollector` over the alias's scope) are kept for the pass run, per variable, with
+  the `DeepFunctionStamp` (with in-place flags) of the scope's root, or of the function whose body
+  it is, and given again while it is current (Java collects them at every attempt, and
+  `inlineAliases` looks at every name again in each iteration that changed something: on `chunks`
+  218 attempts in three iterations, 2 inlined). The collection reads only that subtree and the
+  alias's own scope object. `CLOSURE_RS_ALIAS_REFS_MEMO=off` collects at every attempt, `=verify`
+  collects and compares nodes, inputs, scope roots and basic blocks.
+- `jscomp/inline_object_literals.rs` (`InlineObjectLiteralsCleanCache`), `reference_collector.rs`
+  (`Behavior::skips_global_class_members`, `in_global_class_scope`): the clean functions
+  InlineObjectLiterals keeps and skips include those declared in a class scope of a class at the
+  top level (member functions; before, only functions declared in the global scope). What a
+  skipped one would add are references to global variables, never split, or to the inner name of
+  a class expression, whose declaration (the class's NAME, recorded by the traversal of the class)
+  is no declaration an object can be split from. The hoisted functions it is checked against are
+  those of the global scope. `CLOSURE_RS_IOL_CLASS_MEMBERS=off` keeps only global-scope functions;
+  `=verify` has every function the collector would skip for the pass traversed instead
+  (`Behavior::verify_skip`, the same decisions) and panics at a split inside it.
+- `jscomp/inline_object_literals.rs` (`process`): InlineObjectLiterals runs its dry run (which
+  looks for something to split in any order and saves the pass when it finds nothing) only once a
+  function is kept clean: before that, in the first run, it looks at every function the pass looks
+  at, and when it finds a split the pass traverses everything again. The dry run changes nothing.
+- `jscomp/reference_collector.rs` (`pending_hoisted_deferrable`, `hoisted_name_hits`,
+  `Behavior::defers_skippable_hoisted_functions`), `inline_object_literals.rs`: a function the
+  behavior lets the collector skip may be skipped although it names a hoisted function the
+  traversal has not reached (its traversal would jump there), when that function and every
+  pending hoisted function its traversal would jump to in turn are skippable too (at most 64 per
+  skip). For InlineObjectLiterals such functions split nothing, and their traversal, wherever it
+  happens, acts on no scope exit, so deferring it changes the order of no split (which decides
+  the generated names). Top-level statements (below) defer the same way.
+  `CLOSURE_RS_IOL_DEFER_HOISTED=off` skips no such function; `=verify` takes the same decisions
+  but has every node whose skip deferred a jump traversed as Java does, jumps included
+  (`Behavior::verify_skip`, `end_verify_region`), and panics, naming the node, the deferred
+  functions and the split, at a split inside it. The decisions do not depend on the other verify
+  switches, so this runs with all of them on `verify` (on `chunks`, 1,435 deferred skips are
+  checked that way); `CLOSURE_RS_IOL_DEBUG_COUNTS` prints the counts per traversal.
+- `jscomp/reference_collector.rs` (`try_skip_top_level_statement`,
+  `Behavior::can_skip_top_level_statement`), `inline_object_literals.rs`
+  (`CandidateNames::candidate_statements`): InlineObjectLiterals' traversals skip a top-level
+  statement of a script (no function, no module body) that holds no candidate object literal
+  assignment, unless a name in it refers to a pending hoisted function that may not be deferred
+  (as above). A variable the pass splits is declared in a function around such an assignment or,
+  outside functions, in a block of the same statement (a script's `let`/`const` is global), so no
+  scope exit in another statement splits anything (Java traverses every statement in every run).
+  `CLOSURE_RS_IOL_STATEMENTS=off` traverses them all, `=verify` has every statement the collector
+  would skip traversed instead and panics at a split inside it.
