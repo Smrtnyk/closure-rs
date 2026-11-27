@@ -1,0 +1,14 @@
+{
+ "argv": [
+  "--compilation_level=ADVANCED",
+  "--third_party",
+  "--language_out=ECMASCRIPT_2015",
+  "--js=in.js",
+  "--js_output_file=out.js"
+ ],
+ "origin": "fuzz seed 7732, mutation of tiny-emitter: a call site kept its \"cannot inline\" answer after the function around it was inlined in place and the call moved to the global scope",
+ "exit_code": 0,
+ "outputs": [
+  "out.js"
+ ]
+}

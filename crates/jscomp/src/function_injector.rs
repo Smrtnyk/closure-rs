@@ -70,6 +70,9 @@ pub struct FunctionInjector {
 
     /// Cache of function node to any inner function.
     inner_function_cache: IndexMap<NodeId, InnerFunction>,
+
+    /// Rust-only: how often an expression decomposer was made (`decomposer_uses`).
+    decomposer_uses: std::sync::atomic::AtomicU64,
 }
 
 impl FunctionInjector {
@@ -88,6 +91,7 @@ impl FunctionInjector {
             }),
             references_eval_cache: IndexMap::<_, _>::default(),
             inner_function_cache: IndexMap::<_, _>::default(),
+            decomposer_uses: std::sync::atomic::AtomicU64::new(0),
         }
     }
 }
@@ -640,11 +644,20 @@ impl FunctionInjector {
         compiler: &mut AbstractCompiler,
         scope: Scope,
     ) -> ExpressionDecomposer {
+        self.decomposer_uses.fetch_add(1, Ordering::Relaxed);
         compiler.create_expression_decomposer(
             self.safe_name_id_supplier.clone(),
             self.known_constant_functions.clone(),
             scope,
         )
+    }
+
+    /// Rust-only: how often this injector made an expression decomposer. A decomposer reads the
+    /// names of all candidate functions and the declarations of names used around the call, which
+    /// lie outside the call site and the candidate: `InlineFunctions` does not keep an answer
+    /// whose computation made one.
+    pub(crate) fn decomposer_uses(&self) -> u64 {
+        self.decomposer_uses.load(Ordering::Relaxed)
     }
 
     /// If required, rewrite the statement containing the call expression.

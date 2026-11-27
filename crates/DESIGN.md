@@ -1611,7 +1611,12 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   uninlined over several runs (cost, conflicts). No answer is kept whose computation asked the
   compiler's unique name supplier for a name (a block inlining check of a call with more arguments
   than parameters in a function with inner functions): skipping it would shift every later unique
-  name. The pass wraps the supplier it hands the injector to count the names asked for.
+  name. The pass wraps the supplier it hands the injector to count the names asked for. An
+  answer is bound to the root it was computed under (`KeptSite::root`): a call site whose
+  function was inlined in place moves, with its node, to another root, where its scope may be the
+  global one. No answer is kept whose computation made an expression decomposer
+  (`FunctionInjector::decomposer_uses`): the decomposer reads the names of all candidate
+  functions and the declarations of the names around the call.
 - `jscomp/inline_functions.rs` (`FunctionFactsCache::reference_units`,
   `find_candidate_references_with_unit_cache`, `scan_reference_visits`): what the
   `FindCandidatesReferences` walk may act on in a top-level unit, whatever the candidates (every
