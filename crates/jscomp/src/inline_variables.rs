@@ -45,7 +45,7 @@ use crate::node_util::NodeUtil;
 use crate::reference::Reference;
 use crate::reference_collection::ReferenceCollection;
 use crate::reference_collector::{
-    Behavior, CacheOf, FunctionReferenceCache, KeptCleanSubtrees, ReferenceCollector,
+    Behavior, CacheOf, FunctionReferenceCache, KeptCleanSubtrees, LeafScreen, ReferenceCollector,
     ScopeExitReport, Site,
 };
 use crate::reference_map::ReferenceMap;
@@ -597,6 +597,16 @@ impl Behavior for InliningBehavior {
         std::mem::take(&mut self.exit_report)
     }
 
+    // Rust-only (performance divergence): `leaf_screen` decides as `do_inlines_for_scope` does in
+    // `Mode::ALL`, the only mode with `clean_subtree_cache`.
+    fn leaf_screen(&self) -> LeafScreen {
+        if self.clean_subtree_cache().is_some() {
+            LeafScreen::InlineVariables
+        } else {
+            LeafScreen::None
+        }
+    }
+
     fn can_skip_global_function_if_no_pending_hoist(
         &self,
         compiler: &mut AbstractCompiler,
@@ -808,7 +818,9 @@ impl InliningBehavior {
                             .function_reference_sites
                             .has_single_scope_sites(body)
                         || (compiler.get_life_cycle_stage().is_normalized()
-                            && compiler.function_reference_sites.has_cached_sites(body))))
+                            && compiler
+                                .function_reference_sites
+                                .has_cached_sites_naming_one_variable_each(body))))
                 .then_some((fn_node, body, scope.get_parent(compiler).unwrap()))
             })
         } else {

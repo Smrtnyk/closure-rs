@@ -131,6 +131,12 @@ pub(crate) struct FunctionBodySites {
     /// The names of such a body resolve in more than one scope, and the scopes that declare
     /// bindings have exits a behavior acts on: only `collect_body_from_sites` handles that.
     pub(crate) declares_in_nested_scopes: bool,
+    /// Whether a spelling that a `let` or `const` of a nested scope declares also has a site
+    /// outside that scope: the replay, which binds a spelling once (`replay_scoped_body_sites`),
+    /// then cannot be used, and neither can the spellings of the sites tell the names declared in
+    /// the body from the free ones. In a normalized tree every declared name is unique, but an
+    /// undeclared name keeps its spelling.
+    pub(crate) nested_names_escape: bool,
     /// Rust-only (performance divergence): whether the sites hand nodes back to the traversal
     /// (`SiteKind::Delegate`, `collect_delegating`); only `replay_scoped_body_sites` replays
     /// them, and such sites are kept apart from the others (`FunctionReferenceCache`).
@@ -176,6 +182,8 @@ impl FunctionBodySites {
         let declares_in_nested_scopes = sites
             .iter()
             .any(|site| matches!(site.decode(), SiteKind::EnterScope(_)));
+        let nested_names_escape =
+            declares_in_nested_scopes && Self::nested_declaration_escapes(ast, &sites, names.len());
         let has_delegates = delegate
             && sites
                 .iter()
@@ -184,8 +192,58 @@ impl FunctionBodySites {
             first_names: names.into_values().collect(),
             sites: sites.into_boxed_slice(),
             declares_in_nested_scopes,
+            nested_names_escape,
             has_delegates,
         })
+    }
+
+    /// Whether a spelling that a `let` or `const` of a nested scope declares has a site outside
+    /// that scope. A scope covers the sites between its entry and its exit.
+    fn nested_declaration_escapes(ast: &Ast, sites: &[Site], spellings: usize) -> bool {
+        // Per spelling: its first and last site, and the entry and exit of the nested scope that
+        // declares it, once found (the exit is filled in when the scope is left).
+        let mut range: Vec<(u32, u32)> = vec![(u32::MAX, 0); spellings];
+        let mut declared_in: Vec<Option<usize>> = vec![None; spellings];
+        // The entries and exits of the declaring scopes, and the open ones.
+        let mut scopes: Vec<(u32, u32)> = Vec::new();
+        let mut open: Vec<usize> = Vec::new();
+        for (index, site) in sites.iter().enumerate() {
+            let index = index as u32;
+            match site.decode() {
+                SiteKind::Reference(name, slot) => {
+                    let slot = slot as usize;
+                    let (first, last) = &mut range[slot];
+                    *first = (*first).min(index);
+                    *last = index;
+                    if let Some(&scope) = open.last()
+                        && declared_in[slot].is_none()
+                        && name
+                            .get_parent(ast)
+                            .is_some_and(|p| p.is_let(ast) || p.is_const(ast))
+                    {
+                        declared_in[slot] = Some(scope);
+                    }
+                }
+                SiteKind::EnterScope(_) => {
+                    open.push(scopes.len());
+                    scopes.push((index, u32::MAX));
+                }
+                SiteKind::ExitScope => {
+                    let scope = open.pop().expect("balanced scopes");
+                    scopes[scope].1 = index;
+                }
+                _ => {}
+            }
+        }
+        declared_in
+            .iter()
+            .zip(&range)
+            .any(|(scope, &(first, last))| {
+                scope.is_some_and(|scope| {
+                    let (entry, exit) = scopes[scope];
+                    first < entry || last > exit
+                })
+            })
     }
 
     /// Whether a site of spelling `slot` declares it (a `let` or `const`, the only declarations
@@ -204,6 +262,7 @@ impl FunctionBodySites {
             (Some(a), Some(b)) => {
                 a.first_names == b.first_names
                     && a.declares_in_nested_scopes == b.declares_in_nested_scopes
+                    && a.nested_names_escape == b.nested_names_escape
                     && a.has_delegates == b.has_delegates
                     && a.sites.len() == b.sites.len()
                     && a.sites
@@ -442,6 +501,16 @@ impl FunctionReferenceCache {
         self.bodies
             .get(&body)
             .is_some_and(|(_, sites)| sites.is_some())
+    }
+
+    /// Whether `body` has cached sites in which a spelling names one variable or none
+    /// (`FunctionBodySites::nested_names_escape`).
+    pub(crate) fn has_cached_sites_naming_one_variable_each(&self, body: NodeId) -> bool {
+        self.bodies.get(&body).is_some_and(|(_, sites)| {
+            sites
+                .as_ref()
+                .is_some_and(|sites| !sites.nested_names_escape)
+        })
     }
 
     /// Whether `body` has cached sites and all its names resolve in the scope of the body itself.

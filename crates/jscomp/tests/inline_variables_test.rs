@@ -3259,6 +3259,71 @@ fn test_rerun_inlines_alias_after_skipped_functions() {
     );
 }
 
+// Rust-only (crates/DESIGN.md, "Performance divergences"): leaf functions screened from the Ast
+// (`reference_collector/leaf_screen.rs`) are kept and skipped like functions a traversal found
+// clean; the screen leaves every function that may inline to the traversal.
+#[test]
+fn test_rerun_screened_leaf_with_block_scoped_variables() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 3;
+    t.test_same(
+        "var x = foo(); function f(a) { var y = a.b; use(y, y, x); \
+         { let z = g(); use(z, z); } for (let i = 0; i < a; i++) { use(i, x); } } use(f, f, x);",
+    );
+}
+
+#[test]
+fn test_rerun_screened_leaf_reading_once_in_another_block() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 3;
+    t.test_same("function f(a) { var y = a(); if (a) { use(y); } } use(f, f);");
+}
+
+#[test]
+fn test_rerun_screened_leaf_with_arguments_and_absent_name() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 3;
+    t.test_same(
+        "function f(a) { var y = arguments[0]; use(y, y, undeclaredName); } \
+         var g = () => { return undeclaredName; }; use(f, f, g, g);",
+    );
+}
+
+#[test]
+fn test_rerun_screen_leaves_inlining_leaf_to_traversal() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 3;
+    t.test(
+        "function f(a) { var y = a.b; var z = 1; use(y + z); } use(f, f);",
+        "function f(a) { use(a.b + 1); } use(f, f);",
+    );
+}
+
+// Rust-only (crates/DESIGN.md, "Performance divergences"): the summary of the externs takes function
+// stubs without traversing them; a later run leaves the externs out.
+#[test]
+fn test_rerun_skips_externs_with_function_stubs() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 2;
+    t.test_parts(vec![
+        externs("function Stub(a, b) {} Stub.make = function(c) {}; var w;"),
+        srcs("var x = Stub.make(w); var y = x; z = y;"),
+        expected("z = Stub.make(w);"),
+    ]);
+}
+
+// Rust-only (crates/DESIGN.md, "Performance divergences"): the reference sites of a body are not
+// replayed when a block-scoped name shares its spelling with an undeclared name outside the block.
+#[test]
+fn test_block_scoped_variable_sharing_a_spelling_with_an_undeclared_name() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 2;
+    t.test(
+        "function f() { use(x); { let x = 1; g(x); } } use(f, f);",
+        "function f() { use(x); { g(1); } } use(f, f);",
+    );
+}
+
 #[test]
 fn test_repeated_local_inlining_with_conditional_capture() {
     let mut t = InlineVariablesTest::set_up();
