@@ -839,6 +839,80 @@ mod tests {
     }
 
     #[test]
+    fn qualified_slots_by_units_match_string_lookups() {
+        use crate::type_inference::qname_slot_lookup_for_test::MODE;
+        use std::sync::atomic::Ordering::Relaxed;
+        fn run(mode: u8) -> InferenceResult {
+            let mut compiler = Compiler::new();
+            let script = compiler.parse_test_code(
+                r#"
+                var ns = {};
+                /** @type {number} */ ns.declared = 1;
+                ns.inferred = 'a';
+                /** @const */ ns.inner = {};
+                /** @type {string} */ ns.inner.deep = 'x';
+                function f(p, q) {
+                    var local = {};
+                    local.a = 1;
+                    if (p) { local.b = 'two'; ns.inferred = 3; } else { local.a = null; }
+                    var r = local.a + local.b + local.c + ns.declared + ns.missing + ns.inner.deep;
+                    undeclaredRoot.x = 4;
+                    var s = undeclaredRoot.x + undeclaredRoot.y + q.z + arguments.length;
+                    {
+                        let ns = {shadow: 1};
+                        ns.shadow = ns.other;
+                        r = ns.shadow;
+                    }
+                    var g = function() {
+                        local.c = 5;
+                        return local.a + local.c + ns.declared + p.deep.chain;
+                    };
+                    for (var i = 0; i < 3; i++) { local.a = local.a + i; r = local.b; }
+                    return r + s + g();
+                }
+                f(1, {z: 2});
+                class C {
+                    constructor(v) {
+                        this.v = v;
+                        /** @type {number} */ this.n = 1;
+                        if (v) { this.w = 'w'; } else { this.w = null; }
+                        const arrow = () => this.v + this.n + this.missing.deep;
+                        this.r = arrow();
+                    }
+                    m(p) {
+                        this.w = p ? this.w : 3;
+                        const self = this;
+                        return function() { return this.v + self.n; };
+                    }
+                    static { this.s = 1; this.t = this.s + this.u; }
+                }
+                /** @constructor */ function D() { this.d = 1; this.e = this.d + this.f; }
+                D.prototype.g = function() { return this.d + this.e + this.h; };
+            "#,
+            );
+            let externs = IR::root(&mut compiler, &[]);
+            let sources = IR::root(&mut compiler, &[script]);
+            let root = IR::root(&mut compiler, &[externs, sources]);
+            let interpreter = compiler.get_reverse_abstract_interpreter();
+            let creator = TypedScopeCreator::new(&mut compiler);
+            let mut pass = TypeInferencePass::new(&mut compiler, interpreter, creator);
+            MODE.store(mode, Relaxed);
+            pass.infer_all_scopes(&mut compiler, root);
+            MODE.store(0, Relaxed);
+            results(compiler, root, pass)
+        }
+        let by_string = run(2);
+        assert!(
+            by_string
+                .nodes
+                .iter()
+                .any(|(_, _, t)| t.as_deref() == Some("(null|number)"))
+        );
+        assert_eq!(run(1), by_string);
+        assert_eq!(run(3), by_string);
+    }
+
+    #[test]
     fn linear_flow_matches_graph_types_slots_and_diagnostics() {
         let direct = infer_with_recording(false);
         assert!(

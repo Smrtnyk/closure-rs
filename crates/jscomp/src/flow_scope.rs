@@ -109,8 +109,33 @@ pub trait FlowScope: LatticeElement {
         true
     }
 
+    /// Rust-only (performance divergence): `get_slot_with_declaration` of the dotted name whose
+    /// code units are `key`, without making a string of it. `root` is the name's first
+    /// component; `root_var` is its binding as seen from `get_declaration_scope` when the caller
+    /// already looked it up. The declaration returned is the declaration scope's `getVar` of the
+    /// name. `None` ("cannot tell") makes the caller do the string lookup.
+    fn qualified_slot_with_declaration(
+        &self,
+        _compiler: &AbstractCompiler,
+        _root: QualifiedRoot<'_>,
+        _root_var: Option<Option<TypedVar>>,
+        _key: &crate::var_map::UnitsKey<'_>,
+    ) -> Option<(Option<FlowSlot>, Option<TypedVar>)> {
+        None
+    }
+
     /// Rust-only: Java's casts of a FlowScope to its class (`(LinkedFlowScope) input`).
     fn as_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
+}
+
+/// Rust-only: the first component of a qualified name looked up by its code units
+/// (`FlowScope::qualified_slot_with_declaration`).
+#[derive(Clone, Copy)]
+pub enum QualifiedRoot<'a> {
+    /// A NAME that is not an implicit name (`arguments`, `exports`, ...).
+    Name(&'a JsString),
+    /// `this`.
+    This,
 }
 
 /// The `StaticTypedSlot` a flow scope hands out: a TypedVar of the syntactic scope chain, or a

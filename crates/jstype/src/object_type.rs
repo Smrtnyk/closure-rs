@@ -519,7 +519,19 @@ impl ObjectType for TypeId {
             true,
             "Symbol-based property keys are not supported for inferred properties."
         );
-        if self.has_property(reg, ast, &property_name) {
+        let key = PropertyKey::String(property_name.clone());
+        if let Some(slot) = slot_once(self, reg, ast, &key) {
+            // Rust-only (performance divergence): `hasProperty`, `isPropertyTypeDeclared` and
+            // `getPropertyType` all read the same slot here (see `slot_once`); it is looked up
+            // once instead of three times.
+            if self.is_empty_type(reg) || self.is_unknown_type(reg, ast) || slot.is_some() {
+                if slot.is_some_and(|p| !p.is_type_inferred(reg)) {
+                    return true;
+                }
+                let original_type = get_property_type_from_slot(self, reg, slot);
+                type_ = original_type.get_least_supertype(reg, ast, type_);
+            }
+        } else if self.has_property(reg, ast, &property_name) {
             if self.is_property_type_declared(reg, ast, &property_name) {
                 return true;
             }
@@ -957,6 +969,81 @@ pub fn test_for_equality(
     }
     Some(Tri::FALSE)
 }
+/// Rust-only: `CLOSURE_RS_PROPERTY_SLOT_ONCE` (`find_property_type_without_considering_template_types`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SlotOnceMode {
+    On,
+    Off,
+    Verify,
+}
+static PROPERTY_SLOT_ONCE: std::sync::LazyLock<SlotOnceMode> =
+    std::sync::LazyLock::new(
+        || match std::env::var("CLOSURE_RS_PROPERTY_SLOT_ONCE").as_deref() {
+            Ok("off") => SlotOnceMode::Off,
+            Ok("verify") => SlotOnceMode::Verify,
+            _ => SlotOnceMode::On,
+        },
+    );
+
+/// Rust-only (performance divergence): for the object types whose `hasProperty`,
+/// `isPropertyTypeDeclared`, `isPropertyTypeInferred` and `getPropertyType` are all the default
+/// ObjectType methods over the default `getSlot` (Enum, InstanceObject, NoResolved,
+/// PrototypeObject, Record and Unknown types; not function types, the No/NoObject types, which
+/// are function types, nor templatized, proxy or named types), the slot those methods would
+/// each look up: `Some(getSlot(name))`. `getPropertyKind` is then `isEmptyType() ||
+/// isUnknownType() || slot != null`, `isPropertyTypeDeclared` is `slot != null &&
+/// !slot.isTypeInferred()` and `getPropertyType` is `getPropertyTypeFromSlot(slot)`; a caller
+/// that asks several of them without changing a property map in between can look the slot up
+/// once. `None` for other types, or with `CLOSURE_RS_PROPERTY_SLOT_ONCE=off`. With `=verify`
+/// the slot is also looked up through `ObjectType#getSlot` and compared.
+pub fn slot_once(
+    t: TypeId,
+    reg: &mut JSTypeRegistry,
+    ast: &Ast,
+    name: &PropertyKey,
+) -> Option<Option<PropertyId>> {
+    let mode = *PROPERTY_SLOT_ONCE;
+    if mode == SlotOnceMode::Off
+        || !matches!(
+            reg.data(t).kind,
+            JSTypeKind::Enum(_)
+                | JSTypeKind::InstanceObject(_)
+                | JSTypeKind::NoResolved(_)
+                | JSTypeKind::PrototypeObject(_)
+                | JSTypeKind::Record(_)
+                | JSTypeKind::Unknown(_)
+        )
+    {
+        return None;
+    }
+    let slot = get_slot(t, reg, ast, name);
+    if mode == SlotOnceMode::Verify {
+        let has = t.has_property(reg, ast, name.clone());
+        let declared = t.is_property_type_declared(reg, ast, name.clone());
+        let ty = t.get_property_type(reg, ast, name.clone());
+        let again = t.get_slot(reg, ast, name.clone());
+        let by_slot_has = t.is_empty_type(reg) || t.is_unknown_type(reg, ast) || slot.is_some();
+        let by_slot_declared = slot.is_some_and(|p| !p.is_type_inferred(reg));
+        let by_slot_ty = get_property_type_from_slot(t, reg, slot);
+        assert!(
+            again == slot && has == by_slot_has && declared == by_slot_declared && ty == by_slot_ty,
+            "CLOSURE_RS_PROPERTY_SLOT_ONCE=verify: property {} of type {}: slot {:?} / {:?}, \
+             hasProperty {} / {}, declared {} / {}, type {} / {}",
+            name.human_readable_name(reg),
+            t.0,
+            slot.map(|p| p.0),
+            again.map(|p| p.0),
+            by_slot_has,
+            has,
+            by_slot_declared,
+            declared,
+            by_slot_ty.0,
+            ty.0,
+        );
+    }
+    Some(slot)
+}
+
 // port: ObjectType#findPropertyTypeWithoutConsideringTemplateTypes
 pub fn find_property_type_without_considering_template_types(
     t: TypeId,
@@ -964,6 +1051,12 @@ pub fn find_property_type_without_considering_template_types(
     ast: &Ast,
     name: &PropertyKey,
 ) -> Option<TypeId> {
+    // Rust-only (performance divergence): Java asks `hasProperty`, then `getPropertyType`; where
+    // both read the same slot (`slot_once`), it is looked up once.
+    if let Some(slot) = slot_once(t, reg, ast, name) {
+        return (t.is_empty_type(reg) || t.is_unknown_type(reg, ast) || slot.is_some())
+            .then(|| get_property_type_from_slot(t, reg, slot));
+    }
     t.has_property(reg, ast, name.clone())
         .then(|| t.get_property_type(reg, ast, name.clone()))
 }

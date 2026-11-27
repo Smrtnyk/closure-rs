@@ -89,6 +89,23 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtPMap<K, V> {
     pub fn get(&self, key: &K) -> Option<&V> {
         self.root.as_ref().and_then(|n| n.get(key, hash(key)))
     }
+    /// Rust-only: `get` of the key whose Java `hashCode` is `hash_code` and for which
+    /// `is_key` holds, without a `K` in hand (the same walk as `get`).
+    pub fn get_matching(&self, hash_code: i32, is_key: impl Fn(&K) -> bool) -> Option<&V> {
+        let mut hash = (hash_code as u32).reverse_bits();
+        let mut node = self.root.as_deref()?;
+        loop {
+            if hash == node.hash && node.key.as_ref().is_some_and(&is_key) {
+                return node.value.as_ref();
+            }
+            let bucket_mask = 1 << bucket(hash);
+            if node.mask & bucket_mask == 0 {
+                return None;
+            }
+            node = &node.children[node.index(bucket_mask)];
+            hash = shift(hash);
+        }
+    }
     // port: HamtPMap#plus
     pub fn plus(&self, key: K, value: V) -> Self {
         let hash = hash(&key);

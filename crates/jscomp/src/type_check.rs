@@ -2520,13 +2520,17 @@ impl TypeCheck {
                 .get_primitive_type(reg);
         }
 
-        let valid = self.validator.expect_can_assign_to_property_of(
+        // Rust-only (performance divergence): the `&JsString` variant answers a valid assignment
+        // without converting the key name to a `String` or making the error-message closure,
+        // which only a mismatch uses (`can_assign_to_property_fast` is the no-diagnostic early
+        // return of `expect_can_assign_to_property_of_type`); otherwise it calls the same method.
+        let valid = self.validator.expect_can_assign_to_property_of_js(
             compiler,
             key,
             right_type,
             allowed_value_type,
             owner,
-            &property_name.to_string(),
+            &property_name,
         );
         if valid {
             self.ensure_typed_with_type(compiler, key, Some(right_type));

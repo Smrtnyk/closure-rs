@@ -23,9 +23,40 @@
 //! moves its names to an insertion-ordered hash map.
 
 use closure_rhino::{fast_hash::IndexMap, js_string::JsString};
+use indexmap::Equivalent;
 
 /// The most names kept in the scope itself.
 const INLINE: usize = 2;
+
+/// A name given by its code units and their Java `hashCode` (the hash a `JsString` caches and
+/// feeds to the map's hasher), to look a name up without making a `JsString` of it.
+pub struct UnitsKey<'a> {
+    pub hash: i32,
+    pub units: &'a [u16],
+}
+
+impl<'a> UnitsKey<'a> {
+    /// Java's `String#hashCode` of `units`, which `JsString::hash_code` caches.
+    pub fn new(units: &'a [u16]) -> Self {
+        let hash = units
+            .iter()
+            .fold(0i32, |h, &u| h.wrapping_mul(31).wrapping_add(i32::from(u)));
+        Self { hash, units }
+    }
+}
+
+impl std::hash::Hash for UnitsKey<'_> {
+    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+        // `impl Hash for JsString` writes exactly this.
+        h.write_u32(self.hash as u32);
+    }
+}
+
+impl Equivalent<JsString> for UnitsKey<'_> {
+    fn equivalent(&self, key: &JsString) -> bool {
+        key.hash_code() == self.hash && key.as_units() == self.units
+    }
+}
 
 #[derive(Debug, Clone)]
 pub(crate) enum VarMap<V> {
@@ -58,6 +89,17 @@ impl<V> VarMap<V> {
 
     pub fn contains_key(&self, name: &JsString) -> bool {
         self.get(name).is_some()
+    }
+
+    /// `get` of the name with these code units (and `hash`, their Java `hashCode`), without
+    /// making a `JsString` of them.
+    pub fn get_units(&self, key: &UnitsKey<'_>) -> Option<&V> {
+        match self {
+            Self::Inline(entries) => Self::inline_entries(entries)
+                .find(|(name, _)| key.equivalent(name))
+                .map(|(_, value)| value),
+            Self::Map(map) => map.get(key),
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -164,6 +206,23 @@ mod tests {
 
     fn names(map: &VarMap<i32>) -> Vec<(String, i32)> {
         map.iter().map(|(k, v)| (k.to_string_lossy(), *v)).collect()
+    }
+
+    #[test]
+    fn units_lookup_matches_string_lookup_inline_and_spilled() {
+        use super::UnitsKey;
+        let mut map = VarMap::default();
+        let names = ["a", "a.b", "ns.inner.deep", "x", "ab", "b.a"];
+        for (count, name) in names.iter().enumerate() {
+            for probe in names.iter().chain(&["missing", "a.c", ""]) {
+                let units: Vec<u16> = probe.encode_utf16().collect();
+                let key = UnitsKey::new(&units);
+                assert_eq!(key.hash, JsString::from(*probe).hash_code());
+                assert_eq!(map.get_units(&key), map.get(&JsString::from(*probe)));
+            }
+            map.insert(JsString::from(*name), count);
+        }
+        assert!(matches!(map, VarMap::Map(_)));
     }
 
     #[test]

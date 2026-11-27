@@ -959,6 +959,78 @@ impl TypedScopeArena {
         })
     }
 
+    /// Rust-only (performance divergence): `TypedScope::get_var` of the dotted name `key` from
+    /// `scope`, without making a string of the name. `root_var` is the binding that
+    /// `getVar` finds for the name's first component from `scope` (`declared_var`, or
+    /// `existing_this_var` for `this`). The lookup is that of `get_var_by_ref` for a dotted name:
+    /// the scope's own names, then the names of the scope that owns the root's binding (the
+    /// global scope when the root has none). Like that path, it creates nothing.
+    pub(crate) fn dotted_var(
+        &self,
+        scope: TypedScope,
+        root_var: Option<TypedVar>,
+        key: &crate::var_map::UnitsKey<'_>,
+    ) -> Option<TypedVar> {
+        let data = &self.scopes[scope.index()];
+        if let Some(&var) = data.abstract_scope.vars.get_units(key) {
+            return Some(var);
+        }
+        let mut owner = data.parent?;
+        match root_var {
+            Some(var) => owner = self.var_scope(var),
+            None => {
+                while let Some(parent) = self.scopes[owner.index()].parent {
+                    owner = parent;
+                }
+            }
+        }
+        self.scopes[owner.index()]
+            .abstract_scope
+            .vars
+            .get_units(key)
+            .copied()
+    }
+
+    /// Rust-only (performance divergence): the binding `TypedScope::get_var("this")` finds from
+    /// `scope` when that lookup would create nothing: the first scope on the chain that declares
+    /// `this` or makes it implicitly (`AbstractScope#getOwnSlot`); `Some(None)` when there is
+    /// none. `None` when that scope has not made its implicit `this` yet: looking it up would
+    /// make it.
+    pub(crate) fn existing_this_var(
+        &self,
+        compiler: &AbstractCompiler,
+        mut scope: TypedScope,
+        this_key: &crate::var_map::UnitsKey<'_>,
+    ) -> Option<Option<TypedVar>> {
+        loop {
+            let data = &self.scopes[scope.index()].abstract_scope;
+            if let Some(&var) = data.vars.get_units(this_key) {
+                return Some(Some(var));
+            }
+            if ImplicitVar::THIS.is_made_by_scope(compiler, scope) {
+                return data
+                    .implicit_vars
+                    .get(&ImplicitVar::THIS)
+                    .map(|&var| Some(var));
+            }
+            match self.scopes[scope.index()].parent {
+                Some(parent) => scope = parent,
+                None => return Some(None),
+            }
+        }
+    }
+
+    /// The binding `TypedScope::get_var` finds for the plain (not implicit, not dotted) name
+    /// `name` from `scope`, read without effect.
+    pub(crate) fn declared_var(&self, scope: TypedScope, name: &JsString) -> Option<TypedVar> {
+        self.find_declared_var(scope, name).0
+    }
+
+    /// `TypedVar::get_scope`, read in this arena.
+    pub(crate) fn var_scope(&self, var: TypedVar) -> TypedScope {
+        closure_rhino::check_not_null!(self.vars[var.index()].abstract_var.scope)
+    }
+
     /// Find an explicit lexical binding and the last scope examined (global on a miss).
     fn find_declared_var(
         &self,

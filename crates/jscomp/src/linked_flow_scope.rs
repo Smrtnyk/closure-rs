@@ -29,10 +29,12 @@ use crate::{
     typed_scope::TypedScope,
     typed_var::TypedVar,
 };
+use crate::{flow_scope::QualifiedRoot, var_map::UnitsKey};
 use closure_jstype::{TypeId, prelude::JSType};
 use closure_rhino::{
     check_not_null, hamt_pmap::HamtPMap, js_string::JsString, jsdoc_info::JSDocInfo, node::NodeId,
 };
+use indexmap::Equivalent;
 use std::{any::Any, sync::Arc};
 
 #[derive(Debug)]
@@ -562,6 +564,76 @@ impl FlowScope for LinkedFlowScope {
 
     fn has_qualified_overlay(&self) -> bool {
         self.has_qualified_overlay
+    }
+
+    /// Rust-only (performance divergence): `get_slot_with_declaration` of a dotted name with the
+    /// name given by its code units (`key`) instead of a string. The root's binding as seen from a
+    /// scope (`root_binding`) is the `getVar` of the root there, found without effect; it is
+    /// found once per scope instead of at each step. Each step reads the typed scope arena as the
+    /// string lookup does: the syntactic scope's `getVar` of the name; without overlays its
+    /// result; with a binding, the overlay of the binding's scope (its slot, else the overlay
+    /// scope's `getVar`); without one, `getOverlayScopeForName` (the overlay of the root binding's
+    /// scope, else of the function scope) and its slot or its scope's `getVar`. None of these
+    /// lookups creates a var; where one would (an implicit `this` not made yet), the answer is
+    /// `None`.
+    fn qualified_slot_with_declaration(
+        &self,
+        compiler: &AbstractCompiler,
+        root: QualifiedRoot<'_>,
+        root_var: Option<Option<TypedVar>>,
+        key: &UnitsKey<'_>,
+    ) -> Option<(Option<FlowSlot>, Option<TypedVar>)> {
+        let arena = crate::typed_scope::TypedScopeArena::read(compiler);
+        let root_binding = |scope: TypedScope| match root {
+            QualifiedRoot::Name(name) => Some(arena.declared_var(scope, name)),
+            QualifiedRoot::This => {
+                let this: [u16; 4] = [116, 104, 105, 115];
+                arena.existing_this_var(compiler, scope, &UnitsKey::new(&this))
+            }
+        };
+        let root_var = match root_var {
+            Some(root_var) => root_var,
+            None => root_binding(self.syntactic_scope)?,
+        };
+        let var = arena.dotted_var(self.syntactic_scope, root_var, key);
+        if self.scopes.is_empty() {
+            return Some((var.map(FlowSlot::Var), var));
+        }
+        let overlay_slot = |overlay: &OverlayScopeRef| {
+            overlay
+                .0
+                .slots
+                .get_matching(key.hash, |name| key.equivalent(name))
+                .map(|slot| FlowSlot::Overlay(Arc::clone(&slot.0)))
+        };
+        // `OverlayScopeRef::get_slot`: the overlay's slot, else its scope's `getVar`; `None`
+        // when the latter cannot be answered without effect.
+        let overlay_get_slot = |overlay: &OverlayScopeRef| -> Option<Option<FlowSlot>> {
+            if let Some(slot) = overlay_slot(overlay) {
+                return Some(Some(slot));
+            }
+            let scope = overlay.0.scope;
+            let root_var = root_binding(scope)?;
+            Some(arena.dotted_var(scope, root_var, key).map(FlowSlot::Var))
+        };
+        if let Some(var) = var {
+            let owner = arena.var_scope(var);
+            let slot = match self.scopes.get(&owner) {
+                Some(scope) if owner == self.syntactic_scope => {
+                    Some(overlay_slot(scope).unwrap_or(FlowSlot::Var(var)))
+                }
+                Some(scope) => overlay_get_slot(scope)?,
+                None => Some(FlowSlot::Var(var)),
+            };
+            Some((slot, Some(var)))
+        } else {
+            let scope = root_var.map_or(self.function_scope, |var| arena.var_scope(var));
+            let slot = match self.scopes.get(&scope) {
+                Some(overlay) => overlay_get_slot(overlay)?,
+                None => None,
+            };
+            Some((slot, None))
+        }
     }
 
     fn as_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {

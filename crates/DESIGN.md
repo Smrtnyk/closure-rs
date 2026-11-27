@@ -1842,3 +1842,23 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   outside that scope are not replayed (the replay binds a spelling once), nor used to tell declared
   names from free ones. A normalized tree has unique declared names, but an undeclared name keeps
   its spelling (`function f() { use(x); { let x = 1; g(x); } }` lost the inlining of the inner `x`).
+- `jscomp/type_inference.rs` (`get_property_type`, `qualified_slot_by_units`),
+  `linked_flow_scope.rs` / `flow_scope.rs` (`qualified_slot_with_declaration`), `typed_scope.rs`
+  (`TypedScopeArena::dotted_var`), `var_map.rs` (`UnitsKey`, `VarMap::get_units`),
+  `rhino/hamt_pmap.rs` (`get_matching`): the flow-scope slot of a qualified name rooted in `this`
+  or in a non-implicit NAME is looked up with the code units of the name (Java:
+  `getQualifiedName`, then `getSlot`, which looks the root up again at each step); the root's
+  binding is found once per scope, the steps and their results are those of the string lookup,
+  and the declaration found doubles as `getDeclaredVar`. An implicit `this` that does not exist
+  yet (looking it up would make it) takes the string lookup. The string is made only when the
+  registry is asked.
+  `CLOSURE_RS_QNAME_SLOT_LOOKUP=off` looks the string up, `=verify` does both and compares slots
+  and declarations.
+- `jstype/object_type.rs` (`slot_once`, `find_property_type_without_considering_template_types`,
+  `define_inferred_property`), `jscomp/type_inference.rs` (`ensure_property_defined`): for the object types whose `hasProperty`,
+  `isPropertyTypeDeclared` and `getPropertyType` are all the default ObjectType methods over
+  `getSlot` (not function, templatized, proxy or named types), the slot is looked up once where
+  Java asks two or three of them in a row. `CLOSURE_RS_PROPERTY_SLOT_ONCE=off|verify`.
+- `jscomp/type_check.rs` `visit_object_or_class_literal_key`: the value of an object-literal key
+  or class member is checked with `expect_can_assign_to_property_of_js`, which answers a valid
+  assignment without converting the key name to a `String` or building the message closure.

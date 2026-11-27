@@ -212,6 +212,38 @@ static INFERENCE_MODULE_MEMO: LazyLock<SkipMode> =
         },
     );
 
+/// Rust-only: `CLOSURE_RS_QNAME_SLOT_LOOKUP` (`InferenceTransfer::get_property_type`).
+static QNAME_SLOT_LOOKUP: LazyLock<SkipMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_QNAME_SLOT_LOOKUP").as_deref() {
+            Ok("off") => SkipMode::Off,
+            Ok("verify") => SkipMode::Verify,
+            _ => SkipMode::On,
+        },
+    );
+
+fn qname_slot_lookup_mode() -> SkipMode {
+    #[cfg(test)]
+    {
+        use std::sync::atomic::Ordering::Relaxed;
+        match qname_slot_lookup_for_test::MODE.load(Relaxed) {
+            1 => return SkipMode::On,
+            2 => return SkipMode::Off,
+            3 => return SkipMode::Verify,
+            _ => {}
+        }
+    }
+    *QNAME_SLOT_LOOKUP
+}
+
+/// Rust-only: tests set the mode of the qualified-name slot lookup by code units.
+#[cfg(test)]
+pub(crate) mod qname_slot_lookup_for_test {
+    use std::sync::atomic::AtomicU8;
+    /// 0: `CLOSURE_RS_QNAME_SLOT_LOOKUP`, 1: on, 2: off, 3: verify.
+    pub(crate) static MODE: AtomicU8 = AtomicU8::new(0);
+}
+
 /// Rust-only: tests set the mode of `declare_module_imports` and count its skips.
 #[cfg(test)]
 pub(crate) mod module_import_cache_for_test {
@@ -272,6 +304,9 @@ struct InferenceTransfer<'a> {
     /// Rust-only (performance divergence): per ES module scope, the imports last declared in it
     /// and the `VarWatch` epoch after that (`declare_module_imports`).
     module_imports: IndexMap<TypedScope, DeclaredModuleImports>,
+    /// Rust-only (performance divergence): the code units of the qualified name
+    /// `qualified_slot_by_units` looks up, reused from one call to the next.
+    qualified_name_units: Vec<u16>,
 
     // For convenience
     unknown_type: TypeId,
@@ -452,6 +487,7 @@ impl<'a> InferenceTransfer<'a> {
             last_module_root: None,
             last_inferred_unbound_scope: None,
             module_imports: IndexMap::default(),
+            qualified_name_units: Vec::new(),
             unknown_type,
             number_addition_supertype,
         }
@@ -2422,7 +2458,21 @@ impl InferenceTransfer<'_> {
         }
 
         let (reg, ast) = compiler.get_type_registry_and_ast();
-        if !object_type.is_property_type_declared(reg, ast, prop_name.clone()) {
+        // Rust-only (performance divergence): `isPropertyTypeDeclared` and `hasProperty` read
+        // the same slot when `slot_once` answers (see there); it is looked up once.
+        let slot = object_type::slot_once(
+            object_type,
+            reg,
+            ast,
+            &PropertyKey::String(prop_name.clone()),
+        );
+        let declared = match slot {
+            Some(slot) => {
+                slot.is_some_and(|p| !closure_jstype::property::Property::is_type_inferred(p, reg))
+            }
+            None => object_type.is_property_type_declared(reg, ast, prop_name.clone()),
+        };
+        if !declared {
             // We do not want a "stray" assign to define an inferred property
             // for every object of this type in the program. So we use a heuristic
             // approach to determine whether to infer the property.
@@ -2435,9 +2485,15 @@ impl InferenceTransfer<'_> {
             // 4) If this is a stub, define it.
             // 5) Otherwise, do not define the type, but declare it in the registry
             //    so that we can use it for missing property checks.
-            if object_type.has_property(reg, ast, prop_name.clone())
-                || !object_type.is_instance_type(reg)
-            {
+            let has_property = match slot {
+                Some(slot) => {
+                    object_type.is_empty_type(reg)
+                        || object_type.is_unknown_type(reg, ast)
+                        || slot.is_some()
+                }
+                None => object_type.has_property(reg, ast, prop_name.clone()),
+            };
+            if has_property || !object_type.is_instance_type(reg) {
                 if prop_name == "prototype" {
                     self.define_declared_property(
                         compiler,
@@ -4505,22 +4561,72 @@ impl InferenceTransfer<'_> {
                 }
             };
             if may_have_slot {
-                qualified_name = n.get_qualified_name(compiler);
-                let (var, declaration) = match &qualified_name {
-                    Some(name) => scope.get_slot_with_declaration(compiler, name),
-                    None => (None, None),
+                // Rust-only (performance divergence): for a name rooted in `this` or in a NAME
+                // that is not an implicit name, `get_slot_with_declaration` reads the typed scope
+                // arena with the code units of the qualified name (`qualified_slot_by_units`)
+                // instead of making the string and looking its root up again at each step; the
+                // lookups and their results are the same, and none of them creates a var (when
+                // one would, an implicit `this` not made yet, the string lookup runs). The
+                // declaration it returns is the declaration scope's `getVar` of the name, which is
+                // what `getDeclaredVar` would look up again. The string is then made only if the
+                // registry is asked below. `CLOSURE_RS_QNAME_SLOT_LOOKUP=off` looks the string
+                // up, `=verify` does both and compares the slots and declarations.
+                let mode = qname_slot_lookup_mode();
+                let by_units =
+                    if mode != SkipMode::Off && matches!(root_token, Token::NAME | Token::THIS) {
+                        self.qualified_slot_by_units(compiler, n, root_node, scope, cached_root_var)
+                    } else {
+                        None
+                    };
+                let (var, declaration, declaration_is_exact) = match by_units {
+                    Some((var, declaration)) if mode == SkipMode::On => (var, declaration, true),
+                    _ => {
+                        qualified_name = n.get_qualified_name(compiler);
+                        let (var, declaration) = match &qualified_name {
+                            Some(name) => scope.get_slot_with_declaration(compiler, name),
+                            None => (None, None),
+                        };
+                        if let Some((units_var, units_declaration)) = &by_units {
+                            let same_slot = match (units_var, &var) {
+                                (Some(a), Some(b)) => a.ptr_eq(b),
+                                (None, None) => true,
+                                _ => false,
+                            };
+                            let name = |slot: &Option<FlowSlot>| {
+                                slot.as_ref().map(|s| match s {
+                                    FlowSlot::Var(v) => format!("var {}", v.get_name(compiler)),
+                                    FlowSlot::Overlay(o) => format!("overlay {}", o.get_name()),
+                                })
+                            };
+                            assert!(
+                                same_slot && *units_declaration == declaration,
+                                "CLOSURE_RS_QNAME_SLOT_LOOKUP=verify: {}: by units slot {:?} \
+                                 declaration {:?}, by string slot {:?} declaration {:?}",
+                                qualified_name.as_ref().unwrap(),
+                                name(units_var),
+                                units_declaration.map(|d| d.get_name(compiler).to_string()),
+                                name(&var),
+                                declaration.map(|d| d.get_name(compiler).to_string()),
+                            );
+                        }
+                        (var, declaration, false)
+                    }
                 };
                 if let Some(var) = var {
                     let var_type = var.get_type(compiler);
                     if let Some(var_type) = var_type {
                         let is_declared = !var.is_type_inferred(compiler);
-                        let declared_var = declaration.or_else(|| {
-                            Self::get_declared_var(
-                                compiler,
-                                scope,
-                                qualified_name.as_ref().unwrap(),
-                            )
-                        });
+                        let declared_var = if declaration_is_exact {
+                            declaration
+                        } else {
+                            declaration.or_else(|| {
+                                Self::get_declared_var(
+                                    compiler,
+                                    scope,
+                                    qualified_name.as_ref().unwrap(),
+                                )
+                            })
+                        };
                         // Java's `var != getDeclaredVar(scope, qualifiedName)` (object identity).
                         is_locally_inferred = !matches!(
                             (&var, declared_var),
@@ -4638,6 +4744,49 @@ impl InferenceTransfer<'_> {
                 }
             }
         }
+    }
+
+    /// Rust-only (performance divergence): `scope.get_slot_with_declaration` of the qualified
+    /// name of `n`, a chain of GETPROPs on `root_node` (THIS or a NAME), looked up by the name's
+    /// code units (`FlowScope::qualified_slot_with_declaration`); `None` when the flow scope
+    /// cannot answer that way, or when the root is an implicit NAME (`arguments`, ...), whose
+    /// lookup can create the implicit var. `cached_root_var` is the root's binding in the
+    /// declaration scope when `get_property_type` already looked it up.
+    fn qualified_slot_by_units(
+        &mut self,
+        compiler: &AbstractCompiler,
+        n: NodeId,
+        root_node: NodeId,
+        scope: &FS,
+        cached_root_var: Option<Option<TypedVar>>,
+    ) -> Option<(Option<FlowSlot>, Option<TypedVar>)> {
+        let root = if root_node.is_this(compiler) {
+            crate::flow_scope::QualifiedRoot::This
+        } else {
+            let name = root_node.get_string_ref(compiler);
+            if ImplicitVar::of(name).is_some() {
+                return None;
+            }
+            crate::flow_scope::QualifiedRoot::Name(name)
+        };
+        fn append(ast: &Ast, n: NodeId, units: &mut Vec<u16>) {
+            if n.is_get_prop(ast) {
+                append(ast, n.get_first_child(ast).unwrap(), units);
+                units.push(u16::from(b'.'));
+                units.extend_from_slice(n.get_string_ref(ast).as_units());
+            } else if n.is_this(ast) {
+                units.extend_from_slice(&[116, 104, 105, 115]);
+            } else {
+                units.extend_from_slice(n.get_string_ref(ast).as_units());
+            }
+        }
+        let mut units = std::mem::take(&mut self.qualified_name_units);
+        units.clear();
+        append(&compiler.ast, n, &mut units);
+        let key = crate::var_map::UnitsKey::new(&units);
+        let found = scope.qualified_slot_with_declaration(compiler, root, cached_root_var, &key);
+        self.qualified_name_units = units;
+        found
     }
 
     // port: TypeInference#traverseOr

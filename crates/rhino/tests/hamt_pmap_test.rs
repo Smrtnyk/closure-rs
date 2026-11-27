@@ -548,3 +548,24 @@ fn test_integration() {
     assert!(reference.is_empty());
     assert!(map.ptr_eq(&HamtPMap::empty()));
 }
+
+/// Rust-only: `get_matching` finds what `get` finds, including among colliding hashes and after
+/// removals.
+#[test]
+fn get_matching_agrees_with_get() {
+    let mut map: HamtPMap<IntegerWithCustomHashCode, i32> = HamtPMap::empty();
+    let key = |i: i32| IntegerWithCustomHashCode::new(i, (i % 7) * 0x1111_1111);
+    for i in 0..200 {
+        map = map.plus(key(i), i);
+        if i % 5 == 0 {
+            map = map.minus(&key(i / 2));
+        }
+        for probe in 0..210 {
+            let k = key(probe);
+            assert_eq!(
+                map.get_matching(k.hash_code, |other| other.i == probe),
+                map.get(&k)
+            );
+        }
+    }
+}
