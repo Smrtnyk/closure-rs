@@ -472,9 +472,14 @@ impl Layout {
         let mut digest = Digest::default();
         {
             let mut rel = |n: NodeId| self.rel(n);
-            for &(start, len) in self.ranges().iter().chain(std::iter::once(&self.block())) {
-                ast.prop_digest_range(start, start + len, &mut rel, &mut digest);
+            // Rust-only (performance divergence): the nodes of a script range whose properties
+            // are still the ones they were loaded with are not digested one by one (see
+            // `Ast::prop_digest_range_since_load`).
+            for &(start, len) in self.ranges() {
+                ast.prop_digest_range_since_load(start, start + len, &mut rel, &mut digest);
             }
+            let (start, len) = self.block();
+            ast.prop_digest_range(start, start + len, &mut rel, &mut digest);
         }
         let prop_digest = digest.0;
         let mut digest = Digest::default();
@@ -2547,6 +2552,17 @@ mod tests {
         data[8] ^= 1;
         let data: &'static [u8] = Box::leak(data.into_boxed_slice());
         assert!(Data::parse(data).is_none());
+    }
+
+    /// Every bundled script but the one that introduces the implicit template bound (loaded node
+    /// by node) is loaded from packed rows that record the properties they gave the nodes, so the
+    /// digest of those script ranges looks only at the nodes changed since.
+    #[test]
+    fn typed_externs_bundled_scripts_record_their_loaded_properties() {
+        let (_, outcome, compiler) = run(externs(), PROGRAM, options(), with_mode(Mode::Restore));
+        assert_eq!(outcome.as_deref(), Some("restored"));
+        let ast: &Ast = &compiler;
+        assert_eq!(ast.loaded_prop_records(), externs().len() - 1);
     }
 
     #[test]

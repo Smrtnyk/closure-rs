@@ -1230,14 +1230,6 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   reference-counted string that `Node.newString` interns later, so the copies the token, the parse
   trees and `IRFactory` make of it cost no reference counts. The parser compares identifier values
   by content only.
-- `rhino/hamt_pmap.rs`, `jscomp/linked_flow_scope.rs`, `flow_scope.rs`, `type_inference.rs`,
-  `semantic_reverse_abstract_interpreter.rs`, the other reverse interpreters, `data_flow_analysis.rs`,
-  `graph/annotation.rs`: TypeInference's lattice (`Rc<dyn FlowScope>`), its overlay scopes and
-  slots, the refinement sets of `RefinementTrackingFlowScope` (`Rc<RefCell<..>>`) and the nodes of
-  `HamtPMap` (also MaybeReachingVariableUse's lattice) are shared with `Rc` instead of `Arc` (and
-  `Mutex`): they are built, read and dropped by one thread, and their reference counts were the
-  largest source of locked instructions. `Annotation` no longer requires `Send + Sync`;
-  `DataFlowAnalysisState` and these lattices are not `Send`.
 - `jstype/union_type.rs`, `js_type.rs`: `UnionType::get_alternates` and `get_union_members` return an
   `Alternates` snapshot (a slice through `Deref`) that copies a union of at most eight members
   instead of cloning the union's `Arc<Vec<TypeId>>`, so that taking and dropping it costs no
@@ -1842,3 +1834,20 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   outside that scope are not replayed (the replay binds a spelling once), nor used to tell declared
   names from free ones. A normalized tree has unique declared names, but an undeclared name keeps
   its spelling (`function f() { use(x); { let x = 1; g(x); } }` lost the inlining of the inner `x`).
+- `jstype/js_type_registry/snapshot.rs` (`Writer::bytes_with`, `Reader::new_with`),
+  `rhino/rhino_string_pool.rs` (`add_or_get_slice`): the string table of the typed externs data
+  writes an ASCII string as its bytes (one number per code unit otherwise) and whether it was a
+  string pool entry; the reader interns only those (without first making a temporary string; the
+  entry is the one `add_or_get` returns) and keeps the others (qualified names, mostly) plain, as
+  the typing it stands for made them.
+- `rhino/node/snapshot.rs` (`PackedRows::append`), `rhino/node/snapshot_watch.rs` (`LoadedProps`),
+  `rhino/node/typed_snapshot.rs` (`prop_digest_range_since_load`), `jscomp/typed_scope_creator/typed_externs.rs`
+  (`Layout::compute_digests`): a bundled script loaded from packed rows keeps the property lists
+  (alive) and presence bits it gave its nodes; the digest of the node properties the typed externs
+  restore checks feeds, per script range, the loaded source name and only the nodes whose bits or
+  list (by address; lists are replaced, never edited) are no longer the loaded ones. Equal
+  snapshot bytes give equal loaded properties, so equal digests still mean equal properties; a
+  range without a record is digested node by node.
+- `rhino/rhino_string_pool.rs` (`LazyInternedStringList`): each string's interned form is set once
+  in its own cell (`OnceLock`) instead of a locked slot plus a bitset, so a repeated `get` (the
+  runtime library string pool read by the color pool) takes no lock.

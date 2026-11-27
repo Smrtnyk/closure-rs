@@ -178,6 +178,61 @@ impl Ast {
         }
     }
 
+    /// Rust-only (performance divergence): what `prop_digest_range` tells of the watched range
+    /// `[start, end)` (see `parsed_script_range`), more cheaply when its loader recorded the
+    /// properties it gave the nodes (`LoadedProps`): then only the nodes whose presence bits or
+    /// property list (by address) are no longer the loaded ones are digested, with the loaded
+    /// source name. Two arenas that loaded the same snapshot bytes (the bundled snapshot
+    /// fingerprint) give the nodes the same properties up to the source file object, whose name
+    /// is fed, so equal digests still mean equal properties. Without a record, every node is
+    /// digested as `prop_digest_range` does (behind a different marker).
+    pub fn prop_digest_range_since_load(
+        &self,
+        start: u32,
+        end: u32,
+        rel: &mut dyn FnMut(NodeId) -> u64,
+        digest: &mut Digest,
+    ) {
+        let ranges = &self.snapshot_watches.ranges;
+        let loaded = ranges
+            .get(ranges.partition_point(|range| range.end <= start))
+            .filter(|range| range.start == start && range.end == end)
+            .and_then(|range| range.loaded.as_deref());
+        let Some(loaded) = loaded else {
+            digest.feed(0);
+            self.prop_digest_range(start, end, rel, digest);
+            return;
+        };
+        digest.feed(1);
+        digest.feed(u64::from(end - start));
+        digest.feed_bytes(loaded.source_name.as_bytes());
+        let mut names = NameDigests::default();
+        for (offset, &index) in loaded.index.iter().enumerate() {
+            let slot = start as usize + offset;
+            let (list, mask) = &loaded.lists[usize::from(index)];
+            let head = self.nodes[slot].prop_list_head.as_ref();
+            let unchanged = self.prop_masks[slot] == *mask
+                && match (head, list) {
+                    (None, None) => true,
+                    (Some(a), Some(b)) => std::sync::Arc::ptr_eq(a, b),
+                    _ => false,
+                };
+            if !unchanged {
+                digest.feed(offset as u64);
+                self.prop_digest_cached(NodeId::from_arena_index(slot), rel, digest, &mut names);
+            }
+        }
+    }
+
+    /// The number of watched ranges whose loader recorded their properties (for tests).
+    pub fn loaded_prop_records(&self) -> usize {
+        self.snapshot_watches
+            .ranges
+            .iter()
+            .filter(|range| range.loaded.is_some())
+            .count()
+    }
+
     /// Feeds the node's properties to `digest`: the presence bits and each item's kind and value,
     /// with node values through `rel`. JSDoc values are left out (see `JSDocInfo::digest`), and so
     /// are values without a stable description (FeatureSet and other opaque values).

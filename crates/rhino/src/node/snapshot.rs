@@ -182,6 +182,7 @@ impl PackedRows<&[u8]> {
         };
         let root = map.map(arena.root);
         ast.presence.merge(&arena.presence);
+        let source_name = source.get_name().to_owned();
         let lists = arena.property_lists(ast, source, map, &strings);
         // Packed property indices are one-based. Slot zero describes nodes without properties.
         let mut properties = Vec::with_capacity(lists.len() + 1);
@@ -253,6 +254,17 @@ impl PackedRows<&[u8]> {
                 }
             }
         }
+        // Rust-only (performance divergence): what the nodes were loaded with, for
+        // `Ast::prop_digest_range_since_load`.
+        ast.snapshot_watches.pending_loaded = Some(Box::new(super::snapshot_watch::LoadedProps {
+            start: base,
+            lists: properties
+                .iter()
+                .map(|(list, mask, ..)| (list.clone(), *mask))
+                .collect(),
+            index: rows.iter().map(|row| word(row, 16)).collect(),
+            source_name,
+        }));
         root
     }
 

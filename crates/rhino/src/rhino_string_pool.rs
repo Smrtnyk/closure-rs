@@ -101,7 +101,7 @@ impl RhinoStringPool {
     }
     /// A snapshot must restore canonical identity even when the pool uses reference-counted
     /// entries. A private string with the same spelling remains a separate object.
-    pub(crate) fn is_pool_entry(s: &JsString) -> bool {
+    pub fn is_pool_entry(s: &JsString) -> bool {
         s.is_interned()
             || (refcounted_names() && {
                 let units = s.as_units();
@@ -168,6 +168,11 @@ impl RhinoStringPool {
             }
         })
     }
+    /// `addOrGet` of the string of `units` (the same entry `add_or_get(JsString::from_slice(units))`
+    /// returns) without a temporary string on a hit.
+    pub fn add_or_get_slice(units: &[u16]) -> JsString {
+        Self::add_or_get_units_cached(units)
+    }
     /// Intern a bundled spelling without allocating a temporary string on a pool hit.
     pub(crate) fn add_or_get_units(units: &[u16]) -> JsString {
         Self::intern_shared(units, hash_units(units), || {
@@ -201,33 +206,33 @@ impl Default for RhinoStringPool {
     }
 }
 
+/// Rust-only (performance divergence): Java keeps one array slot per string, replaced by the
+/// interned string on first `get` (guarded by a bitset); here each string's interned form is set
+/// once in its own cell, so a `get` after the first takes no lock. `get` and `stream` return what
+/// Java's would.
 pub struct LazyInternedStringList {
-    pool: Vec<Mutex<JsString>>,
-    is_interned: WriteOnlyBitset,
+    pool: Vec<JsString>,
+    interned: Vec<OnceLock<JsString>>,
 }
 impl LazyInternedStringList {
     // port: LazyInternedStringList#LazyInternedStringList
     pub fn new(pool: Vec<JsString>) -> Self {
-        let size = pool.len();
-        Self {
-            pool: pool.into_iter().map(Mutex::new).collect(),
-            is_interned: WriteOnlyBitset::new(size as i32),
-        }
+        let interned = pool.iter().map(|_| OnceLock::new()).collect();
+        Self { pool, interned }
     }
     // port: LazyInternedStringList#get
     pub fn get(&self, offset: i32) -> JsString {
-        if !self.is_interned.get(offset) {
-            let mut slot = self.pool[offset as usize].lock().unwrap();
-            let interned = RhinoStringPool::add_or_get(slot.clone());
-            *slot = interned.clone();
-            self.is_interned.set(offset);
-            return interned;
-        }
-        self.pool[offset as usize].lock().unwrap().clone()
+        let offset = offset as usize;
+        self.interned[offset]
+            .get_or_init(|| RhinoStringPool::add_or_get(self.pool[offset].clone()))
+            .clone()
     }
     // port: LazyInternedStringList#stream
     pub fn stream(&self) -> impl Iterator<Item = JsString> + '_ {
-        self.pool.iter().map(|s| s.lock().unwrap().clone())
+        self.pool
+            .iter()
+            .zip(&self.interned)
+            .map(|(raw, interned)| interned.get().unwrap_or(raw).clone())
     }
 }
 pub struct WriteOnlyBitset {
