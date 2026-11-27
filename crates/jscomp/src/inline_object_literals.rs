@@ -57,6 +57,73 @@ static DRY_RUN_MODE: LazyLock<DryRunMode> =
         },
     );
 
+/// `CLOSURE_RS_IOL_CLASS_MEMBERS=off` keeps and skips only clean functions declared in the global
+/// scope; `=verify` also keeps the clean member functions of top-level classes, but has every
+/// function the collector would skip for this pass (kept clean or no candidate, global ones too)
+/// traversed instead and checks that no scope exit in it splits an object (`verify_skip`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ClassMembersMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_IOL_STATEMENTS=off` traverses every top-level statement; `=verify` has every
+/// statement the collector would skip traversed instead and checks that no scope exit in it
+/// splits an object (`verify_skip`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum StatementsMode {
+    Off,
+    On,
+    Verify,
+}
+
+static STATEMENTS_MODE: LazyLock<StatementsMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_IOL_STATEMENTS").as_deref() {
+            Ok("off") => StatementsMode::Off,
+            Ok("verify") => StatementsMode::Verify,
+            _ => StatementsMode::On,
+        },
+    );
+
+/// `CLOSURE_RS_IOL_DEFER_HOISTED=off` skips no function or statement whose traversal would jump
+/// to a pending hoisted function (`Behavior::defers_skippable_hoisted_functions`); `=verify`
+/// takes the same decisions, but has every node whose skip deferred such a jump traversed as Java
+/// traverses it (making the jumps there) and checks that no scope exit in it, nor in a function it
+/// jumps to, splits an object (`verify_skip`). The skip decisions are those of the other modes
+/// whatever the other verify switches are, so the check is reached with them on `verify` too.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DeferMode {
+    Off,
+    On,
+    Verify,
+}
+
+static DEFER_HOISTED: LazyLock<DeferMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_IOL_DEFER_HOISTED").as_deref() {
+            Ok("off") => DeferMode::Off,
+            Ok("verify") => DeferMode::Verify,
+            _ => DeferMode::On,
+        },
+    );
+
+/// Rust-only: with `CLOSURE_RS_IOL_DEBUG_COUNTS` set, each traversal of the pass prints how many
+/// skips deferred a jump to a pending hoisted function and how many skipped nodes a verify mode
+/// had traversed.
+static DEBUG_COUNTS: LazyLock<bool> =
+    LazyLock::new(|| std::env::var_os("CLOSURE_RS_IOL_DEBUG_COUNTS").is_some());
+
+static CLASS_MEMBERS_MODE: LazyLock<ClassMembersMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_IOL_CLASS_MEMBERS").as_deref() {
+            Ok("off") => ClassMembersMode::Off,
+            Ok("verify") => ClassMembersMode::Verify,
+            _ => ClassMembersMode::On,
+        },
+    );
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DryRunMode {
     Off,
@@ -65,7 +132,16 @@ enum DryRunMode {
 }
 
 /// Rust-only (performance divergence): cross-round cache of unchanged top-level functions known
-/// to perform no object-literal splitting in `InlineObjectLiterals`.
+/// to perform no object-literal splitting in `InlineObjectLiterals`: functions declared in the
+/// global scope and, unless `CLOSURE_RS_IOL_CLASS_MEMBERS=off`, functions declared in a class scope
+/// of a class at the top level (member functions; `in_global_class_scope`). The pass splits only
+/// local variables: what a skipped function would add are references to variables declared
+/// outside it, which are global (never split) or the inner name of a class expression, whose
+/// declaration (the class's NAME, a reference the traversal of the class always records) is no
+/// declaration or assignment an object can be split from (`isInlinableObject` refuses it whatever
+/// the other references are). A split elsewhere marks as stale only variables referenced outside
+/// functions in the tree it moves, never a variable of a skipped function. The skip itself is the
+/// `ReferenceCollector`'s, which keeps the order of the jumps to hoisted functions.
 #[derive(Default)]
 pub(crate) struct InlineObjectLiteralsCleanCache {
     pub(crate) clean_fns: IndexMap<NodeId, DeepFunctionStamp>,
@@ -109,6 +185,14 @@ struct CandidateNames {
     /// this set cannot declare any inlinable object variable.
     candidate_fns: IndexSet<NodeId>,
     has_script_level_object_lit: bool,
+    /// Rust-only (performance divergence): the top-level statements of scripts (the children of
+    /// a SCRIPT) that hold a candidate `OBJECTLIT` assignment. A variable the pass can split is
+    /// declared in the scope of such an assignment: in a function around it (a candidate
+    /// function) or, outside functions, in a block in the same statement (a `let` or `const` of a
+    /// script is a global variable, which the pass never splits). So the traversal of any other
+    /// statement makes no scope exit split anything (`isInlinableObject` needs an object literal
+    /// assigned to the variable), and splits in other statements change only their own scopes.
+    candidate_statements: IndexSet<NodeId>,
 }
 
 impl CandidateNames {
@@ -142,14 +226,19 @@ impl CandidateNames {
                                 continue;
                             };
                             enclosing_fns.clear();
+                            let mut statement = None;
                             if !Self::collect_enclosing_fns_in_scanned_tree(
                                 ast,
                                 node,
                                 scope_root,
                                 excluded,
                                 &mut enclosing_fns,
+                                &mut statement,
                             ) {
                                 continue;
+                            }
+                            if let Some(statement) = statement {
+                                names.candidate_statements.insert(statement);
                             }
                             if enclosing_fns.is_empty() {
                                 names.has_script_level_object_lit = true;
@@ -216,12 +305,14 @@ impl CandidateNames {
 
     /// Collects all enclosing `FUNCTION` nodes of `node` (innermost first) if `node` lies in the
     /// scanned tree below `scope_root` (excluding `excluded`).
+    /// Also sets `statement` to the top-level statement (the child of a SCRIPT) `node` is in.
     fn collect_enclosing_fns_in_scanned_tree(
         ast: &Ast,
         mut node: NodeId,
         scope_root: NodeId,
         excluded: Option<NodeId>,
         out: &mut Vec<NodeId>,
+        statement: &mut Option<NodeId>,
     ) -> bool {
         // Arena postings include unreachable nodes. An unrelated cyclic parent chain
         // cannot belong to the scanned tree.
@@ -235,6 +326,9 @@ impl CandidateNames {
             let Some(parent) = node.get_parent(ast) else {
                 return false;
             };
+            if parent.is_script(ast) {
+                *statement = Some(node);
+            }
             if parent == scope_root {
                 return true;
             }
@@ -311,10 +405,20 @@ impl CompilerPass for InlineObjectLiterals {
         // to split, neither would the pass: the pass would find the first split in some function,
         // with the tree unchanged up to then, and the dry run looks at that function the same way
         // or knows it clean. Only when the dry run finds something to split does the pass run
-        // (in Java's order, which decides the generated names).
+        // (in Java's order, which decides the generated names). Before any function is kept
+        // clean (the first run) the dry run would look at every function the pass looks at, so it
+        // saves nothing when it finds nothing and doubles the work when it finds a split: the
+        // pass runs at once then (the dry run changes nothing either way).
         let dry_run_mode = *DRY_RUN_MODE;
         let mut dry_run_found_split = true;
-        if use_cache && dry_run_mode != DryRunMode::Off {
+        if use_cache
+            && dry_run_mode != DryRunMode::Off
+            && (dry_run_mode == DryRunMode::Verify
+                || !compiler
+                    .inline_object_literals_clean_cache
+                    .clean_fns
+                    .is_empty())
+        {
             let behavior = self.behavior(candidates, use_cache, true);
             let mut scope_creator = SyntacticScopeCreator::new();
             let mut callback = ReferenceCollector::new(compiler, behavior, &mut scope_creator);
@@ -323,6 +427,7 @@ impl CompilerPass for InlineObjectLiterals {
             callback.order_free_global_functions();
             CompilerPass::process(&mut callback, compiler, externs, root);
             let behavior = callback.into_behavior();
+            behavior.print_debug_counts("dry");
             dry_run_found_split = behavior.found_split;
             if !dry_run_found_split && dry_run_mode == DryRunMode::On {
                 return;
@@ -338,8 +443,10 @@ impl CompilerPass for InlineObjectLiterals {
         callback.reuse_reference_sites();
         callback.skip_externs_when_unread();
         CompilerPass::process(&mut callback, compiler, externs, root);
+        let behavior = callback.into_behavior();
+        behavior.print_debug_counts("full");
         assert!(
-            dry_run_found_split || !callback.into_behavior().found_split,
+            dry_run_found_split || !behavior.found_split,
             "InlineObjectLiterals split an object after a dry run found nothing to split"
         );
     }
@@ -362,6 +469,9 @@ impl InlineObjectLiterals {
             stale_vars: IndexSet::<_>::default(),
             last_scope_enclosing_fn: None,
             global_fn_stack: Vec::new(),
+            verify_regions: Vec::new(),
+            deferred_skips: 0,
+            verified_skips: 0,
         }
     }
 }
@@ -390,6 +500,13 @@ struct InliningBehavior {
     /// Rust-only (performance divergence): stack of currently active top-level functions and
     /// whether any object literal inside them was split during this traversal.
     global_fn_stack: Vec<(NodeId, bool)>,
+    /// Rust-only: the nodes a verify mode had traversed instead of skipped (`verify_skip`), with
+    /// the pending hoisted functions their skip deferred, innermost last.
+    verify_regions: Vec<(NodeId, Vec<NodeId>)>,
+    /// Rust-only: skips that deferred a jump, and skipped nodes traversed for a verify mode
+    /// (`CLOSURE_RS_IOL_DEBUG_COUNTS`).
+    deferred_skips: u32,
+    verified_skips: u32,
 }
 
 impl Behavior for InliningBehavior {
@@ -449,13 +566,80 @@ impl Behavior for InliningBehavior {
         current
     }
 
+    fn skips_global_class_members(&self) -> bool {
+        *CLASS_MEMBERS_MODE != ClassMembersMode::Off
+    }
+
+    // A function this behavior lets the collector skip splits nothing: it is no candidate (no
+    // object literal is assigned to a name in it) or kept clean with current stamps. Its
+    // traversal, wherever it happens, adds references only to variables whose scope exits it
+    // reaches, all inside it, and acts on none of them; the order of the scope exits that do
+    // split (which decides the generated names) is that of the functions that are traversed.
+    fn defers_skippable_hoisted_functions(&self) -> bool {
+        *DEFER_HOISTED != DeferMode::Off
+    }
+
+    // A skip claims that the skipped node makes no scope exit split anything (it is no
+    // candidate, or kept clean) and, when it defers jumps, that the same holds for the functions
+    // it would jump to. A verify mode has the node traversed as Java traverses it, jumps included,
+    // and `after_exit_scope` panics at a split inside it. With no split there, the splits outside
+    // come in the same order with and without the skip: the skip only leaves out, or moves to a
+    // later point, traversals in which no scope exit acts, and those depend on the subtree of the
+    // function alone, which no split elsewhere changes (`scope_exits_change_only_their_scopes`).
+    fn verify_skip(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        deferred: &[NodeId],
+    ) -> bool {
+        if !deferred.is_empty() {
+            self.deferred_skips += 1;
+        }
+        // Once the dry run found a split it skips everything: those skips claim nothing.
+        if self.dry_run && self.found_split {
+            return false;
+        }
+        let verify = (!deferred.is_empty() && *DEFER_HOISTED == DeferMode::Verify)
+            || (n.is_function(compiler) && *CLASS_MEMBERS_MODE == ClassMembersMode::Verify)
+            || (!n.is_function(compiler) && *STATEMENTS_MODE == StatementsMode::Verify);
+        if verify {
+            self.verified_skips += 1;
+            self.verify_regions.push((n, deferred.to_vec()));
+        }
+        verify
+    }
+
+    fn end_verify_region(&mut self, _t: &mut NodeTraversal<'_>, n: NodeId) {
+        if self
+            .verify_regions
+            .last()
+            .is_some_and(|(node, _)| *node == n)
+        {
+            self.verify_regions.pop();
+        }
+    }
+
+    fn can_skip_top_level_statement(&self, _ast: &Ast, n: NodeId) -> bool {
+        let mode = *STATEMENTS_MODE;
+        mode != StatementsMode::Off
+            && self
+                .candidates
+                .as_ref()
+                .is_some_and(|names| !names.candidate_statements.contains(&n))
+    }
+
     fn before_traverse_node(
         &mut self,
         t: &mut NodeTraversal<'_>,
         n: NodeId,
         _parent: Option<NodeId>,
     ) {
-        if self.use_cache && n.is_function(t) && t.in_global_scope() {
+        if self.use_cache
+            && n.is_function(t)
+            && (t.in_global_scope()
+                || (*CLASS_MEMBERS_MODE != ClassMembersMode::Off
+                    && crate::reference_collector::in_global_class_scope(t)))
+        {
             self.global_fn_stack.push((n, false));
         }
     }
@@ -530,6 +714,26 @@ impl Behavior for InliningBehavior {
                 };
 
                 if self.is_inlinable_object(compiler, &reference_info.references) {
+                    if let Some((node, deferred)) = self.verify_regions.last() {
+                        let deferred: Vec<String> = deferred
+                            .iter()
+                            .map(|f| {
+                                f.get_first_child(compiler)
+                                    .unwrap()
+                                    .get_string(compiler)
+                                    .to_string_lossy()
+                            })
+                            .collect();
+                        panic!(
+                            "InlineObjectLiterals: a node the pass would have skipped splits an \
+                             object: skipped {} (deferring the hoisted functions {:?}); split: the \
+                             variable {} of the scope at {}",
+                            node.to_string(compiler),
+                            deferred,
+                            v.get_name(compiler).to_string_lossy(),
+                            scope_root.to_string(compiler)
+                        );
+                    }
                     self.found_split = true;
                     did_split_here = true;
                     if self.dry_run {
@@ -569,6 +773,17 @@ impl Behavior for InliningBehavior {
 }
 
 impl InliningBehavior {
+    /// Rust-only: see `DEBUG_COUNTS`.
+    fn print_debug_counts(&self, run: &str) {
+        if *DEBUG_COUNTS {
+            eprintln!(
+                "InlineObjectLiterals {run} run: {} skips deferred a hoisted jump, {} skipped nodes \
+                 traversed for verify",
+                self.deferred_skips, self.verified_skips
+            );
+        }
+    }
+
     // Java: staleVars.add(var) (ScopedName equality; a null Var is never looked up again).
     fn add_stale_var(
         stale_vars: &mut IndexSet<(JsString, NodeId)>,

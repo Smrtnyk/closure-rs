@@ -165,6 +165,19 @@ pub struct CollectorCallback<'a, B: Behavior> {
     /// jumps in O(1) per name (or zero cost when empty).
     hoisted_global_fn_names: Option<IndexSet<JsString>>,
 
+    /// Rust-only (performance divergence): pending hoisted functions found deferrable
+    /// (`pending_hoisted_deferrable`) in this traversal.
+    deferrable_hoisted: IndexSet<NodeId>,
+
+    /// Rust-only (performance divergence): the pending hoisted functions that the last
+    /// `try_skip_top_level_statement` / `try_skip_global_function_if_no_pending_hoist` deferred
+    /// (named in the node it let skip), for `Behavior::verify_skip`.
+    last_skip_deferred: Vec<NodeId>,
+
+    /// Rust-only: the nodes a behavior chose to have traversed instead of skipped
+    /// (`Behavior::verify_skip`), innermost last, until their visit.
+    verify_regions: Vec<NodeId>,
+
     /// Rust-only (performance divergence): `process(externs, root)` may skip the externs (see
     /// `skip_externs_when_unread`).
     may_skip_externs: bool,
@@ -305,6 +318,9 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
                 infer_slot_to_local: Vec::new(),
                 infer_block_stack: Vec::new(),
                 hoisted_global_fn_names: None,
+                deferrable_hoisted: IndexSet::default(),
+                last_skip_deferred: Vec::new(),
+                verify_regions: Vec::new(),
                 reuse_sites: false,
                 may_skip_externs: false,
                 skipped_externs: None,
@@ -1689,29 +1705,132 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         true
     }
 
+    /// Rust-only (performance divergence): skips a top-level statement of a script
+    /// (`Behavior::can_skip_top_level_statement`), provided no `NAME` in it references a pending
+    /// hoisted global function whose jump may not be deferred (`pending_hoisted_deferrable`). A
+    /// name in it is resolved in the global scope, which at worst finds a hoisted function a
+    /// local name shadows (one more to check). The statement holds no hoisted function
+    /// declaration (those are statements of their own).
+    fn try_skip_top_level_statement(&mut self, t: &mut NodeTraversal<'_>, n: NodeId) -> bool {
+        self.last_skip_deferred.clear();
+        if !self.collect_hoisted_functions_in_reference_order || self.order_free_global_functions {
+            return true;
+        }
+        let global = t.get_scope();
+        if !global.is_global(t.get_compiler()) {
+            return false;
+        }
+        let hoisted_names = self
+            .hoisted_global_fn_names
+            .get_or_insert_with(|| global.collect_hoisted_function_names(t.get_compiler()));
+        if hoisted_names.is_empty() {
+            return true;
+        }
+        let mut hits = Vec::new();
+        {
+            let ast: &Ast = &t.get_compiler().ast;
+            let mut pending = vec![n];
+            while let Some(node) = pending.pop() {
+                if node.is_name(ast)
+                    && let Some(s) = node.string_payload(ast)
+                    && hoisted_names.contains(s)
+                {
+                    hits.push(node);
+                }
+                let mut child = node.get_first_child(ast);
+                while let Some(c) = child {
+                    pending.push(c);
+                    child = c.get_next(ast);
+                }
+            }
+        }
+        let mut visited = Vec::new();
+        for name in hits {
+            if let Some(v) = global.get_var_of_node(t.get_compiler(), name)
+                && let Some((function, scope)) = self.pending_hoisted_function(t.get_compiler(), v)
+            {
+                if !self.pending_hoisted_deferrable(t, function, scope, &mut visited) {
+                    return false;
+                }
+                if !self.last_skip_deferred.contains(&function) {
+                    self.last_skip_deferred.push(function);
+                }
+            }
+        }
+        true
+    }
+
     /// Rust-only (performance divergence): skips a top-level (global-scope) function when the
     /// behavior guarantees no local variable inside it needs action and global variables are
-    /// ignored, provided no `NAME` inside it references a pending hoisted global function.
+    /// ignored, provided no `NAME` inside it references a pending hoisted global function. The
+    /// function may also be declared in a class scope at the top level
+    /// (`Behavior::skips_global_class_members`): the hoisted functions are those of the global
+    /// scope around it, and its names resolve from the class scope as the traversal resolves them.
     fn try_skip_global_function_if_no_pending_hoist(
         &mut self,
         t: &mut NodeTraversal<'_>,
         fn_node: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
+        self.last_skip_deferred.clear();
         if !self.collect_hoisted_functions_in_reference_order || self.order_free_global_functions {
             return true;
         }
         let enclosing_scope = t.get_scope();
         let hoisted_names = self.hoisted_global_fn_names.get_or_insert_with(|| {
-            enclosing_scope.collect_hoisted_function_names(t.get_compiler())
+            let compiler = t.get_compiler();
+            let mut global = enclosing_scope;
+            while let Some(parent) = global.get_parent(compiler) {
+                global = parent;
+            }
+            global.collect_hoisted_function_names(compiler)
         });
         if hoisted_names.is_empty() {
             return true;
         }
+        let is_fn_decl = parent.is_some() && NodeUtil::is_function_declaration(t, fn_node);
+        let hits = self.hoisted_name_hits(t, fn_node, is_fn_decl);
+        let mut visited = Vec::new();
+        for name in hits {
+            if let Some(v) = enclosing_scope.get_var_of_node(t.get_compiler(), name)
+                && let Some((function, scope)) = self.pending_hoisted_function(t.get_compiler(), v)
+            {
+                if !self.pending_hoisted_deferrable(t, function, scope, &mut visited) {
+                    return false;
+                }
+                if !self.last_skip_deferred.contains(&function) {
+                    self.last_skip_deferred.push(function);
+                }
+            }
+        }
+        true
+    }
+
+    /// Rust-only: whether the behavior has the node `n` it was about to let skip traversed instead
+    /// (`Behavior::verify_skip`, with the hoisted functions the skip deferred); the region ends
+    /// at the visit of `n`.
+    fn verify_region(&mut self, t: &mut NodeTraversal<'_>, n: NodeId) -> bool {
+        let deferred = std::mem::take(&mut self.last_skip_deferred);
+        if self.behavior.verify_skip(t.get_compiler(), n, &deferred) {
+            self.verify_regions.push(n);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Rust-only (performance divergence): the NAME nodes in `fn_node` (its name unless it is a
+    /// declaration, its parameters and its body) whose spelling is that of a hoisted global
+    /// function (`hoisted_global_fn_names`, which the caller has computed).
+    fn hoisted_name_hits(
+        &self,
+        t: &mut NodeTraversal<'_>,
+        fn_node: NodeId,
+        is_fn_decl: bool,
+    ) -> Vec<NodeId> {
         let fn_name = fn_node.get_first_child(t).unwrap();
         let args = fn_name.get_next(t).unwrap();
         let body = args.get_next(t).unwrap();
-        let is_fn_decl = parent.is_some() && NodeUtil::is_function_declaration(t, fn_node);
 
         // Collect candidate NAME nodes in `fn_node` whose spelling is a hoisted global function.
         // We borrow `hoisted_global_fn_names` immutably during the AST scan, then resolve matches.
@@ -1728,53 +1847,95 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             None
         };
         let mut hits: Vec<NodeId> = Vec::new();
-        {
-            let ast: &Ast = &t.get_compiler().ast;
-            let hoisted_ref = self.hoisted_global_fn_names.as_ref().unwrap();
-            fn scan_hoisted_hits(
-                ast: &Ast,
-                n: NodeId,
-                hoisted: &IndexSet<JsString>,
-                out: &mut Vec<NodeId>,
-            ) {
-                if n.is_name(ast)
-                    && let Some(s) = n.string_payload(ast)
-                    && hoisted.contains(s)
-                {
-                    out.push(n);
-                }
-                let mut child = n.get_first_child(ast);
-                while let Some(c) = child {
-                    scan_hoisted_hits(ast, c, hoisted, out);
-                    child = c.get_next(ast);
-                }
-            }
-            if !is_fn_decl
-                && let Some(s) = fn_name.string_payload(ast)
-                && hoisted_ref.contains(s)
+        let ast: &Ast = &t.get_compiler().ast;
+        let hoisted_ref = self.hoisted_global_fn_names.as_ref().unwrap();
+        fn scan_hoisted_hits(
+            ast: &Ast,
+            n: NodeId,
+            hoisted: &IndexSet<JsString>,
+            out: &mut Vec<NodeId>,
+        ) {
+            if n.is_name(ast)
+                && let Some(s) = n.string_payload(ast)
+                && hoisted.contains(s)
             {
-                hits.push(fn_name);
+                out.push(n);
             }
-            scan_hoisted_hits(ast, args, hoisted_ref, &mut hits);
-            // If `body` already has cached `FunctionBodySites`, check only its deduplicated names.
-            if let Some(cached) = &cached_body_sites {
-                for &name in &cached.first_names {
-                    if let Some(s) = name.string_payload(ast)
-                        && hoisted_ref.contains(s)
-                    {
-                        hits.push(name);
-                    }
-                }
-            } else {
-                scan_hoisted_hits(ast, body, hoisted_ref, &mut hits);
+            let mut child = n.get_first_child(ast);
+            while let Some(c) = child {
+                scan_hoisted_hits(ast, c, hoisted, out);
+                child = c.get_next(ast);
             }
         }
+        if !is_fn_decl
+            && let Some(s) = fn_name.string_payload(ast)
+            && hoisted_ref.contains(s)
+        {
+            hits.push(fn_name);
+        }
+        scan_hoisted_hits(ast, args, hoisted_ref, &mut hits);
+        // If `body` already has cached `FunctionBodySites`, check only its deduplicated names.
+        if let Some(cached) = &cached_body_sites {
+            for &name in &cached.first_names {
+                if let Some(s) = name.string_payload(ast)
+                    && hoisted_ref.contains(s)
+                {
+                    hits.push(name);
+                }
+            }
+        } else {
+            scan_hoisted_hits(ast, body, hoisted_ref, &mut hits);
+        }
+        hits
+    }
+
+    /// Rust-only (performance divergence): whether a skipped function may leave the pending
+    /// hoisted function `function` (declared in `scope`) pending, for a behavior that opts in
+    /// (`Behavior::defers_skippable_hoisted_functions`): the traversal of the skipped function
+    /// would jump to it there. That jump is deferred (to the function's declaration or to another
+    /// reference), which no one sees when the function and every pending hoisted function its
+    /// traversal would jump to in turn are ones the behavior lets the collector skip
+    /// (`can_skip_global_function_if_no_pending_hoist`: they act on no scope exit). The names of
+    /// a function are resolved from its declaring scope, which at worst finds a hoisted function
+    /// a local name shadows (one more to check). At most `MAX_DEFERRED_HOISTED` functions are
+    /// looked at per skip; a function found deferrable stays so while it is pending (the
+    /// behavior's scope exits change only their own scopes, so no other function changes it).
+    fn pending_hoisted_deferrable(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        function: NodeId,
+        scope: ScopeId,
+        visited: &mut Vec<NodeId>,
+    ) -> bool {
+        const MAX_DEFERRED_HOISTED: usize = 64;
+        if !self.behavior.defers_skippable_hoisted_functions() {
+            return false;
+        }
+        if self.deferrable_hoisted.contains(&function) || visited.contains(&function) {
+            return true;
+        }
+        if visited.len() >= MAX_DEFERRED_HOISTED {
+            return false;
+        }
+        visited.push(function);
+        if !self
+            .behavior
+            .can_skip_global_function_if_no_pending_hoist(t.get_compiler(), function)
+        {
+            return false;
+        }
+        let hits = self.hoisted_name_hits(t, function, true);
         for name in hits {
-            if let Some(v) = enclosing_scope.get_var_of_node(t.get_compiler(), name)
-                && self.pending_hoisted_function(t.get_compiler(), v).is_some()
+            if let Some(v) = scope.get_var_of_node(t.get_compiler(), name)
+                && let Some((next, next_scope)) = self.pending_hoisted_function(t.get_compiler(), v)
+                && !self.pending_hoisted_deferrable(t, next, next_scope, visited)
             {
                 return false;
             }
+        }
+        if visited.first() == Some(&function) {
+            // Every function reached from here is deferrable.
+            self.deferrable_hoisted.extend(visited.iter().copied());
         }
         true
     }
@@ -2414,40 +2575,70 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
         {
             let _ = node_traversal.get_input();
         }
+        if let Some(script) = parent
+            && script.is_script(node_traversal)
+            && !n.is_function(node_traversal)
+            && !n.is_module_body(node_traversal)
+            && self.narrow_scope.is_none()
+            && *REUSE_REFERENCE_SITES
+            && self
+                .behavior
+                .can_skip_top_level_statement(node_traversal, n)
+        {
+            let _ = node_traversal.get_input();
+            if node_traversal.has_cached_source_input()
+                && self.try_skip_top_level_statement(node_traversal, n)
+                && !self.verify_region(node_traversal, n)
+            {
+                self.note_unrecorded_skip();
+                return false;
+            }
+        }
         if n.is_function(node_traversal)
             && (parent.is_some() || node_traversal.get_scope_root().is_some())
             && self.narrow_scope.is_none()
             && *REUSE_REFERENCE_SITES
             && node_traversal.has_cached_source_input()
         {
-            if node_traversal.in_global_scope()
+            let mut verifying = false;
+            if (node_traversal.in_global_scope()
+                || (self.behavior.skips_global_class_members()
+                    && in_global_class_scope(node_traversal)))
                 && self
                     .behavior
                     .can_skip_global_function_if_no_pending_hoist(node_traversal.get_compiler(), n)
                 && self.try_skip_global_function_if_no_pending_hoist(node_traversal, n, parent)
             {
-                self.note_unrecorded_skip();
-                return false;
+                if !self.verify_region(node_traversal, n) {
+                    self.note_unrecorded_skip();
+                    return false;
+                }
+                // Traversed as Java does: no other shortcut either.
+                verifying = true;
             }
-            if let Some(cache) = self.subtree_cache
+            if !verifying
+                && let Some(cache) = self.subtree_cache
                 && self.try_skip_clean_subtree(node_traversal, n, parent, cache)
             {
                 return false;
             }
-            if self.behavior.use_inline_vars_clean_cache()
+            if !verifying
+                && self.behavior.use_inline_vars_clean_cache()
                 && self.try_skip_clean_leaf_function(node_traversal, n, parent)
             {
                 return false;
             }
-            if self.behavior.infer_consts_leaf_fast_path()
+            if !verifying
+                && self.behavior.infer_consts_leaf_fast_path()
                 && self.try_infer_consts_leaf_function(node_traversal, n, parent)
             {
                 self.note_unrecorded_skip();
                 return false;
             }
-            if self
-                .behavior
-                .can_skip_function_with_no_needed_names(node_traversal, n)
+            if !verifying
+                && self
+                    .behavior
+                    .can_skip_function_with_no_needed_names(node_traversal, n)
                 && self.try_skip_function_with_no_needed_names(node_traversal, n, parent)
             {
                 self.note_unrecorded_skip();
@@ -2502,6 +2693,10 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
             .map(|(entry_index, index)| &self.reference_map[entry_index].references[index]);
         self.behavior
             .after_visit_node(t, n, parent, added_reference);
+        if self.verify_regions.last() == Some(&n) {
+            self.verify_regions.pop();
+            self.behavior.end_verify_region(t, n);
+        }
 
         // Rust-only (performance divergence): a block boundary pushed in should_traverse must sit
         // at the top of block_stack on exit, avoiding a second is_block_boundary check per node.
@@ -2690,6 +2885,50 @@ pub trait Behavior {
         false
     }
 
+    /// Rust-only (performance divergence): opt in to be asked
+    /// `can_skip_global_function_if_no_pending_hoist` also for a function whose enclosing scopes
+    /// up to the global scope are class scopes (`in_global_class_scope`: a member function, or a
+    /// function in the heritage or a computed key, of a class at the top level), for a behavior
+    /// to which the variables of class scopes do not matter either.
+    fn skips_global_class_members(&self) -> bool {
+        false
+    }
+
+    /// Rust-only (performance divergence): opt in for a behavior whose skippable functions act on
+    /// no scope exit and whose scope exits change only their own scopes: a skipped function may
+    /// leave a pending hoisted function pending when every function its jump would reach is
+    /// skippable too (`ReferenceCollector`'s `pending_hoisted_deferrable`).
+    fn defers_skippable_hoisted_functions(&self) -> bool {
+        false
+    }
+
+    /// Rust-only (performance divergence): opt in for a behavior that ignores global variables
+    /// when the top-level statement `n` of a script (no function and no module body) holds
+    /// nothing its scope exits could act on, allowing `ReferenceCollector` to skip it if no
+    /// `NAME` in it references a pending hoisted global function (or every such function may be
+    /// deferred, `defers_skippable_hoisted_functions`).
+    fn can_skip_top_level_statement(&self, _ast: &Ast, _n: NodeId) -> bool {
+        false
+    }
+
+    /// Rust-only (performance divergence): called whenever the collector is about to skip the
+    /// function or top-level statement `n` (`can_skip_global_function_if_no_pending_hoist`,
+    /// `can_skip_top_level_statement`), with the pending hoisted functions the skip defers (the
+    /// ones `n` names; empty when it defers none). Returning true has `n` traversed as Java
+    /// traverses it instead (with the jumps it makes, and no other shortcut for `n` itself),
+    /// for a verify mode; `end_verify_region` is called at its visit.
+    fn verify_skip(
+        &mut self,
+        _compiler: &mut AbstractCompiler,
+        _n: NodeId,
+        _deferred: &[NodeId],
+    ) -> bool {
+        false
+    }
+
+    /// Rust-only: the visit of a node `verify_skip` had traversed.
+    fn end_verify_region(&mut self, _t: &mut NodeTraversal<'_>, _n: NodeId) {}
+
     /// Called before traversing a node.
     // port: ReferenceCollector.Behavior#beforeTraverseNode
     fn before_traverse_node(
@@ -2725,6 +2964,22 @@ pub trait Behavior {
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap);
 }
 
+/// Rust-only (performance divergence): whether the traversal's current scope is a class scope
+/// with only class scopes between it and the global scope (`Behavior::skips_global_class_members`).
+pub(crate) fn in_global_class_scope(t: &mut NodeTraversal<'_>) -> bool {
+    let mut scope = t.get_scope();
+    let compiler = t.get_compiler();
+    let mut class_scopes = 0;
+    while scope.get_root_node(compiler).is_class(compiler) {
+        class_scopes += 1;
+        match scope.get_parent(compiler) {
+            Some(parent) => scope = parent,
+            None => return false,
+        }
+    }
+    class_scopes > 0 && scope.is_global(compiler)
+}
+
 // Rust-only forwarding so callers can lend a behavior they keep using afterwards.
 impl<T: Behavior + ?Sized> Behavior for &mut T {
     fn needs_name(&self, ast: &Ast, node: NodeId) -> bool {
@@ -2739,6 +2994,26 @@ impl<T: Behavior + ?Sized> Behavior for &mut T {
         fn_node: NodeId,
     ) -> bool {
         (**self).can_skip_global_function_if_no_pending_hoist(compiler, fn_node)
+    }
+    fn skips_global_class_members(&self) -> bool {
+        (**self).skips_global_class_members()
+    }
+    fn defers_skippable_hoisted_functions(&self) -> bool {
+        (**self).defers_skippable_hoisted_functions()
+    }
+    fn can_skip_top_level_statement(&self, ast: &Ast, n: NodeId) -> bool {
+        (**self).can_skip_top_level_statement(ast, n)
+    }
+    fn verify_skip(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        deferred: &[NodeId],
+    ) -> bool {
+        (**self).verify_skip(compiler, n, deferred)
+    }
+    fn end_verify_region(&mut self, t: &mut NodeTraversal<'_>, n: NodeId) {
+        (**self).end_verify_region(t, n);
     }
     fn needs_variable(&mut self, compiler: &AbstractCompiler, var: VarId) -> bool {
         (**self).needs_variable(compiler, var)

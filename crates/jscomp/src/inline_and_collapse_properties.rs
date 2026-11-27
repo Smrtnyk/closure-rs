@@ -48,7 +48,10 @@ use crate::{
     process_common_js_modules::ProcessCommonJSModules,
     reference_collection::ReferenceCollection,
     reference_collector::ReferenceCollector,
+    scope::ScopeId,
+    syntactic_scope_cache::{DeepFunctionStamp, SyntacticScopeCache},
     syntactic_scope_creator::SyntacticScopeCreator,
+    var::VarId,
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
@@ -333,12 +336,127 @@ impl Builder {
 /// in cases where CollapseProperties would unsafely collapse the property anyway.
 struct AggressiveInlineAliases {
     code_changed: bool,
+    /// Rust-only (performance divergence): see `alias_references`.
+    alias_refs_memo: IndexMap<VarId, KeptAliasReferences>,
 }
+
+/// Rust-only (performance divergence): the references `inlineAliasIfPossible` collected for an
+/// alias variable, with the root of the scope they were collected in and the stamps of the
+/// subtree that collection read (`AggressiveInlineAliases::alias_references`).
+struct KeptAliasReferences {
+    scope_root: NodeId,
+    stamp_root: NodeId,
+    stamp: DeepFunctionStamp,
+    references: ReferenceCollection,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AliasRefsMemoMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_ALIAS_REFS_MEMO=off` collects the references of an alias at every attempt;
+/// `=verify` collects them at every attempt and compares them with the kept ones.
+static ALIAS_REFS_MEMO: std::sync::LazyLock<AliasRefsMemoMode> =
+    std::sync::LazyLock::new(
+        || match std::env::var("CLOSURE_RS_ALIAS_REFS_MEMO").as_deref() {
+            Ok("off") => AliasRefsMemoMode::Off,
+            Ok("verify") => AliasRefsMemoMode::Verify,
+            _ => AliasRefsMemoMode::On,
+        },
+    );
 
 impl AggressiveInlineAliases {
     // port: InlineAndCollapseProperties.AggressiveInlineAliases#AggressiveInlineAliases
     fn new() -> Self {
-        Self { code_changed: true }
+        Self {
+            code_changed: true,
+            alias_refs_memo: IndexMap::default(),
+        }
+    }
+
+    /// The references of `alias_var` in `alias_scope`, as `inlineAliasIfPossible` collects them
+    /// (a `ReferenceCollector` with a filter for the one variable, `processScope`).
+    ///
+    /// Rust-only (performance divergence): Java collects them at every attempt, and
+    /// `inlineAliases` runs again over every name while an iteration changed something, so an
+    /// alias that cannot be inlined is looked at once per iteration (on `chunks`: 218 attempts in
+    /// three iterations, 2 inlined). The collection reads only the subtree of the scope's root
+    /// (the traversal, the nested scopes it makes, the basic blocks and the hoisted functions it
+    /// jumps to all lie there; a name outside it never resolves to a variable of the scope) and
+    /// the scope object it is handed, which is the alias's own (the `Ref`'s scope, unchanged
+    /// while the pass runs, so `alias_var` and its scope are the same objects at every attempt).
+    /// The collection is kept, per variable, with the `DeepFunctionStamp` (with in-place flags)
+    /// of that root, or of the function whose body it is (which also covers the parameters), and
+    /// given again while those stamps are current; they see every change the pass makes there
+    /// (an inlining replaces references and declarations in the subtree). The kept references
+    /// hold the nested scopes the first collection made, which resolve names as new ones would.
+    /// Nothing else the collection does is seen (it reports nothing and asks for no name).
+    fn alias_references(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        alias_var: VarId,
+        alias_scope: ScopeId,
+    ) -> ReferenceCollection {
+        let mode = *ALIAS_REFS_MEMO;
+        let scope_root = alias_scope.get_root_node(compiler);
+        let stamp_root = match scope_root.get_parent(compiler) {
+            Some(parent) if parent.is_function(compiler) && !scope_root.is_function(compiler) => {
+                parent
+            }
+            _ => scope_root,
+        };
+        let collect = |compiler: &mut AbstractCompiler| -> ReferenceCollection {
+            let mut syntactic_scope_creator = SyntacticScopeCreator::new();
+            let mut collector = ReferenceCollector::new_with_filter(
+                compiler,
+                ReferenceCollector::DO_NOTHING_BEHAVIOR,
+                &mut syntactic_scope_creator,
+                Box::new(move |_, v| v == alias_var),
+            );
+            collector.process_scope(compiler, alias_scope);
+
+            check_not_null!(collector.get_references(alias_var)).clone()
+        };
+        if mode == AliasRefsMemoMode::Off {
+            return collect(compiler);
+        }
+        if let Some(kept) = self.alias_refs_memo.get(&alias_var)
+            && kept.scope_root == scope_root
+            && kept.stamp_root == stamp_root
+        {
+            let own = SyntacticScopeCache::subtree_stamp_with_flags(compiler, stamp_root);
+            if compiler
+                .syntactic_scope_cache
+                .deep_function_stamp_is_current(own, &kept.stamp)
+            {
+                if mode == AliasRefsMemoMode::Verify {
+                    let fresh = collect(compiler);
+                    let kept_refs = describe_references(compiler, &kept.references);
+                    let fresh_refs = describe_references(compiler, &fresh);
+                    assert!(
+                        kept_refs == fresh_refs,
+                        "AggressiveInlineAliases: the kept references of an alias differ from a \
+                         new collection: kept {kept_refs:?}, new {fresh_refs:?}"
+                    );
+                }
+                return kept.references.clone();
+            }
+        }
+        let references = collect(compiler);
+        let stamp = SyntacticScopeCache::deep_function_stamp(compiler, stamp_root);
+        self.alias_refs_memo.insert(
+            alias_var,
+            KeptAliasReferences {
+                scope_root,
+                stamp_root,
+                stamp,
+                references: references.clone(),
+            },
+        );
+        references
     }
 
     // port: InlineAndCollapseProperties.AggressiveInlineAliases#getLastUsedGlobalNamespace
@@ -729,19 +847,9 @@ impl AggressiveInlineAliases {
                 alias_var_name.to_string_lossy()
             );
             let alias_var = alias_var.unwrap();
-            let mut syntactic_scope_creator = SyntacticScopeCreator::new();
-            let alias_refs: ReferenceCollection = {
-                let mut collector = ReferenceCollector::new_with_filter(
-                    compiler,
-                    ReferenceCollector::DO_NOTHING_BEHAVIOR,
-                    &mut syntactic_scope_creator,
-                    Box::new(move |_, v| v == alias_var),
-                );
-                let alias_scope = alias_var.get_scope(compiler);
-                collector.process_scope(compiler, alias_scope);
-
-                check_not_null!(collector.get_references(alias_var)).clone()
-            };
+            let alias_scope = alias_var.get_scope(compiler);
+            let alias_refs: ReferenceCollection =
+                self.alias_references(compiler, alias_var, alias_scope);
             let mut new_nodes: IndexSet<AstChange> = IndexSet::<_>::default();
 
             if alias_refs.is_well_defined(compiler)
@@ -1394,6 +1502,40 @@ impl AggressiveInlineAliases {
             self.code_changed = true;
         }
     }
+}
+
+/// Rust-only: a reference as `describe_references` describes it.
+type DescribedReference = (
+    NodeId,
+    closure_rhino::input_id::InputKey,
+    Option<NodeId>,
+    Vec<(NodeId, bool, bool)>,
+);
+
+/// Rust-only: what `AggressiveInlineAliases::alias_references` keeps of each reference, for its
+/// verify mode: the node, the input, the root of the reference's scope (a new collection makes new
+/// scope objects for the same roots) and its basic blocks (root, function, loop) up the chain.
+fn describe_references(
+    compiler: &AbstractCompiler,
+    references: &ReferenceCollection,
+) -> Vec<DescribedReference> {
+    references
+        .iter()
+        .map(|r| {
+            let mut blocks = Vec::new();
+            let mut block = r.get_basic_block();
+            while let Some(b) = block {
+                blocks.push((b.get_root(), b.is_function(), b.is_loop()));
+                block = b.get_parent();
+            }
+            (
+                r.get_node(),
+                r.get_input_id(),
+                r.get_scope().map(|s| s.get_root_node(compiler)),
+                blocks,
+            )
+        })
+        .collect()
 }
 
 /// Rewrite "simple" destructuring aliases to a format that is more amenable to inlining.
