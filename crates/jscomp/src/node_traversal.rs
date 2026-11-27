@@ -2025,6 +2025,18 @@ impl<'a> NodeTraversal<'a> {
         self.scopes.remove(self.scopes.len() - 1);
     }
 
+    /// Rust-only (performance divergence): traverses `n`, a child of `parent`, as the walk of
+    /// `parent`'s children would, for a callback that replays the rest of the subtree around it
+    /// (`ReferenceCollector`, `SiteKind::Delegate`) with its scopes entered.
+    pub(crate) fn traverse_replayed_child<C: Callback>(
+        &mut self,
+        n: NodeId,
+        parent: NodeId,
+        callback: &mut C,
+    ) {
+        self.traverse_branch(n, Some(parent), callback);
+    }
+
     /// Rust-only (performance divergence): enters the scope rooted at `node` without telling the
     /// callback, for a callback that replays a subtree instead of having it traversed
     /// (`ReferenceCollector`). The scope itself is made when it is first asked for.

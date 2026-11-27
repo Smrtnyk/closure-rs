@@ -110,6 +110,13 @@ pub trait GuardedCallbackSubclass {
     /// Rust-only (performance divergence): called after a FUNCTION that `enter_function` did not
     /// skip has been traversed.
     fn exit_function(&mut self, _traversal: &mut NodeTraversal<'_>, _function: NodeId) {}
+
+    /// Rust-only (performance divergence): whether `function`, the root of the traversal, is
+    /// treated as a function below the root (`enter_function`, `exit_function`): a traversal of
+    /// an isolated function on its own, whose context there is that of an isolated function.
+    fn is_function_root(&self, _function: NodeId) -> bool {
+        false
+    }
 }
 
 impl<C: GuardedCallbackSubclass> Callback for C {
@@ -122,7 +129,7 @@ impl<C: GuardedCallbackSubclass> Callback for C {
     ) -> bool {
         self.guarded_callback()
             .should_traverse(traversal.get_compiler(), n, parent);
-        if parent.is_some() && n.is_function(traversal) {
+        if (parent.is_some() || self.is_function_root(n)) && n.is_function(traversal) {
             let isolated = self.guarded_callback().is_isolated();
             if self.enter_function(traversal, n, isolated) {
                 check_state!(isolated);
@@ -141,7 +148,7 @@ impl<C: GuardedCallbackSubclass> Callback for C {
         // Finally continue on to whatever the traversal would normally do.
         self.visit_guarded(traversal, n, parent);
 
-        if parent.is_some() && n.is_function(traversal) {
+        if (parent.is_some() || self.is_function_root(n)) && n.is_function(traversal) {
             self.exit_function(traversal, n);
         }
 

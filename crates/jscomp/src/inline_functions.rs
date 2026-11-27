@@ -40,6 +40,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::{MatchDeclaration, MatchShallowStatement, NodeUtil},
     scope::Scope,
+    syntactic_scope_cache::{DeepFunctionStamp, SyntacticScopeCache},
     syntactic_scope_creator::{SyntacticScopeCreator, ensure_ancestor_scope},
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
@@ -51,7 +52,188 @@ use closure_rhino::{
     token::Token,
 };
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::LazyLock;
 use std::{rc::Rc, sync::Arc};
+
+/// `CLOSURE_RS_INLINE_FUNCTION_FACTS`: `off` computes the facts of every candidate function on
+/// every run (`FunctionFactsCache`), `verify` computes them anew on every hit and compares.
+static FUNCTION_FACTS_MODE: LazyLock<Option<bool>> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_INLINE_FUNCTION_FACTS").as_deref() {
+            Ok("off") => None,
+            Ok("verify") => Some(true),
+            _ => Some(false),
+        },
+    );
+
+/// Rust-only (performance divergence): what `updateFunctionStateForInlining` computes from a
+/// candidate function's subtree and name, kept between runs of the pass (each computed when the
+/// pass first asks for it). These are functions of the subtree (nested functions included:
+/// the size, the minimum requirements and the parameter uses look into them) and of the
+/// function's name, so they hold while `DeepFunctionStamp` (with in-place JSDoc and side-effect
+/// flags) is current and the name and the size limit are the same.
+#[derive(Default)]
+pub(crate) struct FunctionFactsCache {
+    functions: IndexMap<NodeId, FunctionFacts>,
+    /// Rust-only (performance divergence): the call sites, by call node, candidate function and
+    /// whether the mode is DIRECT, that `maybeAddReferenceUsingMode` found it could not inline
+    /// (`NoInlineSite`).
+    no_inline_sites: IndexMap<(NodeId, NodeId, bool), NoInlineSite>,
+}
+
+/// Rust-only (performance divergence): a call site that `maybeAddReferenceUsingMode` could not
+/// inline the candidate function into. Its answer is a function of the call site's surroundings
+/// up to the function around it (the size limit counts that function, nested functions
+/// included; the scope, loops, the statement and the arguments are inside it), or up to the
+/// statement of the script it is in, and of the candidate's subtree and facts (`FunctionFacts`),
+/// so it holds while both `DeepFunctionStamp`s are current. A statement of a script that moves
+/// stays outside loops and functions.
+struct NoInlineSite {
+    site: Arc<DeepFunctionStamp>,
+    target: Arc<DeepFunctionStamp>,
+}
+
+#[derive(Clone, PartialEq)]
+struct BodyFacts {
+    modified_parameters: IndexSet<JsString>,
+    references_receiver: bool,
+    has_inner_closures: bool,
+}
+
+struct FunctionFacts {
+    stamp: DeepFunctionStamp,
+    name: JsString,
+    max_size_after_inlining: i32,
+    size_reaches_limit: Option<bool>,
+    direct_replacement: Option<bool>,
+    non_inlinable_param: Option<bool>,
+    meets_minimum_requirements: Option<bool>,
+    body: Option<BodyFacts>,
+    local_names: Option<bool>,
+}
+
+impl FunctionFacts {
+    /// The kept facts of `fn_node` if still current, else empty ones.
+    fn take(
+        compiler: &mut AbstractCompiler,
+        fn_node: NodeId,
+        name: &JsString,
+        max_size_after_inlining: i32,
+    ) -> Option<Self> {
+        (*FUNCTION_FACTS_MODE)?;
+        let kept = compiler
+            .inline_functions_facts
+            .functions
+            .swap_remove(&fn_node);
+        let own = SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node);
+        if let Some(kept) = kept
+            && kept.name == *name
+            && kept.max_size_after_inlining == max_size_after_inlining
+            && compiler
+                .syntactic_scope_cache
+                .deep_function_stamp_is_current(own, &kept.stamp)
+        {
+            return Some(kept);
+        }
+        Some(Self {
+            stamp: SyntacticScopeCache::deep_function_stamp(compiler, fn_node),
+            name: name.clone(),
+            max_size_after_inlining,
+            size_reaches_limit: None,
+            direct_replacement: None,
+            non_inlinable_param: None,
+            meets_minimum_requirements: None,
+            body: None,
+            local_names: None,
+        })
+    }
+
+    fn keep(self, compiler: &mut AbstractCompiler, fn_node: NodeId) {
+        compiler
+            .inline_functions_facts
+            .functions
+            .insert(fn_node, self);
+    }
+
+    /// The kept fact, or `compute`d and kept; with `CLOSURE_RS_INLINE_FUNCTION_FACTS=verify` a
+    /// kept fact is computed again and compared.
+    fn fact<T: Clone + PartialEq>(
+        slot: &mut Option<T>,
+        what: &str,
+        compute: impl FnOnce() -> T,
+    ) -> T {
+        match slot {
+            Some(kept) => {
+                if *FUNCTION_FACTS_MODE == Some(true) {
+                    assert!(
+                        compute() == *kept,
+                        "InlineFunctions: the kept {what} of a function differs from a new computation"
+                    );
+                }
+                kept.clone()
+            }
+            None => slot.insert(compute()).clone(),
+        }
+    }
+
+    fn size_reaches_limit(&mut self, ast: &mut Ast, fn_node: NodeId) -> bool {
+        let max = self.max_size_after_inlining;
+        Self::fact(&mut self.size_reaches_limit, "size", || {
+            max <= NodeUtil::count_ast_size_up_to_limit(ast, fn_node, max)
+        })
+    }
+
+    fn direct_replacement(&mut self, ast: &Ast, fn_node: NodeId) -> bool {
+        Self::fact(&mut self.direct_replacement, "direct replacement", || {
+            FunctionInjector::is_direct_call_node_replacement_possible(ast, fn_node)
+        })
+    }
+
+    fn non_inlinable_param(&mut self, ast: &Ast, fn_node: NodeId) -> bool {
+        Self::fact(&mut self.non_inlinable_param, "parameters", || {
+            InlineFunctions::has_non_inlinable_param(
+                ast,
+                NodeUtil::get_function_parameters(ast, fn_node),
+            )
+        })
+    }
+
+    fn meets_minimum_requirements(
+        &mut self,
+        ast: &Ast,
+        injector: &FunctionInjector,
+        fn_node: NodeId,
+    ) -> bool {
+        let name = &self.name;
+        Self::fact(
+            &mut self.meets_minimum_requirements,
+            "minimum requirements",
+            || injector.does_function_meet_minimum_requirements(ast, name, fn_node),
+        )
+    }
+
+    fn body(
+        &mut self,
+        ast: &Ast,
+        injector: &FunctionArgumentInjector,
+        fn_node: NodeId,
+    ) -> BodyFacts {
+        Self::fact(&mut self.body, "parameter uses", || {
+            let facts = injector.inspect_function::<true>(ast, fn_node);
+            BodyFacts {
+                modified_parameters: facts.modified_parameters,
+                references_receiver: facts.references_receiver,
+                has_inner_closures: facts.has_inner_closures,
+            }
+        })
+    }
+
+    fn local_names(&mut self, ast: &Ast, fn_node: NodeId) -> bool {
+        Self::fact(&mut self.local_names, "local names", || {
+            InlineFunctions::has_local_names(ast, fn_node)
+        })
+    }
+}
 
 pub static MISSED_REQUIRED_INLINING: DiagnosticType = DiagnosticType::warning(
     "JSC_MISSED_REQUIRED_INLINING",
@@ -177,14 +359,32 @@ impl InlineFunctions {
     /// Updates the FunctionState object for the given function. Checks if the given function
     /// matches the criteria for an inlinable function.
     ///
-    /// Java passes the FunctionState of `name`; here it is looked up in `fns`.
-    // port: InlineFunctions#updateFunctionStateForInlining
+    /// Java passes the FunctionState of `name`; here it is looked up in `fns`. Rust-only: takes
+    /// the kept facts of the function (`FunctionFactsCache`) around the Java method's body.
     fn update_function_state_for_inlining(
         &mut self,
         compiler: &mut AbstractCompiler,
         r#fn: Function,
         chunk: Option<JSChunk>,
         name: &JsString,
+    ) {
+        // Rust-only (performance divergence): see `FunctionFactsCache`.
+        let fn_node = r#fn.get_function_node(compiler);
+        let mut facts = FunctionFacts::take(compiler, fn_node, name, self.max_size_after_inlining);
+        self.update_function_state_with_facts(compiler, r#fn, chunk, name, &mut facts);
+        if let Some(facts) = facts {
+            facts.keep(compiler, fn_node);
+        }
+    }
+
+    // port: InlineFunctions#updateFunctionStateForInlining
+    fn update_function_state_with_facts(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        r#fn: Function,
+        chunk: Option<JSChunk>,
+        name: &JsString,
+        facts: &mut Option<FunctionFacts>,
     ) {
         // TODO(johnlenz): Maybe "smarten" FunctionState by adding this logic to it?
         let Self {
@@ -215,8 +415,17 @@ impl InlineFunctions {
 
         if *enforce_max_size_after_inlining
             && !Self::is_always_inlinable(compiler, fn_node)
-            && *max_size_after_inlining
-                <= NodeUtil::count_ast_size_up_to_limit(compiler, fn_node, *max_size_after_inlining)
+            && match facts {
+                Some(facts) => facts.size_reaches_limit(compiler, fn_node),
+                None => {
+                    *max_size_after_inlining
+                        <= NodeUtil::count_ast_size_up_to_limit(
+                            compiler,
+                            fn_node,
+                            *max_size_after_inlining,
+                        )
+                }
+            }
         {
             function_state
                 .disallow_inlining(compiler, DisallowInliningReason::TARGET_SIZE_EXCEEDS_LIMIT);
@@ -227,17 +436,23 @@ impl InlineFunctions {
         if function_state.can_inline() {
             // store it for use when inlining.
             function_state.set_fn(r#fn);
-            if FunctionInjector::is_direct_call_node_replacement_possible(
-                compiler,
-                function_state.get_fn().get_function_node(compiler),
-            ) {
+            if match facts {
+                Some(facts) => facts.direct_replacement(compiler, fn_node),
+                None => FunctionInjector::is_direct_call_node_replacement_possible(
+                    compiler,
+                    function_state.get_fn().get_function_node(compiler),
+                ),
+            } {
                 function_state.inline_directly(true);
             }
 
-            if Self::has_non_inlinable_param(
-                compiler,
-                NodeUtil::get_function_parameters(compiler, fn_node),
-            ) {
+            if match facts {
+                Some(facts) => facts.non_inlinable_param(compiler, fn_node),
+                None => Self::has_non_inlinable_param(
+                    compiler,
+                    NodeUtil::get_function_parameters(compiler, fn_node),
+                ),
+            } {
                 function_state
                     .disallow_inlining(compiler, DisallowInliningReason::NON_INLINABLE_PARAM);
             }
@@ -245,7 +460,7 @@ impl InlineFunctions {
             // verify the function meets all the requirements.
             // TODO(johnlenz): Minimum requirement checks are about 5% of the
             // run-time cost of this pass.
-            if !Self::is_candidate_function(compiler, injector, function_state.get_fn()) {
+            if !Self::is_candidate_function(compiler, injector, function_state.get_fn(), facts) {
                 // It doesn't meet the requirements.
                 function_state
                     .disallow_inlining(compiler, DisallowInliningReason::NOT_CANDIDATE_FUNCTION);
@@ -255,22 +470,36 @@ impl InlineFunctions {
             if function_state.can_inline() {
                 function_state.set_chunk(chunk);
 
-                let facts = function_argument_injector.inspect_function::<true>(compiler, fn_node);
-                if !facts.modified_parameters.is_empty() {
+                let body = match facts {
+                    Some(facts) => facts.body(compiler, function_argument_injector, fn_node),
+                    None => {
+                        let body =
+                            function_argument_injector.inspect_function::<true>(compiler, fn_node);
+                        BodyFacts {
+                            modified_parameters: body.modified_parameters,
+                            references_receiver: body.references_receiver,
+                            has_inner_closures: body.has_inner_closures,
+                        }
+                    }
+                };
+                if !body.modified_parameters.is_empty() {
                     function_state.inline_directly(false);
-                    function_state.set_names_to_alias(facts.modified_parameters);
+                    function_state.set_names_to_alias(body.modified_parameters);
                 }
-                if facts.references_receiver {
+                if body.references_receiver {
                     function_state.set_references_this(true);
                 }
-                if facts.has_inner_closures {
+                if body.has_inner_closures {
                     function_state.set_has_inner_closures(true);
                     // If there are inner functions, we can inline into global scope
                     // if there are no local vars or named functions.
                     // TODO(johnlenz): this can be improved by looking at the possible
                     // values for locals.  If there are simple values, or constants
                     // we could still inline.
-                    if Self::has_local_names(compiler, fn_node) {
+                    if match facts {
+                        Some(facts) => facts.local_names(compiler, fn_node),
+                        None => Self::has_local_names(compiler, fn_node),
+                    } {
                         function_state
                             .disallow_inlining(compiler, DisallowInliningReason::HAS_LOCAL_NAMES);
                     }
@@ -349,6 +578,7 @@ impl InlineFunctions {
         compiler: &AbstractCompiler,
         injector: &FunctionInjector,
         r#fn: &Function,
+        facts: &mut Option<FunctionFacts>,
     ) -> bool {
         // Don't inline exported functions.
         let fn_name = r#fn.get_name(compiler);
@@ -371,7 +601,11 @@ impl InlineFunctions {
         }
 
         let fn_node = r#fn.get_function_node(compiler);
-        injector.does_function_meet_minimum_requirements(compiler, &fn_name, fn_node)
+        match facts {
+            // The facts are kept for this name.
+            Some(facts) => facts.meets_minimum_requirements(compiler, injector, fn_node),
+            None => injector.does_function_meet_minimum_requirements(compiler, &fn_name, fn_node),
+        }
     }
 
     /// Returns whether the name is used in a way that might be a candidate for inlining.
@@ -2019,9 +2253,65 @@ struct FindCandidatesReferences<'a> {
     current_script: Option<NodeId>,
     current_chunk: Option<JSChunk>,
     current_node: Option<NodeId>,
+    /// Rust-only (performance divergence): the `DeepFunctionStamp` of each root of call sites and
+    /// candidate function taken in this run, and the kept stamps found current (`NoInlineSite`).
+    stamps_now: IndexMap<NodeId, Arc<DeepFunctionStamp>>,
+    stamps_checked: IndexMap<NodeId, (Arc<DeepFunctionStamp>, bool)>,
 }
 
 impl<'a> FindCandidatesReferences<'a> {
+    /// Rust-only (performance divergence): the root whose `DeepFunctionStamp` covers what
+    /// `maybeAddReferenceUsingMode` reads around `call_node`: the function around it, else the
+    /// statement of the script it is in (`None` elsewhere).
+    fn site_root(ast: &Ast, call_node: NodeId, enclosing_fn: Option<NodeId>) -> Option<NodeId> {
+        if enclosing_fn.is_some() {
+            return enclosing_fn;
+        }
+        let mut node = call_node;
+        loop {
+            let parent = node.get_parent(ast)?;
+            if parent.is_script(ast) {
+                return Some(node);
+            }
+            node = parent;
+        }
+    }
+
+    /// The stamp of `root` taken in this run.
+    fn stamp_now(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+    ) -> Arc<DeepFunctionStamp> {
+        if let Some(stamp) = self.stamps_now.get(&root) {
+            return Arc::clone(stamp);
+        }
+        let stamp = Arc::new(SyntacticScopeCache::deep_function_stamp(compiler, root));
+        self.stamps_now.insert(root, Arc::clone(&stamp));
+        stamp
+    }
+
+    /// Whether the kept `stamp` of `root` is current.
+    fn is_current(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        stamp: &Arc<DeepFunctionStamp>,
+    ) -> bool {
+        if let Some((checked, current)) = self.stamps_checked.get(&root)
+            && Arc::ptr_eq(checked, stamp)
+        {
+            return *current;
+        }
+        let own = SyntacticScopeCache::subtree_stamp_with_flags(compiler, root);
+        let current = compiler
+            .syntactic_scope_cache
+            .deep_function_stamp_is_current(own, stamp);
+        self.stamps_checked
+            .insert(root, (Arc::clone(stamp), current));
+        current
+    }
+
     // port: InlineFunctions.FindCandidatesReferences#FindCandidatesReferences
     fn new(
         compiler: &AbstractCompiler,
@@ -2046,6 +2336,8 @@ impl<'a> FindCandidatesReferences<'a> {
             functions_with_tagged_template_lit: IndexSet::<_>::default(),
             scope_creator: SyntacticScopeCreator::new(),
             scope_memo: IndexMap::default(),
+            stamps_now: IndexMap::default(),
+            stamps_checked: IndexMap::default(),
             current_script,
             current_chunk,
             current_node: None,
@@ -2476,6 +2768,80 @@ impl<'a> FindCandidatesReferences<'a> {
     // port: InlineFunctions.FindCandidatesReferences#maybeAddReferenceUsingMode
     #[allow(clippy::too_many_arguments)]
     fn maybe_add_reference_using_mode(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        fn_key: &JsString,
+        call_node: NodeId,
+        chunk: Option<JSChunk>,
+        mode: InliningMode,
+        enclosing_fn: Option<NodeId>,
+        scope_root: NodeId,
+    ) -> bool {
+        // Rust-only (performance divergence): see `NoInlineSite`.
+        let site = (*FUNCTION_FACTS_MODE).and_then(|verify| {
+            let root = Self::site_root(compiler, call_node, enclosing_fn)?;
+            let fn_node = self.function_map[fn_key]
+                .get_fn()
+                .get_function_node(compiler);
+            Some((
+                root,
+                fn_node,
+                (call_node, fn_node, mode == InliningMode::DIRECT),
+                verify,
+            ))
+        });
+        if let Some((root, fn_node, key, verify)) = site
+            && let Some(kept) = compiler
+                .inline_functions_facts
+                .no_inline_sites
+                .get(&key)
+                .map(|kept| (Arc::clone(&kept.site), Arc::clone(&kept.target)))
+            && self.is_current(compiler, root, &kept.0)
+            && self.is_current(compiler, fn_node, &kept.1)
+        {
+            if !verify {
+                return false;
+            }
+            let added = self.add_reference_using_mode(
+                compiler,
+                fn_key,
+                call_node,
+                chunk,
+                mode,
+                enclosing_fn,
+                scope_root,
+            );
+            assert!(
+                !added,
+                "InlineFunctions: a call site kept as not inlinable can be inlined"
+            );
+            return false;
+        }
+        let added = self.add_reference_using_mode(
+            compiler,
+            fn_key,
+            call_node,
+            chunk,
+            mode,
+            enclosing_fn,
+            scope_root,
+        );
+        if !added && let Some((root, fn_node, key, _)) = site {
+            let kept = NoInlineSite {
+                site: self.stamp_now(compiler, root),
+                target: self.stamp_now(compiler, fn_node),
+            };
+            compiler
+                .inline_functions_facts
+                .no_inline_sites
+                .insert(key, kept);
+        }
+        added
+    }
+
+    /// The Java method's body (see `maybe_add_reference_using_mode`).
+    #[allow(clippy::too_many_arguments)]
+    fn add_reference_using_mode(
         &mut self,
         compiler: &mut AbstractCompiler,
         fn_key: &JsString,

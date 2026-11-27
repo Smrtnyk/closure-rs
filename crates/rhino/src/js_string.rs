@@ -315,6 +315,10 @@ pub trait JsStrLike {
     fn is_suffix_of(&self, units: &[u16]) -> bool {
         self.with_units(|s| units.ends_with(s))
     }
+    /// Whether `units` are the code units of the string.
+    fn equals_units(&self, units: &[u16]) -> bool {
+        self.with_units(|s| s == units)
+    }
 }
 /// Rust-only fast path (performance divergence): an ASCII str has one code unit per byte, so it is
 /// compared with code units without converting it.
@@ -322,7 +326,25 @@ fn ascii_units_eq(units: &[u16], s: &str) -> bool {
     units.len() == s.len() && units.iter().zip(s.bytes()).all(|(a, b)| *a == u16::from(b))
 }
 impl JsStrLike for str {
+    fn equals_units(&self, units: &[u16]) -> bool {
+        // A str of n bytes has at most n UTF-16 code units, an ASCII str exactly n.
+        if units.len() > self.len() {
+            return false;
+        }
+        if self.is_ascii() {
+            return ascii_units_eq(units, self);
+        }
+        units.iter().copied().eq(self.encode_utf16())
+    }
     fn is_prefix_of(&self, units: &[u16]) -> bool {
+        // Rust-only (performance divergence): an ASCII first byte is the first code unit, so a
+        // different first unit decides at once (most names do not start with a given prefix).
+        if let Some(&first) = self.as_bytes().first()
+            && first.is_ascii()
+            && units.first() != Some(&u16::from(first))
+        {
+            return false;
+        }
         if self.is_ascii() {
             return units.len() >= self.len() && ascii_units_eq(&units[..self.len()], self);
         }
@@ -354,6 +376,9 @@ impl JsStrLike for String {
     fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
         self.as_str().with_units(f)
     }
+    fn equals_units(&self, units: &[u16]) -> bool {
+        self.as_str().equals_units(units)
+    }
     fn is_prefix_of(&self, units: &[u16]) -> bool {
         self.as_str().is_prefix_of(units)
     }
@@ -369,6 +394,9 @@ impl JsStrLike for JsString {
 impl<T: JsStrLike + ?Sized> JsStrLike for &T {
     fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
         (**self).with_units(f)
+    }
+    fn equals_units(&self, units: &[u16]) -> bool {
+        (**self).equals_units(units)
     }
     fn is_prefix_of(&self, units: &[u16]) -> bool {
         (**self).is_prefix_of(units)
@@ -491,5 +519,44 @@ mod java_hash_tests {
                 .fold(0i32, |h, &u| h.wrapping_mul(31).wrapping_add(i32::from(u)));
             assert_eq!(JsString::java_hash(&units), expected as u32, "{len}");
         }
+    }
+}
+
+#[cfg(test)]
+mod equals_units_tests {
+    use super::JsStrLike;
+
+    #[test]
+    fn equals_units_is_equality_of_utf16_code_units() {
+        let cases = [
+            "",
+            "a",
+            "ab",
+            "arguments",
+            "JSCompiler_renameProperty",
+            "é",
+            "aé",
+            "😀",
+            "a😀b",
+        ];
+        for s in cases {
+            for t in cases {
+                let units: Vec<u16> = t.encode_utf16().collect();
+                assert_eq!(s.equals_units(&units), s == t, "{s:?} vs {t:?}");
+                assert_eq!(s.to_owned().equals_units(&units), s == t);
+                let reference = s.with_units(|own| own == units.as_slice());
+                assert_eq!(s.equals_units(&units), reference);
+            }
+        }
+        for s in cases {
+            for t in cases {
+                let units: Vec<u16> = t.encode_utf16().collect();
+                let expected = units.starts_with(&s.encode_utf16().collect::<Vec<_>>());
+                assert_eq!(s.is_prefix_of(&units), expected, "{s:?} prefix of {t:?}");
+            }
+        }
+        // A lone surrogate is never the encoding of a str.
+        assert!(!"a".equals_units(&[0xd800]));
+        assert!(!"ab".equals_units(&[u16::from(b'a'), 0xdc00]));
     }
 }

@@ -459,11 +459,19 @@ impl PolyfillUsageFinder {
     /// traversed again and again (`RemoveUnusedCode`). A function whose subtree has not changed
     /// since an earlier traversal, and that is reached with nothing guarded and no conditional
     /// linked, is not traversed again: its usages are passed on from `cache`.
+    ///
+    /// Rust-only (performance divergence): with `deferred`, it does not traverse an isolated
+    /// function that it reaches outside every function it records and has no usages kept for,
+    /// but adds it to `deferred`: the guarded usages in such a function depend on its subtree
+    /// alone, and its traversal leaves no guard behind (see
+    /// `GuardedCallbackSubclass::enter_function`), so it can be traversed later, as a root
+    /// (`root` itself is then such a function), when a usage in it is asked about.
     pub(crate) fn traverse_only_guarded_cached(
         &self,
         compiler: &mut AbstractCompiler,
         root: NodeId,
         cache: GuardedPolyfillUsageCacheOf,
+        deferred: Option<&mut IndexSet<NodeId>>,
         polyfill_consumer: &mut PolyfillConsumer<'_>,
     ) {
         if compiler.get_life_cycle_stage() != LifeCycleStage::NORMALIZED {
@@ -479,6 +487,10 @@ impl PolyfillUsageFinder {
         let mut traverser = Traverser::new(self, polyfill_consumer, Guard::ONLY_GUARDED);
         traverser.skip_unguardable_nodes = true;
         traverser.function_cache = Some(cache);
+        if deferred.is_some() && root.is_function(compiler) {
+            traverser.function_root = Some(root);
+        }
+        traverser.deferred = deferred;
         NodeTraversal::traverse(compiler, root, &mut traverser);
     }
 
@@ -650,6 +662,9 @@ struct Traverser<'a, 'c> {
     /// that was decided by the color of a node. A color is not part of a function's change
     /// stamp, so what was found in these functions is not kept.
     color_dependent: usize,
+    /// Rust-only (performance divergence): see `PolyfillUsageFinder::traverse_only_guarded_cached`.
+    deferred: Option<&'a mut IndexSet<NodeId>>,
+    function_root: Option<NodeId>,
 }
 
 impl<'a, 'c> Traverser<'a, 'c> {
@@ -670,6 +685,8 @@ impl<'a, 'c> Traverser<'a, 'c> {
             usage_log: Vec::new(),
             function_log: Vec::new(),
             color_dependent: 0,
+            deferred: None,
+            function_root: None,
         }
     }
 
@@ -829,9 +846,20 @@ impl GuardedCallbackSubclass for Traverser<'_, '_> {
             }
             return true;
         }
+        if self.recording.is_empty()
+            && self.function_root != Some(function)
+            && let Some(deferred) = &mut self.deferred
+        {
+            deferred.insert(function);
+            return true;
+        }
         self.recording
             .push((function, self.usage_log.len(), self.function_log.len()));
         false
+    }
+
+    fn is_function_root(&self, function: NodeId) -> bool {
+        self.function_root == Some(function)
     }
 
     fn exit_function(&mut self, traversal: &mut NodeTraversal<'_>, function: NodeId) {

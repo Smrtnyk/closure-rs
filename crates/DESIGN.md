@@ -1446,3 +1446,99 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   recorded, and the extern-property set is the same object. The cache is cleared with the other
   stamp-keyed caches when the change log is not continuous. `CLOSURE_RS_OPTIMIZE_CALLS_CACHE=off`
   walks every unit; `=verify` walks every unit and compares the cached references.
+- `jscomp/remove_unused_code.rs` (`LeafRecorder::outer`, `abort_leaves_inside`,
+  `record_outer_var_in_leaves`): a function traversed without a summary no longer ends the
+  recordings of the functions around it. Every active recorder sees each event: a var is outer
+  to the recorders it lies outside of, a removable added to a var ends only those recorders, a
+  hit's summary is absorbed by each, and what marking a var not removable causes is recorded by
+  the recorders that hold the var. So a function whose nested function keeps missing (it adds a
+  removable to a var of the function around it) gets a summary of its whole subtree. A function
+  whose last parameter is an empty pattern ends the recordings around it (a hit skips
+  `removeUnreferencedFunctionArgs` for every function in the summary). `CLOSURE_RS_RUC_NESTED=off`
+  ends them at every function without a summary.
+- `jscomp/remove_unused_code.rs` (`drop_summaries_reading_changed_accessors`),
+  `accessor_summary.rs` (`changed_names`): a new accessor summary (DisambiguateProperties renames
+  getters and setters) drops only the RemoveUnusedCode summaries of functions whose subtree holds
+  a GETPROP, OPTCHAIN_GETPROP or STRING_KEY with a name whose kind changed, the only names a
+  function's analysis reads the accessor summary for (`considerForAccessorSideEffects`,
+  `AstAnalyzer#getPropertyKind`), instead of every summary. `CLOSURE_RS_RUC_ACCESSOR_KEY=off`
+  drops them all.
+- `rhino/js_string.rs` (`JsStrLike::equals_units`), `rhino/node.rs` `matches_name`: a NAME is
+  compared with a `str` name without converting the name to UTF-16 first (a str of n bytes has at
+  most n code units, an ASCII str exactly n). `matchesName` is asked for every variable
+  InlineVariables and RemoveUnusedCode look at (`isPropertyRenameFunction`).
+- `jscomp/reference_collector/function_body.rs` (`FunctionBodySites::collect_delegating`,
+  `SiteKind::Delegate`, `FunctionReferenceCache::delegating_sites`), `reference_collector.rs`
+  (`collect_body_from_sites`, `replay_scoped_body_sites`), `node_traversal.rs`
+  (`traverse_replayed_child`): a block that holds functions, classes, catch clauses, default
+  values or destructuring targets is replayed from sites too (they ended the collection of
+  sites). Each such node is a delegate: the replay, with the block's nested scopes entered
+  (`push_scope_root_quietly`) and the basic blocks around the node on the block stack, hands
+  it to the traversal at its place, so its subtree is traversed (or replayed) as before; map
+  entries are made at the first site of each spelling, so the entries a delegate makes keep
+  their place, and a function or class declared in a nested scope makes that scope one that
+  declares bindings. These sites are kept apart from the others (whose users rely on a body
+  without functions), under the block's stamp, which covers the place of each delegate.
+  `CLOSURE_RS_DELEGATING_SITES=off` collects such blocks with the ordinary visitor, `=verify`
+  collects the sites again at every use and checks that they are the same.
+- `jscomp/remove_unused_code.rs` (`verify_same_summary`, `LeafRecorder::verify_failure`):
+  `CLOSURE_RS_RUC_CACHE=verify` also traverses every function a RemoveUnusedCode summary would be
+  replayed for and checks that its recording now makes the same summary (outer vars with their
+  marks, pinned and required properties, polyfills, nested functions) and passes the checks of a
+  kept summary.
+- `jscomp/syntactic_scope_cache.rs` (`reuse_global_after_removals`, `global_declarations`),
+  `syntactic_scope_creator.rs` (`ScopeScanner::script_declarations_now`, `script_lists`),
+  `scope.rs` (`remove_vars_as_rescanned`), `var_map.rs` (`retain`): a kept global scope is
+  updated and handed out again when every script that changed since its scan declares a
+  subsequence of the name nodes it declared then (Java scans the global scope for every request;
+  loop passes mostly change function bodies or remove declarations, while each scan declares
+  every extern and program global). The vars of the declarations that are gone are removed and
+  the vars after them numbered as a scan would number them, as long as no declaration left has
+  the name of one of them (it would make the var) and every declared name node left still has
+  its var's name and is in the tree. The declarations made for each script are kept with the
+  scope; those of a changed script are found by the scan that records them, without declaring;
+  a script with a Closure namespace is scanned anew. Whether a scan would call the redeclaration
+  handler (a later declaration of a name finding it declared) is counted again over the
+  declarations left when one that is gone called it, so that a creator with a handler of its own
+  gets the updated scope only when no handler would be called. `CLOSURE_RS_GLOBAL_SCOPE_UPDATE=off`
+  scans anew whenever a script changed; `CLOSURE_RS_SCOPE_CACHE=verify` checks every handed-out
+  scope against a new scan (vars, depth and redeclarations).
+  a script with a Closure namespace is scanned anew. `CLOSURE_RS_GLOBAL_SCOPE_UPDATE=off` scans
+  anew whenever a script changed; `CLOSURE_RS_SCOPE_CACHE=verify` checks every handed-out scope
+  against a new scan.
+- `jscomp/inline_functions.rs` (`FunctionFactsCache`, `FunctionFacts`), `compiler.rs`: what
+  `updateFunctionStateForInlining` computes from a candidate function's subtree and name (the
+  size against the limit, direct replacement, non-inlinable parameters, the minimum requirements,
+  the uses of the parameters and of `this`, local names) is kept between runs of InlineFunctions,
+  each fact computed when the pass first asks for it, while the function's
+  `SyntacticScopeCache::deep_function_stamp` (with in-place JSDoc and side-effect flags) is
+  current and its name and the size limit are the same (Java computes them on every run).
+  `CLOSURE_RS_INLINE_FUNCTION_FACTS=off` computes them on every run, `=verify` computes every kept
+  fact again and compares.
+- `jscomp/inline_functions.rs` (`NoInlineSite`, `FindCandidatesReferences::maybe_add_reference_using_mode`):
+  a call site that InlineFunctions could not inline a candidate into (the size limit or
+  `canInlineReferenceToFunction`) is kept by call node, candidate and mode with the
+  `DeepFunctionStamp` of the function around the call (or of its statement of the script) and of
+  the candidate, and answers no again while both are current, without making the call's scopes
+  (Java checks every call site on every run). Under the same switch as `FunctionFactsCache`:
+  `=verify` checks every kept answer.
+- `jscomp/remove_unused_code.rs` (`is_guarded_polyfill_use`, `deferred_guard_functions`),
+  `polyfill_usage_finder.rs` (`traverse_only_guarded_cached` with `deferred`),
+  `guarded_callback.rs` (`GuardedCallbackSubclass::is_function_root`): the guarded polyfill
+  traversal of a script, made when a polyfill reference in it is first considered, leaves out
+  each isolated function (reached with nothing guarded and no conditional linked, outside every
+  function it records) that has no kept usages, and traverses such a function on its own, as a
+  root in the context of an isolated function, only when a reference in it is considered (Java
+  traverses every script). The guarded usages in an isolated function depend on its subtree
+  alone and its traversal leaves no guard behind, so the answer for every node is that of the
+  whole traversal; the first run of the pass, with nothing kept, traverses every function of a
+  script with a polyfill reference otherwise. `CLOSURE_RS_RUC_GUARD_DEFER=off` traverses them all;
+  `CLOSURE_RS_RUC_CACHE=verify` compares every answer with a whole traversal of the script.
+- `rhino/js_string.rs` (`JsStrLike::is_prefix_of` for `str`): a name whose first code unit is not
+  the ASCII first byte of the prefix is rejected before the prefix is looked at as a whole
+  (`isExported` asks every var whether it starts with `$super`).
+- `jscomp/remove_unused_code.rs` (`get_var_info`): the mark that a new var info is not removable
+  because globals or locals are not removed (SIMPLE) is not seen by the recordings of summaries;
+  the var info has no removables, and a summary's hit makes it the same way, while recording the
+  mark ended the recording of every function whose first reference to an outer var made its var
+  info (`CLOSURE_RS_RUC_CACHE=verify` found such a recording ending where the kept summary did not).

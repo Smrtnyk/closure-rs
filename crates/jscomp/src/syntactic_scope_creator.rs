@@ -116,6 +116,15 @@ impl SyntacticScopeCreator<'_> {
         if let Some(context) = &context
             && let Some(scope) =
                 SyntacticScopeCache::reuse(compiler, n, parent, context, !self.default_handler)
+                    .or_else(|| {
+                        SyntacticScopeCache::reuse_global_after_removals(
+                            compiler,
+                            n,
+                            context,
+                            !self.default_handler,
+                            &mut ScopeScanner::script_declarations_now,
+                        )
+                    })
         {
             if SyntacticScopeCache::verifying() {
                 let (fresh, redeclared) = self.scan(compiler, n, parent, false);
@@ -131,7 +140,8 @@ impl SyntacticScopeCreator<'_> {
         // A global scope takes the declarations of unchanged scripts from the cache too.
         let replay_scripts =
             self.default_handler && context.as_ref().is_some_and(ScopeContext::is_global_root);
-        let (scope, redeclared) = self.scan(compiler, n, parent, replay_scripts);
+        let (scope, redeclared, script_lists) =
+            self.scan_with_script_lists(compiler, n, parent, replay_scripts);
         if replay_scripts && SyntacticScopeCache::verifying() {
             let (fresh, fresh_redeclared) = self.scan(compiler, n, parent, false);
             assert_eq!(
@@ -143,7 +153,15 @@ impl SyntacticScopeCreator<'_> {
         if let Some(context) = context
             && (self.default_handler || !redeclared)
         {
-            SyntacticScopeCache::keep(compiler, n, scope, scanned_at, context, redeclared);
+            SyntacticScopeCache::keep(
+                compiler,
+                n,
+                scope,
+                scanned_at,
+                context,
+                redeclared,
+                script_lists,
+            );
         }
         scope
     }
@@ -159,6 +177,19 @@ impl SyntacticScopeCreator<'_> {
         parent: Option<ScopeId>,
         replay_scripts: bool,
     ) -> (ScopeId, bool) {
+        let (scope, redeclared, _) =
+            self.scan_with_script_lists(compiler, n, parent, replay_scripts);
+        (scope, redeclared)
+    }
+
+    /// `scan`, with the declarations made for each script of a global scope (`replay_scripts`).
+    fn scan_with_script_lists(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        parent: Option<ScopeId>,
+        replay_scripts: bool,
+    ) -> (ScopeId, bool, Vec<Option<Arc<[ScriptDeclaration]>>>) {
         let scope = match parent {
             None => ScopeId::create_global_scope(compiler, n),
             Some(parent) => ScopeId::create_child_scope(compiler, parent, n),
@@ -172,7 +203,7 @@ impl SyntacticScopeCreator<'_> {
         );
         scanner.replay_scripts = replay_scripts;
         scanner.populate(compiler);
-        (scope, scanner.redeclared)
+        (scope, scanner.redeclared, scanner.script_lists)
     }
 }
 
@@ -194,6 +225,12 @@ struct ScopeScanner<'a> {
     recording: Option<Option<Vec<ScriptDeclaration>>>,
     /// Rust-only (performance divergence): whether the redeclaration handler was called.
     redeclared: bool,
+    /// Rust-only (performance divergence): the declarations made for each script `scan_script`
+    /// scanned or replayed, in order (`None` for a script whose record was not kept).
+    script_lists: Vec<Option<Arc<[ScriptDeclaration]>>>,
+    /// Rust-only (performance divergence): declarations are only recorded, not made
+    /// (`script_declarations_now`).
+    record_only: bool,
 }
 
 impl<'a> ScopeScanner<'a> {
@@ -216,7 +253,26 @@ impl<'a> ScopeScanner<'a> {
             replay_scripts: false,
             recording: None,
             redeclared: false,
+            script_lists: Vec::new(),
+            record_only: false,
         }
+    }
+
+    /// Rust-only (performance divergence): the declarations a scan of the global scope `global`
+    /// makes for the top level of `script` (`scan_script`), without making them; `None` when one
+    /// would go to another scope. The scan reads the AST alone.
+    fn script_declarations_now(
+        compiler: &mut AbstractCompiler,
+        global: ScopeId,
+        script: NodeId,
+    ) -> Option<Vec<ScriptDeclaration>> {
+        let mut handler = DefaultRedeclarationHandler;
+        let mut scanner = ScopeScanner::new(compiler, &mut handler, global, None, false);
+        scanner.record_only = true;
+        scanner.input_id = script.get_input_id(compiler);
+        scanner.recording = Some(Some(Vec::new()));
+        scanner.scan_vars_of_children(compiler, script, Some(global), Some(global));
+        scanner.recording.take().flatten()
     }
 
     // port: AbstractCompiler#getInput (for the scanner's current input id)
@@ -472,6 +528,7 @@ impl<'a> ScopeScanner<'a> {
     /// way.
     fn scan_script(&mut self, compiler: &mut AbstractCompiler, script: NodeId) {
         if let Some(declarations) = SyntacticScopeCache::script_declarations(compiler, script) {
+            self.script_lists.push(Some(Arc::clone(&declarations)));
             for declaration in declarations.iter() {
                 match *declaration {
                     ScriptDeclaration::Name { name, .. } => {
@@ -490,12 +547,16 @@ impl<'a> ScopeScanner<'a> {
         self.recording = Some(Some(Vec::new()));
         self.scan_vars_of_children(compiler, script, Some(self.scope), Some(self.scope));
         if let Some(Some(declarations)) = self.recording.take() {
+            let declarations: Arc<[ScriptDeclaration]> = declarations.into();
+            self.script_lists.push(Some(Arc::clone(&declarations)));
             SyntacticScopeCache::keep_script_declarations(
                 compiler,
                 script,
                 scanned_at,
                 declarations,
             );
+        } else {
+            self.script_lists.push(None);
         }
     }
 
@@ -517,6 +578,9 @@ impl<'a> ScopeScanner<'a> {
         if self.recording.is_some() {
             let parent = n.get_parent(compiler);
             self.record(s, ScriptDeclaration::Name { name: n, parent });
+            if self.record_only {
+                return;
+            }
         }
         check_state!(
             n.is_name(compiler) || n.is_import_star(compiler),
@@ -557,6 +621,9 @@ impl<'a> ScopeScanner<'a> {
         expr_call: NodeId,
     ) {
         self.record(s, ScriptDeclaration::GoogNamespace(expr_call));
+        if self.record_only {
+            return;
+        }
         let namespace_node =
             check_not_null!(expr_call.get_first_child(compiler)).get_second_child(compiler);
         let Some(namespace_node) = namespace_node else {
