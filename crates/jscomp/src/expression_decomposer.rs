@@ -83,6 +83,10 @@ pub struct ExpressionDecomposer {
     unknown_type: Option<TypeId>,
     temp_name_prefix: String,
     result_name_prefix: String,
+    /// Rust-only (performance divergence): when set, every `isExpressionTreeUnsafe` answer given
+    /// for a tree that a following side effect may affect, with the tree (see
+    /// `start_logging_side_effected_reads`).
+    side_effected_reads: Option<std::cell::RefCell<Vec<(NodeId, bool)>>>,
 }
 
 // An arbitrary limit to prevent catch infinite recursion.
@@ -162,7 +166,43 @@ impl ExpressionDecomposer {
             unknown_type,
             temp_name_prefix: "JSCompiler_temp".to_string(),
             result_name_prefix: "JSCompiler_inline_result".to_string(),
+            side_effected_reads: None,
         }
+    }
+
+    /// Rust-only (performance divergence): from now on, logs the answer of every
+    /// `isExpressionTreeUnsafe` call for a tree a following side effect may affect. Those are the
+    /// only answers of `canExposeExpression` that read beyond the tree it is asked about and the
+    /// statement around it: the names of the known constant functions and the declarations, in
+    /// `scope`, of the names in the tree (`NodeUtil::is_constant_var`). Asking
+    /// `is_side_effected_tree_unsafe` again for each logged tree, with this decomposer's known
+    /// constants and the same scope, repeats every such read (`InlineFunctions` keeps answers
+    /// under these logs).
+    pub(crate) fn start_logging_side_effected_reads(&mut self) {
+        self.side_effected_reads = Some(std::cell::RefCell::new(Vec::new()));
+    }
+
+    /// Rust-only: the answers logged since `start_logging_side_effected_reads`, in order.
+    pub(crate) fn take_side_effected_reads(&self) -> Vec<(NodeId, bool)> {
+        self.side_effected_reads
+            .as_ref()
+            .map(|log| std::mem::take(&mut *log.borrow_mut()))
+            .unwrap_or_default()
+    }
+
+    /// Rust-only: the scope later answers look names up in (one decomposer checks the logs of
+    /// several call sites).
+    pub(crate) fn set_scope(&mut self, scope: Scope) {
+        self.scope = scope;
+    }
+
+    /// Rust-only: `isExpressionTreeUnsafe(tree, true)`, the answer `side_effected_reads` logs.
+    pub(crate) fn is_side_effected_tree_unsafe(
+        &self,
+        compiler: &mut AbstractCompiler,
+        tree: NodeId,
+    ) -> bool {
+        self.is_expression_tree_unsafe_impl(compiler, tree, true)
     }
 
     /// Perform any rewriting necessary so that the specified expression is `MOVABLE`.
@@ -1521,6 +1561,22 @@ impl ExpressionDecomposer {
     /// @return `true` if `tree` contains any subexpressions that would make movement incorrect.
     // port: ExpressionDecomposer#isExpressionTreeUnsafe
     fn is_expression_tree_unsafe(
+        &self,
+        compiler: &mut AbstractCompiler,
+        tree: NodeId,
+        following_side_effects_exist: bool,
+    ) -> bool {
+        let unsafe_tree =
+            self.is_expression_tree_unsafe_impl(compiler, tree, following_side_effects_exist);
+        if following_side_effects_exist && let Some(log) = &self.side_effected_reads {
+            log.borrow_mut().push((tree, unsafe_tree));
+        }
+        unsafe_tree
+    }
+
+    /// The Java body of `isExpressionTreeUnsafe`; `is_expression_tree_unsafe` adds the Rust-only
+    /// log.
+    fn is_expression_tree_unsafe_impl(
         &self,
         compiler: &mut AbstractCompiler,
         tree: NodeId,

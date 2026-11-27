@@ -241,7 +241,7 @@ impl PureFunctionIdentifier {
                     // no flags set == the function is successfully treated as pure.
                     continue;
                 }
-                if summary.name == ".constructor" {
+                if summary.name_is_prop && summary.name == "constructor" {
                     // .constructor is a special case - almost all the time, constructors get
                     // invoked by `new Foo();` instead of `new something.constructor();` and
                     // JSCompiler doesn't support this.constructor + property renaming well. So
@@ -267,7 +267,7 @@ impl PureFunctionIdentifier {
                     .map(|node| Self::format_source_location(compiler, check_not_null!(*node)))
                     .collect::<Vec<_>>()
                     .join("\n  ");
-                let name = summary.name.to_string_lossy();
+                let name = summary.java_name().to_string_lossy();
                 let error = JSError::make(
                     compiler,
                     function,
@@ -637,54 +637,74 @@ impl PureFunctionIdentifier {
     ) {
         // Merge the prop and name references into a single multimap since only the name matters.
         // (Java's ArrayListMultimap: `putAll` of an empty list adds no key.)
-        let mut references_by_name: IndexMap<JsString, Vec<NodeId>> = IndexMap::<_, _>::default();
+        //
+        // Rust-only (performance divergence): Java builds the multimap with every property name
+        // prefixed by `PROP_NAME_PREFIX` and copies every list into it. A variable name never
+        // starts with ".", so the two key sets are disjoint and each key's list is the list of its
+        // own map: the entries borrow those lists, and a property key is kept without the prefix,
+        // with the hash code Java computes for the prefixed string (`prefixed_hash_code`).
+        let mut references_by_name: Vec<(ReferenceKey<'_>, &[NodeId])> = Vec::new();
         for (key, value) in reference_map.get_name_references() {
             if !value.is_empty() {
-                references_by_name
-                    .entry(key.clone())
-                    .or_default()
-                    .extend(value.iter().copied());
+                references_by_name.push((ReferenceKey::Name(key), value));
             }
         }
         for (key, value) in reference_map.get_prop_references() {
             if !value.is_empty() {
-                references_by_name
-                    .entry(JsString::from(Self::PROP_NAME_PREFIX).concat(key))
-                    .or_default()
-                    .extend(value.iter().copied());
+                references_by_name.push((ReferenceKey::Prop(key), value));
             }
         }
         // ArrayListMultimap.create() is backed by a HashMap (Guava's expected 12 keys: initial
         // capacity 16); its keySet() and asMap() iterate in Java's HashMap order.
-        let references_by_name: IndexMap<JsString, Vec<NodeId>> = java_hash_map::iteration_order(
-            references_by_name.into_iter().collect(),
-            |(name, _)| name.hash_code(),
+        let references_by_name = java_hash_map::iteration_order(
+            references_by_name,
+            |(key, _)| key.hash_code(),
             Self::ARRAY_LIST_MULTIMAP_INITIAL_CAPACITY,
-        )
-        .into_iter()
-        .collect();
+        );
         // Empty function names cause a crash during analysis that is better to detect here.
         // Additionally, functions require a name to be invoked in a statically analyzable way;
         // there's no value in tracking the set of anonymous functions.
-        check_state!(!references_by_name.contains_key(&JsString::from("")));
-        check_state!(!references_by_name.contains_key(&JsString::from(Self::PROP_NAME_PREFIX)));
+        // (The keys "" and PROP_NAME_PREFIX: an empty variable or property name.)
+        check_state!(
+            !references_by_name
+                .iter()
+                .any(|(key, _)| matches!(key, ReferenceKey::Name(name) if name.is_empty()))
+        );
+        check_state!(
+            !references_by_name
+                .iter()
+                .any(|(key, _)| matches!(key, ReferenceKey::Prop(name) if name.is_empty()))
+        );
 
         // Create and store a summary for all known names.
-        for name in references_by_name.keys() {
-            let summary = AmbiguatedFunctionSummary::create_in_graph(
-                &mut self.summaries,
-                &mut self.reverse_call_graph,
-                name.clone(),
-            );
-            if name.as_units().first() == Some(&u16::from(b'.')) {
-                self.summaries_by_prop_name
-                    .insert(name.substring(1, name.length()), summary);
-            }
-            self.summaries_by_name.insert(name.clone(), summary);
+        let mut summaries_for_names = Vec::with_capacity(references_by_name.len());
+        for (key, _) in &references_by_name {
+            let summary = match *key {
+                ReferenceKey::Name(name) => {
+                    let summary = AmbiguatedFunctionSummary::create_in_graph(
+                        &mut self.summaries,
+                        &mut self.reverse_call_graph,
+                        name.clone(),
+                    );
+                    self.summaries_by_name.insert(name.clone(), summary);
+                    summary
+                }
+                ReferenceKey::Prop(name) => {
+                    let summary = AmbiguatedFunctionSummary::create_in_graph(
+                        &mut self.summaries,
+                        &mut self.reverse_call_graph,
+                        name.clone(),
+                    );
+                    self.summaries[summary.0].name_is_prop = true;
+                    self.summaries_by_prop_name.insert(name.clone(), summary);
+                    summary
+                }
+            };
+            summaries_for_names.push(summary);
         }
 
-        for (name, references) in &references_by_name {
-            self.populate_function_definitions(compiler, name, references);
+        for ((_, references), summary) in references_by_name.iter().zip(summaries_for_names) {
+            self.populate_function_definitions(compiler, summary, references);
         }
         let implicit = AmbiguatedFunctionSummary::create_in_graph(
             &mut self.summaries,
@@ -700,11 +720,10 @@ impl PureFunctionIdentifier {
     fn populate_function_definitions(
         &mut self,
         compiler: &mut AbstractCompiler,
-        name: &JsString,
+        // Rust-only: the summary of the name (Java looks it up by name).
+        summary_for_name: SummaryId,
         references: &[NodeId],
     ) {
-        let summary_for_name = *check_not_null!(self.summaries_by_name.get(name));
-
         // Make sure we get absolutely every R-value assigned to `name` or at the very least detect
         // there are some we're missing. Overlooking a single R-value would invalidate the
         // analysis.
@@ -954,6 +973,34 @@ impl PureFunctionIdentifier {
     }
 }
 
+/// Rust-only (performance divergence): a key of Java's merged reference multimap in
+/// `populate_datastructures_for_analysis_traversal`: a variable name, or a property name without
+/// `PROP_NAME_PREFIX`.
+#[derive(Clone, Copy)]
+enum ReferenceKey<'r> {
+    Name(&'r JsString),
+    Prop(&'r JsString),
+}
+
+impl ReferenceKey<'_> {
+    /// The `String#hashCode` of the key as Java spells it: for a property, of
+    /// `PROP_NAME_PREFIX + name`, which is `'.' * 31^length + name.hashCode()`.
+    fn hash_code(&self) -> i32 {
+        match self {
+            ReferenceKey::Name(name) => name.hash_code(),
+            ReferenceKey::Prop(name) => {
+                let mut power: i32 = 1;
+                for _ in 0..name.length() {
+                    power = power.wrapping_mul(31);
+                }
+                i32::from(b'.')
+                    .wrapping_mul(power)
+                    .wrapping_add(name.hash_code())
+            }
+        }
+    }
+}
+
 impl CallGraphCompilerPass for PureFunctionIdentifier {
     // port: PureFunctionIdentifier#process
     fn process(
@@ -1127,6 +1174,10 @@ struct FunctionStackEntry {
     // function stack.
     is_artificially_pure: bool,
     catch_depth: i32, // The number of try-catch blocks around the current node.
+    /// Rust-only (performance divergence): `summariesForAllNamesOfFunctionByNode.get(root)`, which
+    /// no longer changes once the traversal entered the function (`enter_scope`), kept here
+    /// instead of being copied out of the map for every node.
+    summaries: Vec<SummaryId>,
 }
 
 impl FunctionStackEntry {
@@ -1138,6 +1189,7 @@ impl FunctionStackEntry {
             tainted_vars: IndexSet::<_>::default(),
             is_artificially_pure,
             catch_depth: 0,
+            summaries: Vec::new(),
         }
     }
 
@@ -1701,10 +1753,11 @@ impl Callback for FunctionBodyAnalyzer<'_> {
             self.pfi.all_function_calls.push(node);
         }
 
-        let enclosing_function = self.entry(*self.function_scope_stack.last().unwrap());
+        let enclosing_id = *self.function_scope_stack.last().unwrap();
+        let enclosing_function = self.entry(enclosing_id);
         let root = enclosing_function.root;
         let is_artificially_pure = enclosing_function.is_artificially_pure;
-        let Some(root) = root.filter(|_| !is_artificially_pure) else {
+        let Some(_root) = root.filter(|_| !is_artificially_pure) else {
             // Within artificially pure function literal bodies, we do not ever need to call
             // updateSideEffectsForNode because we intentionally ignore any side effects, and
             // still consider the function as a whole to be pure.
@@ -1715,7 +1768,9 @@ impl Callback for FunctionBodyAnalyzer<'_> {
             return;
         };
 
-        for summary in self.pfi.summaries_for_function(root) {
+        // Rust-only: the root's summaries kept on its entry (`FunctionStackEntry::summaries`).
+        for i in 0..self.entry(enclosing_id).summaries.len() {
+            let summary = self.entry(enclosing_id).summaries[i];
             self.update_side_effects_for_node(summary, traversal, node);
         }
     }
@@ -1757,6 +1812,8 @@ impl ScopedCallback for FunctionBodyAnalyzer<'_> {
             );
             self.pfi.put_summary_for_function(function, summary);
         }
+        self.pfi.function_stack_entries[entry.0].summaries =
+            self.pfi.summaries_for_function(function);
     }
 
     // port: PureFunctionIdentifier.FunctionBodyAnalyzer#exitScope
@@ -1782,14 +1839,7 @@ impl ScopedCallback for FunctionBodyAnalyzer<'_> {
         let summaries = &mut self.pfi.summaries;
 
         // Handle deferred local variable modifications:
-        let root = function_entry.root.unwrap();
-        for side_effect_info in self
-            .pfi
-            .summaries_for_all_names_of_function_by_node
-            .get(&root)
-            .cloned()
-            .unwrap_or_default()
-        {
+        for &side_effect_info in &function_entry.summaries {
             let side_effect_info = &mut summaries[side_effect_info.0];
 
             if side_effect_info.mutates_global_state() {
@@ -2119,6 +2169,9 @@ impl SideEffectPropagation {
 struct AmbiguatedFunctionSummary {
     // The name shared by the set of functions that defined this summary.
     name: JsString,
+    /// Rust-only (performance divergence): `name` is a property name, which Java's name carries
+    /// with `PROP_NAME_PREFIX` (see `populate_datastructures_for_analysis_traversal`).
+    name_is_prop: bool,
     // The node holding this summary in the reverse call graph.
     graph_node: DiGraphNode,
     // The side effect flags for this set of functions.
@@ -2163,6 +2216,7 @@ impl AmbiguatedFunctionSummary {
     ) -> Self {
         Self {
             name,
+            name_is_prop: false,
             graph_node: graph.create_node(id),
             bitmask: 0,
             mutated_param_mask: 0,
@@ -2303,7 +2357,7 @@ impl fmt::Display for AmbiguatedFunctionSummary {
         write!(
             f,
             "AmbiguatedFunctionSummary{{name={}, graphNode={}, sideEffects={}}}",
-            self.name.to_string_lossy(),
+            self.java_name().to_string_lossy(),
             self.graph_node.0,
             self.side_effects_to_string()
         )
@@ -2311,6 +2365,15 @@ impl fmt::Display for AmbiguatedFunctionSummary {
 }
 
 impl AmbiguatedFunctionSummary {
+    /// Rust-only: the name as Java holds it (a property name with `PROP_NAME_PREFIX`).
+    fn java_name(&self) -> JsString {
+        if self.name_is_prop {
+            JsString::from(PureFunctionIdentifier::PROP_NAME_PREFIX).concat(&self.name)
+        } else {
+            self.name.clone()
+        }
+    }
+
     // port: PureFunctionIdentifier.AmbiguatedFunctionSummary#sideEffectsToString
     fn side_effects_to_string(&self) -> String {
         let mut status = Vec::new();
