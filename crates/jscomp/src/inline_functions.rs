@@ -114,10 +114,16 @@ pub(crate) struct FunctionFactsCache {
 /// function of the call site's surroundings up to the function around it (the size limit counts
 /// that function, nested functions included; the scope, loops, the statement and the arguments
 /// are inside it), or up to the statement of the script it is in, and of the candidate's subtree
-/// and facts (`FunctionFacts`), so it holds while both `DeepFunctionStamp`s are current. A
+/// and facts (`FunctionFacts`), so it holds while the root is the same node and both
+/// `DeepFunctionStamp`s are current. A
 /// statement of a script that moves stays outside loops and functions. An answer whose
-/// computation asked the compiler for a unique name is not kept (`supplier_calls`).
+/// computation asked the compiler for a unique name is not kept (`supplier_calls`), nor one that
+/// needed an expression decomposer (`FunctionInjector::decomposer_uses`).
 struct KeptSite {
+    /// The root the answer was computed under (`site_root`). A call site that moved, with its
+    /// node, out of the function around it (the function was inlined in place) has another
+    /// root: its scope may now be the global one, which the answer reads.
+    root: NodeId,
     site: Arc<DeepFunctionStamp>,
     target: Arc<DeepFunctionStamp>,
     result: CanInlineResult,
@@ -3247,6 +3253,7 @@ impl<'a> FindCandidatesReferences<'a> {
                 .inline_functions_facts
                 .kept_sites
                 .get(&key)
+                .filter(|kept| kept.root == root)
                 .map(|kept| {
                     (
                         Arc::clone(&kept.site),
@@ -3285,6 +3292,7 @@ impl<'a> FindCandidatesReferences<'a> {
         let calls_before = self
             .supplier_calls
             .load(std::sync::atomic::Ordering::Relaxed);
+        let decomposers_before = self.injector.decomposer_uses();
         let result = self.add_reference_using_mode(
             compiler,
             fn_key,
@@ -3298,8 +3306,15 @@ impl<'a> FindCandidatesReferences<'a> {
             .supplier_calls
             .load(std::sync::atomic::Ordering::Relaxed)
             != calls_before;
-        if !asked_for_names && let Some((root, fn_node, key, _)) = site {
+        // An expression decomposer reads the candidate names of the whole program and the
+        // declarations of the names around the call.
+        let read_the_program = self.injector.decomposer_uses() != decomposers_before;
+        if !asked_for_names
+            && !read_the_program
+            && let Some((root, fn_node, key, _)) = site
+        {
             let kept = KeptSite {
+                root,
                 site: self.stamp_now(compiler, root),
                 target: self.stamp_now(compiler, fn_node),
                 result,

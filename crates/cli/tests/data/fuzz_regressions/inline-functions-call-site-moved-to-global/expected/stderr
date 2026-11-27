@@ -1,0 +1,13 @@
+in.js:1:21: WARNING - [JSC_TYPE_MISMATCH] No properties on this expression
+found   : undefined
+required: Object
+  1| (function(e){var n;n.TinyEmitter=e();n=this})(function(){({1:function(e,n,){
+                          ^^^^^^^^^^^
+
+in.js:1:57: WARNING - [JSC_NOT_FUNCTION_TYPE] {1: function(?, ?): undefined} expressions are not callable
+  1| (function(e){var n;n.TinyEmitter=e();n=this})(function(){({1:function(e,n,){
+                                                              ^^^^^^^^^^^^^^^^^^^
+  2| }})()})
+     ^^^^^
+
+0 error(s), 2 warning(s), 77.8% typed
