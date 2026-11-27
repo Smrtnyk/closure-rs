@@ -1199,6 +1199,9 @@ impl RemoveUnusedCode {
     /// Rust-only: `CLOSURE_RS_RUC_CACHE=verify`, the summary a hit would have replayed against
     /// the one recorded now by traversing the function. The order of the outer vars may differ
     /// (a nested summary replays the vars of its continuations where the function is reached).
+    /// A polyfill the kept summary relied on that is not registered where the function is
+    /// reached now (an earlier run removed it) leaves no mark in the new recording: a reference
+    /// to its name is an ordinary reference then, as it is for a replay.
     fn verify_same_summary(
         compiler: &AbstractCompiler,
         function: NodeId,
@@ -1218,21 +1221,37 @@ impl RemoveUnusedCode {
             && expected.name_non_local == fresh.name_non_local
             && (!expected.name_non_local || expected.outer_vars[0] == fresh.outer_vars[0])
             && expected.flags == fresh.flags
-            && expected.required_used_polyfills == fresh.required_used_polyfills
+            && (fresh.polyfill_mask & !expected.polyfill_mask) == 0
+            && (expected.required_used_polyfills & fresh.polyfill_mask)
+                == fresh.required_used_polyfills
             && outer(expected) == outer(fresh)
             && set(&expected.pinned_props) == set(&fresh.pinned_props)
             && set(&expected.required_pinned_props) == set(&fresh.required_pinned_props)
             && nested(expected) == nested(fresh);
         assert!(
             same,
-            "RemoveUnusedCode: the summary of {} differs from a new recording\nkept outer {:?} pinned {:?} required {:?}\nnew  outer {:?} pinned {:?} required {:?}",
+            "RemoveUnusedCode: the summary of {} differs from a new recording\nkept outer {:?} pinned {:?} required {:?} parent {:?} name ({}, {}) flags {:#x} polyfills {:#x} of {:#x} nested {:?}\nnew  outer {:?} pinned {:?} required {:?} parent {:?} name ({}, {}) flags {:#x} polyfills {:#x} of {:#x} nested {:?}",
             function.to_string(compiler),
             expected.outer_vars,
             expected.pinned_props,
             expected.required_pinned_props,
+            expected.parent,
+            expected.name_value_used,
+            expected.name_non_local,
+            expected.flags,
+            expected.required_used_polyfills,
+            expected.polyfill_mask,
+            expected.nested_stamps,
             fresh.outer_vars,
             fresh.pinned_props,
-            fresh.required_pinned_props
+            fresh.required_pinned_props,
+            fresh.parent,
+            fresh.name_value_used,
+            fresh.name_non_local,
+            fresh.flags,
+            fresh.required_used_polyfills,
+            fresh.polyfill_mask,
+            fresh.nested_stamps
         );
     }
 
