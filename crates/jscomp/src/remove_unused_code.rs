@@ -347,6 +347,18 @@ impl LeafRecorder {
         true
     }
 
+    /// The entry of `var` in `outer_vars`, found through `outer_vars_set` when there is one (it
+    /// holds the same vars in the same order).
+    #[inline]
+    fn outer_var_entry(&mut self, var: VarId) -> Option<&mut (VarId, NodeId, bool)> {
+        if self.outer_vars_set.is_empty() {
+            self.outer_vars.iter_mut().find(|e| e.0 == var)
+        } else {
+            let index = self.outer_vars_set.get_index_of(&var)?;
+            self.outer_vars.get_mut(index)
+        }
+    }
+
     fn record_pinned(&mut self, prop: &JsString) {
         if self.pinned_props.last() != Some(prop) {
             self.pinned_props.push(prop.clone());
@@ -5568,13 +5580,13 @@ impl RemoveUnusedCode {
                     match outer_var {
                         None => {
                             if let Some(v) = rec.last_outer_var
-                                && let Some(entry) = rec.outer_vars.iter_mut().find(|e| e.0 == v)
+                                && let Some(entry) = rec.outer_var_entry(v)
                             {
                                 entry.2 = true;
                             }
                         }
                         Some((depth, var_id)) if depth < rec.fparam_depth => {
-                            if let Some(entry) = rec.outer_vars.iter_mut().find(|e| e.0 == var_id) {
+                            if let Some(entry) = rec.outer_var_entry(var_id) {
                                 entry.2 = true;
                             } else {
                                 rec.clear_buffers();

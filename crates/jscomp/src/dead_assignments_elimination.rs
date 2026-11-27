@@ -47,6 +47,30 @@ use closure_rhino::{
     token::Token,
 };
 use std::collections::VecDeque;
+use std::sync::LazyLock;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum UnitCacheMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_DAE_UNIT_CACHE=off` walks the whole program for candidates in every run
+/// (`DaeUnitRecord`); `=verify` walks every unit and compares with the kept record.
+static UNIT_CACHE_MODE: LazyLock<UnitCacheMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_DAE_UNIT_CACHE").as_deref() {
+            Ok("off") => UnitCacheMode::Off,
+            Ok("verify") => UnitCacheMode::Verify,
+            _ => UnitCacheMode::On,
+        },
+    );
+
+/// Rust-only (performance divergence): the leaf functions with a removable assignment in a
+/// top-level unit, with their bodies, in walk order (`collect_leaf_candidates` without the change
+/// cutoff, which is applied when they are read). A function of the subtree alone.
+pub(crate) type DaeUnitRecord = Box<[(NodeId, NodeId)]>;
 
 struct BailoutInformation {
     contains_function: bool,
@@ -220,6 +244,130 @@ impl DeadAssignmentsElimination {
             child = next;
         }
         (has_fn, has_assign)
+    }
+
+    /// Rust-only (performance divergence): `collect_leaf_candidates` without the change cutoff,
+    /// also listing every function it reaches (for `UnitStamps`).
+    fn collect_unit_leaves(
+        ast: &closure_rhino::node::Ast,
+        n: NodeId,
+        out: &mut Vec<(NodeId, NodeId)>,
+        functions: &mut Vec<NodeId>,
+    ) -> (bool, bool) {
+        if n.is_function(ast) {
+            functions.push(n);
+            let fn_name = n.get_first_child(ast).unwrap();
+            let params = fn_name.get_next(ast).unwrap();
+            let body = params.get_next(ast).unwrap();
+            Self::collect_unit_leaves(ast, params, out, functions);
+            let (body_has_fn, body_has_assign) =
+                Self::collect_unit_leaves(ast, body, out, functions);
+            if body.is_block(ast) && !body_has_fn && body_has_assign {
+                out.push((n, body));
+            }
+            return (true, false);
+        }
+        let mut has_fn = false;
+        let mut has_assign = Self::is_removable_assign_ast(ast, n);
+        let mut child = n.get_first_child(ast);
+        while let Some(c) = child {
+            let next = c.get_next(ast);
+            let (cf, ca) = Self::collect_unit_leaves(ast, c, out, functions);
+            has_fn |= cf;
+            has_assign |= ca;
+            child = next;
+        }
+        (has_fn, has_assign)
+    }
+
+    /// Rust-only (performance divergence): `collect_candidates` with the leaf functions of the
+    /// units unchanged since the last run taken from their records (`DaeUnitRecord`); the others
+    /// are walked (on worker threads when there are many). A walk of `root` walks the units in
+    /// order (`statement_units`), and the ROOT, SCRIPT and MODULE_BODY nodes around them are no
+    /// functions and hold no candidate, so the units' leaf functions in unit order, filtered by
+    /// the change cutoff, are the candidates of the walk.
+    fn collect_candidates_with_unit_cache(
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+    ) -> Vec<(NodeId, NodeId)> {
+        use crate::unit_cache::UnitStamps;
+        let change_cutoff = compiler.scope_change_cutoff();
+        let units = crate::parallel_parse::statement_units(&compiler.ast, root);
+        UnitStamps::refresh(compiler, root);
+        let mut cache = std::mem::take(&mut compiler.dae_unit_cache);
+        let verify = *UNIT_CACHE_MODE == UnitCacheMode::Verify;
+        let kept: Vec<Option<(UnitStamps, DaeUnitRecord)>> = units
+            .iter()
+            .map(|&unit| {
+                let current = cache.get(compiler, unit).is_some();
+                cache.take(unit).filter(|_| current)
+            })
+            .collect();
+        let stale: Vec<NodeId> = units
+            .iter()
+            .zip(&kept)
+            .filter(|(_, kept)| verify || kept.is_none())
+            .map(|(&unit, _)| unit)
+            .collect();
+        let walk = |ast: &closure_rhino::node::Ast, unit: NodeId| {
+            let mut leaves = Vec::new();
+            let mut functions = Vec::new();
+            Self::collect_unit_leaves(ast, unit, &mut leaves, &mut functions);
+            (leaves.into_boxed_slice(), functions)
+        };
+        let threads = if *crate::parallel_parse::PARALLEL_ANALYSIS != ParallelAnalysisMode::Off
+            && compiler.ast.node_count() >= 50_000
+        {
+            crate::parallel_parse::parallel_thread_count(stale.len(), 2, 8)
+        } else {
+            1
+        };
+        let mut walked: Vec<Option<(DaeUnitRecord, Vec<NodeId>)>> =
+            (0..stale.len()).map(|_| None).collect();
+        {
+            let ast = &compiler.ast;
+            for batch in crate::parallel_parse::run_scoped_indexed(
+                "closure-dae",
+                threads,
+                &stale,
+                |_, &unit| Some(walk(ast, unit)),
+            ) {
+                for (idx, out) in batch {
+                    walked[idx] = Some(out);
+                }
+            }
+        }
+        let mut walked = walked.into_iter();
+        let mut records = Vec::with_capacity(units.len());
+        for (&unit, kept) in units.iter().zip(kept) {
+            let entry = match kept {
+                Some(kept) if !verify => kept,
+                kept => {
+                    let (leaves, functions) = walked.next().unwrap().unwrap();
+                    if let Some((_, kept)) = &kept {
+                        assert!(
+                            *kept == leaves,
+                            "CLOSURE_RS_DAE_UNIT_CACHE=verify: the kept leaf functions of {} differ \
+                             from a new walk\nkept {:?}\nnew  {:?}",
+                            unit.to_string(&compiler.ast),
+                            kept,
+                            leaves
+                        );
+                    }
+                    (UnitStamps::of(compiler, unit, &functions), leaves)
+                }
+            };
+            records.push((unit, entry.0, entry.1));
+        }
+        let ast = &compiler.ast;
+        let candidates = records
+            .iter()
+            .flat_map(|(_, _, leaves)| leaves.iter().copied())
+            .filter(|&(n, _)| change_cutoff.is_none_or(|cutoff| n.get_change_time(ast) > cutoff))
+            .collect();
+        cache.replace(records);
+        compiler.dae_unit_cache = cache;
+        candidates
     }
 
     /// Rust-only (performance divergence): `collect_leaf_candidates` of `root`, on worker threads
@@ -886,7 +1034,11 @@ impl CompilerPass for DeadAssignmentsElimination {
         // and liveness screening in parallel (dropping CFGs/lattices on the same worker thread to
         // avoid cross-thread heap retention), then apply removals only for surviving functions in
         // exact post-order.
-        let candidates = Self::collect_candidates(compiler, root);
+        let candidates = if *UNIT_CACHE_MODE == UnitCacheMode::Off {
+            Self::collect_candidates(compiler, root)
+        } else {
+            Self::collect_candidates_with_unit_cache(compiler, root)
+        };
         if candidates.is_empty() {
             return;
         }
@@ -895,7 +1047,11 @@ impl CompilerPass for DeadAssignmentsElimination {
         let mut scope_memo = IndexMap::default();
         let use_parallel =
             crate::parallel_parse::parallel_thread_count(candidates.len(), 64, 8) > 1;
-        if !use_parallel {
+        // Rust-only (performance divergence): without worker threads the candidates are screened
+        // on this thread (the path below, with one thread): the screen needs no scopes, which the
+        // candidates it rules out then never get.
+        let mode = *crate::parallel_parse::PARALLEL_ANALYSIS;
+        if !use_parallel && mode == ParallelAnalysisMode::Off {
             for (fn_node, body) in candidates {
                 let fn_scope = ensure_ancestor_scope(
                     compiler,
@@ -939,7 +1095,6 @@ impl CompilerPass for DeadAssignmentsElimination {
         }
         // Rust-only (performance divergence): the candidates `screen` finds nothing in need no
         // scopes and no work (with `verify`, they get both, and the work must find nothing).
-        let mode = *crate::parallel_parse::PARALLEL_ANALYSIS;
         let screened = if mode == ParallelAnalysisMode::Off {
             IndexSet::default()
         } else {

@@ -161,6 +161,14 @@ pub trait AbstractPeepholeOptimization {
         None
     }
 
+    /// Rust-only (performance divergence): whether `optimize_subtree` may call
+    /// `add_feature_to_enclosing_script`; `PeepholeOptimizationsPass` asks only these
+    /// optimizations for new features after a call. An optimization that never adds features
+    /// may say so (`add_feature_to_enclosing_script` checks it).
+    fn may_add_features(&self) -> bool {
+        true
+    }
+
     /// Rust-only (performance divergence): optional cheap node-level filter for high-frequency
     /// candidate tokens (`NAME`, `GETPROP`).
     fn fast_token_filter(&self, _token: closure_rhino::token::Token) -> FastTokenFilter {
@@ -427,12 +435,22 @@ pub trait AbstractPeepholeOptimization {
         // With the  current implementation, we let PeepholeOptimizationsPass to find the script
         // in what's usually O(1) time, or worst case it only calls getEnclosingScript() once per
         // NodeTraversal and then caches the result.
+        check_state!(
+            self.may_add_features(),
+            "an optimization that adds features must not say it never does (may_add_features)"
+        );
         self.fields_mut().new_features.insert(feature);
     }
 
     // port: AbstractPeepholeOptimization#getNewFeatures
     fn get_new_features(&self) -> Vec<Feature> {
         self.fields().new_features.iter().copied().collect()
+    }
+
+    /// Rust-only (performance divergence): `!getNewFeatures().isEmpty()` without copying the
+    /// features, asked after every `optimizeSubtree` call.
+    fn has_new_features(&self) -> bool {
+        !self.fields().new_features.is_empty()
     }
 
     // port: AbstractPeepholeOptimization#clearNewFeatures

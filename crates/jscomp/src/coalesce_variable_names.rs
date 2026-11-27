@@ -1074,7 +1074,12 @@ impl CompilerPass for CoalesceVariableNames {
         if !self.use_pseudo_names && compiler.get_coding_convention().export_tests_are_pure() {
             let mut functions = Vec::new();
             Self::collect_functions(&compiler.ast, root, &mut functions);
-            if crate::parallel_parse::parallel_thread_count(functions.len(), 64, 8) > 1 {
+            // Rust-only (performance divergence): without worker threads this path runs too, on
+            // this thread, when the screen is on: the functions the screen settles need no scopes,
+            // and the traversal goes only where it renames.
+            if crate::parallel_parse::parallel_thread_count(functions.len(), 64, 8) > 1
+                || *crate::parallel_parse::PARALLEL_ANALYSIS != ParallelAnalysisMode::Off
+            {
                 let is_es3 =
                     FeatureSet::ES3.contains(compiler.get_options().get_output_feature_set());
                 let can_continue_after_errors = compiler.get_options().can_continue_after_errors();

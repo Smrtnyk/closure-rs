@@ -579,6 +579,7 @@ crates/jscomp/src/typed_scope_creator/typed_externs.rs	322fc2ba37b98b96	Apache-2
 crates/jscomp/src/typed_scope_creator_rhino.rs	ab945c33639fbba7	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/jstype/StaticTypedScope.java
 crates/jscomp/src/typed_var.rs	737a2d6d69655237	Apache-2.0	closure:src/com/google/javascript/jscomp/TypedVar.java; closure:src/com/google/javascript/jscomp/AbstractVar.java
 crates/jscomp/src/unique_id_supplier.rs	0f4a708a48f2c32f	Apache-2.0	closure:src/com/google/javascript/jscomp/UniqueIdSupplier.java
+crates/jscomp/src/unit_cache.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/validity_check.rs	80e0f14c13c91117	Apache-2.0	closure:src/com/google/javascript/jscomp/ValidityCheck.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
 crates/jscomp/src/var.rs	8359b8073ff3ec79	Apache-2.0	closure:src/com/google/javascript/jscomp/Var.java; closure:src/com/google/javascript/jscomp/AbstractVar.java
 crates/jscomp/src/var_cfg_hash.rs	322fc2ba37b98b96	Apache-2.0	-
