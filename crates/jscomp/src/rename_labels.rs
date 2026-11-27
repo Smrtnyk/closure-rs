@@ -30,6 +30,7 @@
 //! top-level labels, "b" for the next nested label, and so on.
 use crate::{
     abstract_compiler::AbstractCompiler,
+    change_tracker::ChangeTracker,
     compiler_pass::CompilerPass,
     default_name_generator::DefaultNameGenerator,
     name_generator::NameGenerator,
@@ -37,7 +38,12 @@ use crate::{
     node_util::NodeUtil,
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
-use closure_rhino::{check_state, js_string::JsString, node::NodeId, token::Token};
+use closure_rhino::{
+    check_state,
+    js_string::JsString,
+    node::{Ast, NodeId},
+    token::Token,
+};
 use std::sync::{Arc, Mutex, RwLock};
 
 pub struct RenameLabels {
@@ -78,8 +84,126 @@ impl RenameLabels {
     ) {
         // Do variable reference counting.
         let mut callback = ProcessLabels::new(self, self.mark_changes);
+        if *DIRECT_MODE != DirectMode::Off
+            && let Some(labels) = outermost_labels(compiler, root)
+        {
+            if *DIRECT_MODE == DirectMode::Verify {
+                callback.expected_labels = Some((labels, 0));
+                NodeTraversal::traverse(compiler, root, &mut callback);
+                let (labels, next) = callback.expected_labels.as_ref().unwrap();
+                assert_eq!(
+                    *next,
+                    labels.len(),
+                    "CLOSURE_RS_RENAME_LABELS_DIRECT=verify: the traversal entered {next} \
+                     outermost labels, the candidates were {}",
+                    labels.len()
+                );
+                return;
+            }
+            for label in labels {
+                let change_scope = ChangeTracker::get_enclosing_change_scope_root(
+                    compiler,
+                    label.get_parent(compiler),
+                )
+                .unwrap();
+                let parent = label.get_parent(compiler);
+                callback.walk(compiler, label, parent, change_scope);
+            }
+            return;
+        }
         NodeTraversal::traverse(compiler, root, &mut callback);
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DirectMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_RENAME_LABELS_DIRECT=off` traverses the whole tree as Java does; `=verify` does too
+/// and checks that the labels it enters without a label around them are the candidates, in order.
+static DIRECT_MODE: std::sync::LazyLock<DirectMode> = std::sync::LazyLock::new(|| {
+    match std::env::var("CLOSURE_RS_RENAME_LABELS_DIRECT").as_deref() {
+        Ok("off") => DirectMode::Off,
+        Ok("verify") => DirectMode::Verify,
+        _ => DirectMode::On,
+    }
+});
+
+/// At most this many outermost labels are put in order without a traversal.
+const MAX_DIRECT_LABELS: usize = 256;
+
+/// Rust-only (performance divergence): the LABELs under `root` without a LABEL above them, in the
+/// order Java's traversal reaches them, or `None` when there are more than `MAX_DIRECT_LABELS`.
+/// The traversal visits children in the order of the tree, except under CLASS_MEMBERS, whose
+/// computed keys it traverses first (`handle_class_members`).
+fn outermost_labels(compiler: &mut AbstractCompiler, root: NodeId) -> Option<Vec<NodeId>> {
+    let labels: Vec<NodeId> = compiler
+        .ast
+        .with_token_candidates(&[Token::LABEL], |ast, nodes| {
+            let mut labels = Vec::new();
+            for &n in nodes {
+                if !n.is_label(ast) {
+                    continue;
+                }
+                // Attached under `root`, with no LABEL above it.
+                let mut outermost = true;
+                let mut current = n.get_parent(ast);
+                let attached = loop {
+                    match current {
+                        None => break false,
+                        Some(c) if c == root => break true,
+                        Some(c) => {
+                            outermost &= !c.is_label(ast);
+                            current = c.get_parent(ast);
+                        }
+                    }
+                };
+                if attached && outermost {
+                    labels.push(n);
+                }
+            }
+            labels
+        });
+    if labels.len() > MAX_DIRECT_LABELS {
+        return None;
+    }
+    let ast: &Ast = &compiler.ast;
+    // The traversal's order: by the position of each ancestor among its siblings, where a member
+    // of class members is ordered after every computed key unless the label is in its key.
+    const AFTER_KEYS: u32 = 1 << 31;
+    let mut keyed: Vec<(Vec<u32>, NodeId)> = labels
+        .into_iter()
+        .map(|label| {
+            let mut path = Vec::new();
+            let mut below = label;
+            let mut n = label;
+            while n != root {
+                let parent = n.get_parent(ast).unwrap();
+                let mut index = 0u32;
+                let mut sibling = parent.get_first_child(ast);
+                while sibling != Some(n) {
+                    index += 1;
+                    sibling = sibling.unwrap().get_next(ast);
+                }
+                if parent.is_class_members(ast)
+                    && !((n.is_computed_prop(ast) || n.is_computed_field_def(ast))
+                        && n.get_first_child(ast) == Some(below))
+                {
+                    index |= AFTER_KEYS;
+                }
+                path.push(index);
+                below = n;
+                n = parent;
+            }
+            path.reverse();
+            (path, label)
+        })
+        .collect();
+    keyed.sort();
+    Some(keyed.into_iter().map(|(_, label)| label).collect())
 }
 
 impl Default for RenameLabels {
@@ -133,6 +257,9 @@ struct ProcessLabels<'a> {
     // The list of generated names. Typically, the first name will be "a",
     // the second "b", etc.
     names: Vec<JsString>,
+    /// Rust-only: under `CLOSURE_RS_RENAME_LABELS_DIRECT=verify`, the outermost labels found
+    /// without a traversal and how many of them the traversal has entered.
+    expected_labels: Option<(Vec<NodeId>, usize)>,
 }
 
 impl<'a> ProcessLabels<'a> {
@@ -143,6 +270,7 @@ impl<'a> ProcessLabels<'a> {
             mark_changes,
             namespace_stack: Vec::new(),
             names: Vec::new(),
+            expected_labels: None,
         };
         // Create a entry for global scope.
         result.namespace_stack.push(LabelNamespace::default());
@@ -151,6 +279,13 @@ impl<'a> ProcessLabels<'a> {
 
     // port: RenameLabels.ProcessLabels#visitBreakOrContinue
     fn visit_break_or_continue(&mut self, t: &mut NodeTraversal<'_>, node: NodeId) {
+        if self.break_or_continue_changed(t, node) && self.mark_changes {
+            t.report_code_change();
+        }
+    }
+
+    /// `visitBreakOrContinue` without the change report: whether it changed the tree (Rust-only).
+    fn break_or_continue_changed(&mut self, t: &mut Ast, node: NodeId) -> bool {
         let name_node = node.get_first_child(t);
         if let Some(name_node) = name_node {
             // This is a named break or continue;
@@ -164,16 +299,23 @@ impl<'a> ProcessLabels<'a> {
                 if name != new_name {
                     // Give it the short name.
                     name_node.set_string(t, new_name);
-                    if self.mark_changes {
-                        t.report_code_change();
-                    }
+                    return true;
                 }
             }
         }
+        false
     }
 
     // port: RenameLabels.ProcessLabels#visitLabel
     fn visit_label(&mut self, t: &mut NodeTraversal<'_>, node: NodeId) {
+        if self.label_changed(t, node) && self.mark_changes {
+            t.report_code_change();
+        }
+    }
+
+    /// `visitLabel` without the change report: whether it changed the tree (Rust-only).
+    fn label_changed(&mut self, t: &mut Ast, node: NodeId) -> bool {
+        let mut changed = false;
         let name_node = node.get_first_child(t);
         check_state!(name_node.is_some());
         let name_node = name_node.unwrap();
@@ -186,9 +328,7 @@ impl<'a> ProcessLabels<'a> {
             if name != new_name {
                 // ... and it is used, give it the short name.
                 name_node.set_string(t, new_name);
-                if self.mark_changes {
-                    t.report_code_change();
-                }
+                changed = true;
             }
         } else {
             // ... and it is not referenced, just remove it.
@@ -198,9 +338,7 @@ impl<'a> ProcessLabels<'a> {
             if new_child.is_block(t) {
                 NodeUtil::try_merge_block(t, new_child, false);
             }
-            if self.mark_changes {
-                t.report_code_change();
-            }
+            changed = true;
         }
 
         // Remove the label from the current stack of labels.
@@ -209,6 +347,98 @@ impl<'a> ProcessLabels<'a> {
             .unwrap()
             .rename_map
             .shift_remove(&name);
+        changed
+    }
+
+    // port: RenameLabels.ProcessLabels#shouldTraverse (its LABEL branch)
+    fn enter_label(&mut self, ast: &Ast, node: NodeId) {
+        // Determine the new name for this label.
+        let current = self.namespace_stack.last_mut().unwrap();
+        let current_depth = current.rename_map.len() as i32 + 1;
+        let name = node.get_first_child(ast).unwrap().get_string(ast);
+
+        // Store the context for this label name.
+        let li = LabelInfo::new(current_depth);
+        check_state!(!current.rename_map.contains_key(&name));
+        current.rename_map.insert(name, li);
+
+        // Create a new name, if needed, for this depth.
+        if (self.names.len() as i32) < current_depth {
+            self.names
+                .push(JsString::from((self.outer.name_supplier)()));
+        }
+    }
+
+    /// Rust-only (performance divergence): the traversal of the subtree of an outermost label
+    /// (`outermost_labels`), which is all of Java's traversal that acts: outside labels
+    /// `shouldTraverse` and `visit` do nothing (a BREAK or CONTINUE with a label name is inside
+    /// its label) and a function's namespace stays empty. The callbacks run in the traversal's
+    /// order (children in order, the next sibling read before descending; class members in the
+    /// order of `handle_class_members`), a function gets its own namespace, and a change is reported to the
+    /// innermost function or script, the traversal's change scope. Each outermost label starts
+    /// in an empty namespace, as in the traversal, where the labels before it were removed from
+    /// the namespace at their `visit`; the generated names are shared.
+    fn walk(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        _parent: Option<NodeId>,
+        change_scope: NodeId,
+    ) {
+        if n.is_label(compiler) {
+            self.enter_label(compiler, n);
+        }
+        let is_function = n.is_function(compiler);
+        let change_scope = if is_function {
+            self.namespace_stack.push(LabelNamespace::default());
+            n
+        } else {
+            change_scope
+        };
+        if n.is_class_members(compiler) {
+            // The order of `NodeTraversal::handle_class_members`: the computed keys, then each
+            // member (of a computed one, its value).
+            let mut child = n.get_first_child(compiler);
+            while let Some(c) = child {
+                let next = c.get_next(compiler);
+                if c.is_computed_prop(compiler) || c.is_computed_field_def(compiler) {
+                    let key = c.get_first_child(compiler).unwrap();
+                    self.walk(compiler, key, Some(c), change_scope);
+                }
+                child = next;
+            }
+            let mut child = n.get_first_child(compiler);
+            while let Some(c) = child {
+                let next = c.get_next(compiler);
+                if c.is_computed_prop(compiler)
+                    || (c.is_computed_field_def(compiler) && c.has_two_children(compiler))
+                {
+                    let value = c.get_last_child(compiler).unwrap();
+                    self.walk(compiler, value, Some(c), change_scope);
+                } else if !c.is_computed_field_def(compiler) {
+                    self.walk(compiler, c, Some(n), change_scope);
+                }
+                child = next;
+            }
+        } else {
+            let mut child = n.get_first_child(compiler);
+            while let Some(c) = child {
+                let next = c.get_next(compiler);
+                self.walk(compiler, c, Some(n), change_scope);
+                child = next;
+            }
+        }
+        if is_function {
+            self.namespace_stack.pop();
+        }
+        let changed = match n.get_token(compiler) {
+            Token::LABEL => self.label_changed(compiler, n),
+            Token::BREAK | Token::CONTINUE => self.break_or_continue_changed(compiler, n),
+            _ => false,
+        };
+        if changed && self.mark_changes {
+            compiler.report_change_to_change_scope(change_scope);
+        }
     }
 
     // port: RenameLabels.ProcessLabels#getNameForId
@@ -235,24 +465,23 @@ impl Callback for ProcessLabels<'_> {
         _parent: Option<NodeId>,
     ) -> bool {
         if node.is_label(node_traversal) {
-            // Determine the new name for this label.
-            let current = self.namespace_stack.last_mut().unwrap();
-            let current_depth = current.rename_map.len() as i32 + 1;
-            let name = node
-                .get_first_child(node_traversal)
-                .unwrap()
-                .get_string(node_traversal);
-
-            // Store the context for this label name.
-            let li = LabelInfo::new(current_depth);
-            check_state!(!current.rename_map.contains_key(&name));
-            current.rename_map.insert(name, li);
-
-            // Create a new name, if needed, for this depth.
-            if (self.names.len() as i32) < current_depth {
-                self.names
-                    .push(JsString::from((self.outer.name_supplier)()));
+            if let Some((labels, next)) = &mut self.expected_labels
+                && self
+                    .namespace_stack
+                    .iter()
+                    .all(|ns| ns.rename_map.is_empty())
+            {
+                assert_eq!(
+                    labels.get(*next).copied(),
+                    Some(node),
+                    "CLOSURE_RS_RENAME_LABELS_DIRECT=verify: outermost label {next} of the \
+                     traversal is {}, the candidate is {:?}",
+                    node.to_string(node_traversal),
+                    labels.get(*next).map(|l| l.to_string(node_traversal))
+                );
+                *next += 1;
             }
+            self.enter_label(node_traversal, node);
         }
 
         true

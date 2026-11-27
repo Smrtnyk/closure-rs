@@ -43,13 +43,15 @@ use crate::js_chunk_graph::JSChunkGraph;
 use crate::node_traversal::{Callback, NodeTraversal, ScopedCallback};
 use crate::node_util::NodeUtil;
 use crate::scope::ScopeId;
+use crate::syntactic_scope_cache::SyntacticScopeCache;
 use crate::var::VarId;
 use closure_rhino::check_state;
-use closure_rhino::fast_hash::IndexMap;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
-use closure_rhino::node::{Ast, NodeId};
+use closure_rhino::node::{Ast, NodeId, Prop};
 use closure_rhino::token::Token;
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 /// Handle of a Java NameInfo object (identity).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -192,7 +194,8 @@ impl AnalyzePrototypeProperties {
     }
 
     fn new_name_info(&mut self, name: &str) -> NameInfoId {
-        self.name_infos.push(NameInfo::new(JsString::from(name)));
+        self.name_infos
+            .push(NameInfo::new(JsString::from(name), Self::PROPERTY));
         NameInfoId(self.name_infos.len() - 1)
     }
 
@@ -224,7 +227,7 @@ impl AnalyzePrototypeProperties {
         if let Some(&name_info) = map.get(name) {
             name_info
         } else {
-            self.name_infos.push(NameInfo::new(name.clone()));
+            self.name_infos.push(NameInfo::new(name.clone(), r#type));
             let name_info = NameInfoId(self.name_infos.len() - 1);
             let map = if r#type == Self::PROPERTY {
                 &mut self.property_name_info
@@ -250,11 +253,34 @@ impl CompilerPass for AnalyzePrototypeProperties {
             );
         }
 
+        let mode = *UNIT_CACHE_MODE;
+        let cache = (mode != UnitCacheMode::Off).then(|| {
+            // Brings the change stamps up to date; the traversal changes nothing.
+            SyntacticScopeCache::subtree_stamp(compiler, root);
+            let mut cache = std::mem::take(&mut compiler.prototype_properties_cache);
+            let config = (self.anchor_unused_vars, self.root_scope_uses_are_global);
+            if cache.config != Some(config) {
+                cache.units.clear();
+                cache.config = Some(config);
+            }
+            cache
+        });
         let mut process_properties = ProcessProperties {
             outer: self,
             symbol_stack: VecDeque::new(),
+            cache,
+            fresh: IndexMap::default(),
+            recording: None,
+            verify: mode == UnitCacheMode::Verify,
+            prototype_assign_nodes: Vec::new(),
+            run_to_global: Vec::new(),
+            global_to_run: Vec::new(),
         };
         NodeTraversal::traverse(compiler, root, &mut process_properties);
+        if let Some(mut cache) = process_properties.cache.take() {
+            cache.units = std::mem::take(&mut process_properties.fresh);
+            compiler.prototype_properties_cache = cache;
+        }
 
         let entry = [self.extern_node, self.global_node];
         let mut t = FixedPointGraphTraversal::new_traversal(PropagateReferences {
@@ -263,6 +289,180 @@ impl CompilerPass for AnalyzePrototypeProperties {
         });
         t.compute_fixed_point_from_set(&mut self.symbol_graph, entry);
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum UnitCacheMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_PROTOTYPE_PROPERTIES_CACHE=off` traverses every top-level statement in every run;
+/// `=verify` traverses them all and compares the log of each one the cache would have replayed.
+static UNIT_CACHE_MODE: std::sync::LazyLock<UnitCacheMode> = std::sync::LazyLock::new(|| {
+    match std::env::var("CLOSURE_RS_PROTOTYPE_PROPERTIES_CACHE").as_deref() {
+        Ok("off") => UnitCacheMode::Off,
+        Ok("verify") => UnitCacheMode::Verify,
+        _ => UnitCacheMode::On,
+    }
+});
+
+/// Rust-only (performance divergence): what the traversal of each top-level statement of a
+/// script did to the analysis in the last run, kept in the compiler for the next run
+/// (`CrossChunkMethodMotion` runs in the chunk motion loop, and between two runs only the
+/// statements the motion passes touched change). Java traverses the whole program in every run.
+///
+/// A top-level statement starts with the same traversal state in every run: the symbol stack
+/// holds only the `[global]` context, the scope is the global scope, and the chunk is that of
+/// its script. Everything its traversal does to the analysis is a call of one of the `op_*`
+/// operations below, whose arguments the log keeps, a name info by its name and kind in `names`
+/// (made, at its first use in a replay, by the same operation that made it in the traversal: a
+/// name info on the symbol stack was made by an earlier operation of the same statement, or is a
+/// dummy node). What depends on more than the statement's subtree is kept unresolved and resolved
+/// again when the log is replayed: the chunk (from the script), a NAME that does not resolve to a
+/// local var (looked up in the global scope then: whether it is a global function and which var
+/// it is), and a property root var that is not local. A local var is kept by its declaring name node,
+/// which identifies it as the var would (`RootVar::Local`). The log is replayed while the
+/// statement and every function in it have their change stamps, it is in the same script, and
+/// the flags its traversal can read in place (quoted keys, static members, computed method kinds)
+/// are the same.
+#[derive(Default)]
+pub(crate) struct PrototypePropertiesCache {
+    /// The `anchor_unused_vars` and `root_scope_uses_are_global` the logs were made with.
+    config: Option<(bool, bool)>,
+    units: IndexMap<NodeId, Arc<UnitLog>>,
+    /// The name and kind of every name info a log refers to, by index.
+    names: IndexSet<(JsString, SymbolType)>,
+}
+
+#[derive(Debug, PartialEq)]
+struct UnitLog {
+    script: NodeId,
+    /// The statement and every function in it, with their change stamps
+    /// (`SyntacticScopeCache::cached_subtree_stamp`).
+    stamps: Vec<(NodeId, u32)>,
+    /// Every key or class member in the statement, with the flags `flag_bits` reads.
+    flags: Vec<(NodeId, u8)>,
+    ops: Vec<Op>,
+    symbols: Vec<SymbolSpec>,
+}
+
+impl UnitLog {
+    fn is_current(&self, compiler: &AbstractCompiler, script: NodeId) -> bool {
+        self.script == script
+            && self
+                .stamps
+                .iter()
+                .all(|&(n, stamp)| SyntacticScopeCache::cached_subtree_stamp(compiler, n) == stamp)
+            && self
+                .flags
+                .iter()
+                .all(|&(n, bits)| flag_bits(compiler, n) == bits)
+    }
+}
+
+/// The flags of a key or class member that the traversal may read in place: whether it is a
+/// quoted key, a static member, or a computed method, getter or setter.
+fn flag_bits(ast: &Ast, n: NodeId) -> u8 {
+    u8::from(n.is_quoted_string_key(ast))
+        | (u8::from(n.is_static_member(ast)) << 1)
+        | (u8::from(n.get_boolean_prop(ast, Prop::COMPUTED_PROP_METHOD)) << 2)
+        | (u8::from(n.get_boolean_prop(ast, Prop::COMPUTED_PROP_GETTER)) << 3)
+        | (u8::from(n.get_boolean_prop(ast, Prop::COMPUTED_PROP_SETTER)) << 4)
+}
+
+fn has_flags(ast: &Ast, n: NodeId) -> bool {
+    matches!(
+        n.get_token(ast),
+        Token::STRING_KEY
+            | Token::GETTER_DEF
+            | Token::SETTER_DEF
+            | Token::MEMBER_FUNCTION_DEF
+            | Token::MEMBER_FIELD_DEF
+            | Token::MEMBER_VARIABLE_DEF
+            | Token::COMPUTED_PROP
+            | Token::COMPUTED_FIELD_DEF
+    )
+}
+
+/// A name info in a log: a dummy node or an entry of `PrototypePropertiesCache::names` (while the
+/// statement is traversed, a `NameInfoId` of the run).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Ref(u32);
+
+impl Ref {
+    const GLOBAL: Ref = Ref(u32::MAX);
+    const EXTERN: Ref = Ref(u32::MAX - 1);
+    const ANONYMOUS: Ref = Ref(u32::MAX - 2);
+
+    fn is_dummy(self) -> bool {
+        self.0 >= Self::ANONYMOUS.0
+    }
+}
+
+/// How a property's root var was found, for a log.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RootVarSpec {
+    /// The root is not a NAME.
+    None,
+    /// A local var, by its declaring name node.
+    Local(NodeId),
+    /// The NAME resolved to no local var: looked up in the global scope.
+    Global(NodeId),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SymbolSpec {
+    ClassMember {
+        node: NodeId,
+        var: RootVarSpec,
+    },
+    Assignment {
+        expr: NodeId,
+        root_var: RootVarSpec,
+    },
+    Literal {
+        value: NodeId,
+        assign: NodeId,
+        root_var: RootVarSpec,
+    },
+}
+
+/// One call of an `op_*` operation; a name info that is never a dummy node is a bare `Ref` value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Op {
+    NameInfo(u32),
+    SymbolUse {
+        info: u32,
+        def: Ref,
+    },
+    GlobalUse(u32),
+    SetReferencesSuper(Ref),
+    SetReadsClosureVariables(Ref),
+    /// `symbol` is an index of `UnitLog::symbols`.
+    Declare {
+        info: u32,
+        symbol: u32,
+    },
+    GlobalName {
+        node: NodeId,
+        in_global_hoist_scope: bool,
+        is_declaration: bool,
+        def: Ref,
+    },
+}
+
+/// The log of the statement being traversed (see `PrototypePropertiesCache`).
+struct UnitRecording {
+    unit: NodeId,
+    script: NodeId,
+    functions: Vec<NodeId>,
+    flags: Vec<(NodeId, u8)>,
+    ops: Vec<Op>,
+    symbols: Vec<SymbolSpec>,
+    /// False once the statement's symbols use a local var without a declaring name node.
+    cacheable: bool,
 }
 
 struct ProcessProperties<'a> {
@@ -277,6 +477,21 @@ struct ProcessProperties<'a> {
     // 2) Every assignment of a prototype property of a non-function is
     //    given a name context. These contexts do not have scopes.
     symbol_stack: VecDeque<NameContext>,
+    /// Rust-only (performance divergence): the logs of the last run (`PrototypePropertiesCache`),
+    /// the logs of this run, and the log of the statement being traversed.
+    cache: Option<PrototypePropertiesCache>,
+    fresh: IndexMap<NodeId, Arc<UnitLog>>,
+    recording: Option<UnitRecording>,
+    verify: bool,
+    /// Rust-only (performance divergence): the nodes whose `shouldTraverse` pushed a non-function
+    /// prototype assignment context, innermost last: `visit` pops the context of such a node
+    /// instead of computing `processNonFunctionPrototypeAssign` again (the traversal changes
+    /// nothing, so it would find the same name).
+    prototype_assign_nodes: Vec<NodeId>,
+    /// The entry of `PrototypePropertiesCache::names` of each name info of this run, and the
+    /// reverse (`u32::MAX`: not known yet).
+    run_to_global: Vec<u32>,
+    global_to_run: Vec<u32>,
 }
 
 impl ScopedCallback for ProcessProperties<'_> {
@@ -286,11 +501,9 @@ impl ScopedCallback for ProcessProperties<'_> {
         let scope = t.get_scope();
         let root = scope.get_root_node(t.get_compiler());
         if root.is_function(t) {
-            let prop_name = Self::get_prototype_property_name_from_r_value(t, n);
+            let prop_name = self.get_prototype_property_name_from_r_value(t, n);
             if let Some(prop_name) = prop_name {
-                let name = self
-                    .outer
-                    .get_name_info_for_name(&prop_name, AnalyzePrototypeProperties::PROPERTY);
+                let name = self.op_name_info(&prop_name, AnalyzePrototypeProperties::PROPERTY);
                 self.symbol_stack
                     .push_front(NameContext::new(name, Some(scope)));
             } else if self.is_global_function_declaration(t, n) {
@@ -300,9 +513,7 @@ impl ScopedCallback for ProcessProperties<'_> {
                 } else {
                     n.get_first_child(t).unwrap().get_string(t) /* named function */
                 };
-                let name_info = self
-                    .outer
-                    .get_name_info_for_name(&name, AnalyzePrototypeProperties::VAR);
+                let name_info = self.op_name_info(&name, AnalyzePrototypeProperties::VAR);
                 let hoist_scope = scope.get_closest_hoist_scope(t.get_compiler());
                 self.symbol_stack
                     .push_front(NameContext::new(name_info, hoist_scope));
@@ -350,14 +561,52 @@ impl Callback for ProcessProperties<'_> {
         n: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
+        // Rust-only (performance divergence): a top-level statement of a script is replayed from
+        // its log or traversed with one recorded (`PrototypePropertiesCache`).
+        if self.cache.is_some()
+            && self.recording.is_none()
+            && let Some(script) = parent.filter(|p| p.is_script(t))
+            && !n.is_module_body(t)
+        {
+            if !self.verify
+                && let Some(log) = self
+                    .cache
+                    .as_ref()
+                    .unwrap()
+                    .units
+                    .get(&n)
+                    .filter(|log| log.is_current(t.get_compiler(), script))
+                    .cloned()
+            {
+                self.replay(t, &log);
+                self.fresh.insert(n, log);
+                return false;
+            }
+            self.recording = Some(UnitRecording {
+                unit: n,
+                script,
+                functions: Vec::new(),
+                flags: Vec::new(),
+                ops: Vec::new(),
+                symbols: Vec::new(),
+                cacheable: true,
+            });
+        }
+        if let Some(recording) = &mut self.recording {
+            if n.is_function(t) {
+                recording.functions.push(n);
+            } else if has_flags(t, n) {
+                recording.flags.push((n, flag_bits(t, n)));
+            }
+        }
+
         if !self.outer.root_scope_uses_are_global {
             // Process assignment of a non-function expression to a prototype property.
-            let prop_name = Self::process_non_function_prototype_assign(t, n, parent);
+            let prop_name = self.process_non_function_prototype_assign(t, n, parent);
             if let Some(prop_name) = prop_name {
-                let name = self
-                    .outer
-                    .get_name_info_for_name(&prop_name, AnalyzePrototypeProperties::PROPERTY);
+                let name = self.op_name_info(&prop_name, AnalyzePrototypeProperties::PROPERTY);
                 self.symbol_stack.push_front(NameContext::new(name, None));
+                self.prototype_assign_nodes.push(n);
             }
         }
         true
@@ -365,6 +614,39 @@ impl Callback for ProcessProperties<'_> {
 
     // port: AnalyzePrototypeProperties.ProcessProperties#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
+        let reached_end = self.visit_node(t, n, parent);
+        // Process prototype assignments to non-functions.
+        if self.prototype_assign_nodes.last() == Some(&n) {
+            debug_assert!(
+                !self.outer.root_scope_uses_are_global
+                    && self
+                        .process_non_function_prototype_assign(t, n, parent)
+                        .is_some()
+            );
+            self.prototype_assign_nodes.pop();
+            if reached_end {
+                self.symbol_stack.pop_front();
+            }
+        }
+        if self
+            .recording
+            .as_ref()
+            .is_some_and(|recording| recording.unit == n)
+        {
+            self.finish_recording(t);
+        }
+    }
+
+    fn as_scoped_callback(&mut self) -> Option<&mut dyn ScopedCallback> {
+        Some(self)
+    }
+}
+
+impl ProcessProperties<'_> {
+    // port: AnalyzePrototypeProperties.ProcessProperties#visit
+    /// Rust-only shape: returns false where Java's `visit` returns early (before popping a
+    /// non-function prototype assignment context).
+    fn visit_node(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) -> bool {
         let mut fall_through_to_object_pattern = false;
         match n.get_token(t) {
             Token::SUPER => {
@@ -379,7 +661,7 @@ impl Callback for ProcessProperties<'_> {
                 // anything containing it.
                 for i in 0..self.symbol_stack.len() {
                     let context = self.symbol_stack[i];
-                    self.outer.name_infos[context.name.0].references_super = true;
+                    self.op_set_references_super(context.name);
                     let scope_root = context.scope.unwrap().get_root_node(t.get_compiler());
                     if NodeUtil::is_method_declaration(t, scope_root) {
                         break;
@@ -389,7 +671,7 @@ impl Callback for ProcessProperties<'_> {
 
             Token::OPTCHAIN_GETPROP => {
                 let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
-                self.add_symbol_use(
+                self.op_symbol_use(
                     &n.get_string(t),
                     chunk,
                     AnalyzePrototypeProperties::PROPERTY,
@@ -404,7 +686,7 @@ impl Callback for ProcessProperties<'_> {
                         if self.handle_possible_assignment_to_prototype(t, n) {
                             // The reference is being assigned to not read from, so don't record
                             // this as a reference.
-                            return;
+                            return false;
                         }
                     } else if t
                         .get_compiler()
@@ -415,16 +697,12 @@ impl Callback for ProcessProperties<'_> {
                         // case. This class has no unit tests of its own and it is only used by
                         // CrossChunkMethodMotion.
                         let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
-                        self.add_global_use_of_symbol(
-                            &prop_name,
-                            chunk,
-                            AnalyzePrototypeProperties::PROPERTY,
-                        );
-                        return;
+                        self.op_global_use(&prop_name, chunk, AnalyzePrototypeProperties::PROPERTY);
+                        return false;
                     } else {
                         let parent = parent.unwrap();
                         if parent.is_assign(t) && Some(n) == parent.get_first_child(t) {
-                            let r_value_name = Self::get_prototype_property_name_from_r_value(t, n);
+                            let r_value_name = self.get_prototype_property_name_from_r_value(t, n);
                             if r_value_name.is_some() {
                                 // e.g. `Foo.prototype.bar = something`
                                 // We record the declaration of `bar` when we look at the
@@ -433,14 +711,14 @@ impl Callback for ProcessProperties<'_> {
                                 // Now that we're looking at the whole `Foo.prototype.bar` node,
                                 // we just need to make sure we don't record it as a read
                                 // reference.
-                                return;
+                                return false;
                             }
                         }
                     }
                 }
 
                 let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
-                self.add_symbol_use(&prop_name, chunk, AnalyzePrototypeProperties::PROPERTY);
+                self.op_symbol_use(&prop_name, chunk, AnalyzePrototypeProperties::PROPERTY);
             }
 
             Token::OBJECTLIT => {
@@ -453,7 +731,7 @@ impl Callback for ProcessProperties<'_> {
                     .as_ref()
                     .is_some_and(|name| name.ends_with(".prototype"))
                 {
-                    return;
+                    return false;
                 }
 
                 // Fall through.
@@ -480,39 +758,46 @@ impl Callback for ProcessProperties<'_> {
 
                 let scope = t.get_scope();
                 let var = scope.get_var(t.get_compiler(), name.clone());
-                if let Some(var) = var {
-                    // Only process global functions.
-                    if var.is_global(t.get_compiler()) {
-                        let initial_value = var.get_initial_value(t.get_compiler());
-                        if initial_value.is_some_and(|value| value.is_function(t)) {
-                            if t.in_global_hoist_scope() {
-                                if !self.process_global_function_declaration(t, n, var) {
-                                    let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
-                                    self.add_global_use_of_symbol(
-                                        &name,
-                                        chunk,
-                                        AnalyzePrototypeProperties::VAR,
-                                    );
+                match var {
+                    // If it is not a global, it might be accessing a local of the outer
+                    // scope. If that's the case the functions between the variable's
+                    // declaring scope and the variable reference scope cannot be moved.
+                    Some(var) if !var.is_global(t.get_compiler()) => {
+                        if var.get_scope(t.get_compiler()) != t.get_scope() {
+                            let var_scope = var.get_scope(t.get_compiler());
+                            for i in 0..self.symbol_stack.len() {
+                                let context = self.symbol_stack[i];
+                                if context.scope == Some(var_scope) {
+                                    break;
                                 }
-                            } else {
-                                let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
-                                self.add_symbol_use(&name, chunk, AnalyzePrototypeProperties::VAR);
+
+                                self.op_set_reads_closure_variables(context.name);
                             }
                         }
-
-                        // If it is not a global, it might be accessing a local of the outer
-                        // scope. If that's the case the functions between the variable's
-                        // declaring scope and the variable reference scope cannot be moved.
-                    } else if var.get_scope(t.get_compiler()) != t.get_scope() {
-                        let var_scope = var.get_scope(t.get_compiler());
-                        for i in 0..self.symbol_stack.len() {
-                            let context = self.symbol_stack[i];
-                            if context.scope == Some(var_scope) {
-                                break;
-                            }
-
-                            self.outer.name_infos[context.name.0].read_closure_variables = true;
-                        }
+                    }
+                    // Only process global functions.
+                    _ => {
+                        let in_global_hoist_scope = t.in_global_hoist_scope();
+                        let is_declaration = in_global_hoist_scope && {
+                            // processGlobalFunctionDeclaration's test, which reads only the
+                            // tree in the global hoist scope.
+                            let first_child = n.get_first_child(t);
+                            let parent = n.get_parent(t).unwrap();
+                            // Check for a named FUNCTION.
+                            self.is_global_function_declaration(t, parent)
+                                // Check for a VAR declaration.
+                                || first_child.is_some_and(|first_child| {
+                                    self.is_global_function_declaration(t, first_child)
+                                })
+                        };
+                        self.op_global_name(
+                            t,
+                            var,
+                            &name,
+                            n,
+                            in_global_hoist_scope,
+                            is_declaration,
+                        );
                     }
                 }
             }
@@ -538,7 +823,7 @@ impl Callback for ProcessProperties<'_> {
                         if !p.is_quoted_string_key(t) {
                             // May be STRING, GET, or SET, but NUMBER isn't interesting.
                             let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
-                            self.add_symbol_use(
+                            self.op_symbol_use(
                                 &p.get_string(t),
                                 chunk,
                                 AnalyzePrototypeProperties::PROPERTY,
@@ -557,23 +842,13 @@ impl Callback for ProcessProperties<'_> {
                 prop_node = p.get_next(t);
             }
         }
-        // Process prototype assignments to non-functions.
-        if !self.outer.root_scope_uses_are_global
-            && Self::process_non_function_prototype_assign(t, n, parent).is_some()
-        {
-            self.symbol_stack.pop_front();
-        }
+        // Process prototype assignments to non-functions (in `visit`).
+        true
     }
 
-    fn as_scoped_callback(&mut self) -> Option<&mut dyn ScopedCallback> {
-        Some(self)
-    }
-}
-
-impl ProcessProperties<'_> {
-    // port: AnalyzePrototypeProperties.ProcessProperties#addSymbolUse
-    fn add_symbol_use(&mut self, name: &JsString, chunk: Option<ChunkIndex>, r#type: SymbolType) {
-        let info = self.outer.get_name_info_for_name(name, r#type);
+    /// Rust-only: the name info a symbol use from here is attributed to (`addSymbolUse`): the
+    /// innermost context that is not anonymous.
+    fn current_def(&self) -> NameInfoId {
         let mut def = None;
         // Skip all anonymous nodes. We care only about symbols with names.
         for context in &self.symbol_stack {
@@ -582,21 +857,368 @@ impl ProcessProperties<'_> {
                 break;
             }
         }
-        let def = def.unwrap();
-        if def != info {
-            self.outer.symbol_graph.connect(def, chunk, info);
+        def.unwrap()
+    }
+
+    /// Rust-only: a name info as a log refers to it while the statement is traversed.
+    fn ref_of(&self, id: NameInfoId) -> Ref {
+        if id == self.outer.global_node {
+            Ref::GLOBAL
+        } else if id == self.outer.extern_node {
+            Ref::EXTERN
+        } else if id == self.outer.anonymous_node {
+            Ref::ANONYMOUS
+        } else {
+            Ref(u32::try_from(id.0).unwrap())
+        }
+    }
+
+    fn record(&mut self, op: impl FnOnce(&Self) -> Op) {
+        if self.recording.is_some() {
+            let op = op(self);
+            if let Some(recording) = &mut self.recording {
+                recording.ops.push(op);
+            }
+        }
+    }
+
+    fn op_name_info(&mut self, name: &JsString, r#type: SymbolType) -> NameInfoId {
+        let info = self.outer.get_name_info_for_name(name, r#type);
+        self.record(|_| Op::NameInfo(u32::try_from(info.0).unwrap()));
+        info
+    }
+
+    // port: AnalyzePrototypeProperties.ProcessProperties#addSymbolUse
+    fn op_symbol_use(&mut self, name: &JsString, chunk: Option<ChunkIndex>, r#type: SymbolType) {
+        let def = self.current_def();
+        let info = self.outer.add_symbol_use(name, chunk, r#type, def);
+        self.record(|this| Op::SymbolUse {
+            info: u32::try_from(info.0).unwrap(),
+            def: this.ref_of(def),
+        });
+    }
+
+    // port: AnalyzePrototypeProperties.ProcessProperties#addGlobalUseOfSymbol
+    fn op_global_use(&mut self, name: &JsString, chunk: Option<ChunkIndex>, r#type: SymbolType) {
+        let info = self.outer.add_global_use_of_symbol(name, chunk, r#type);
+        self.record(|_| Op::GlobalUse(u32::try_from(info.0).unwrap()));
+    }
+
+    fn op_set_references_super(&mut self, info: NameInfoId) {
+        self.record(|this| Op::SetReferencesSuper(this.ref_of(info)));
+        self.outer.name_infos[info.0].references_super = true;
+    }
+
+    fn op_set_reads_closure_variables(&mut self, info: NameInfoId) {
+        self.record(|this| Op::SetReadsClosureVariables(this.ref_of(info)));
+        self.outer.name_infos[info.0].read_closure_variables = true;
+    }
+
+    /// A property declaration of `name` (PROPERTY); `spec` is how the log keeps `symbol`.
+    fn op_declare(&mut self, name: &JsString, spec: SymbolSpec, symbol: Symbol) {
+        let info = self
+            .outer
+            .declare(name, AnalyzePrototypeProperties::PROPERTY, symbol);
+        if let Some(recording) = &mut self.recording {
+            let symbol = u32::try_from(recording.symbols.len()).unwrap();
+            recording.symbols.push(spec);
+            recording.ops.push(Op::Declare {
+                info: u32::try_from(info.0).unwrap(),
+                symbol,
+            });
+        }
+    }
+
+    /// The NAME branch of `visit` for a NAME that resolves to a global var or to none.
+    fn op_global_name(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        var: Option<VarId>,
+        name: &JsString,
+        node: NodeId,
+        in_global_hoist_scope: bool,
+        is_declaration: bool,
+    ) {
+        let def = self.current_def();
+        self.record(|this| Op::GlobalName {
+            node,
+            in_global_hoist_scope,
+            is_declaration,
+            def: this.ref_of(def),
+        });
+        let (compiler, chunk) = t.get_compiler_and_chunk();
+        self.outer.global_name(
+            compiler,
+            chunk,
+            var,
+            name,
+            node,
+            in_global_hoist_scope,
+            is_declaration,
+            def,
+        );
+    }
+
+    /// The root var of a property declaration, and how a log keeps it (a var without a declaring
+    /// name node makes the statement's log unusable).
+    fn root_var_of(
+        &mut self,
+        compiler: &AbstractCompiler,
+        name_node: NodeId,
+        var: Option<VarId>,
+    ) -> (Option<RootVar>, RootVarSpec) {
+        match var {
+            Some(var) if !var.is_global(compiler) => match var.get_name_node(compiler) {
+                Some(name_node) => (
+                    Some(RootVar::Local(name_node)),
+                    RootVarSpec::Local(name_node),
+                ),
+                None => {
+                    if let Some(recording) = &mut self.recording {
+                        recording.cacheable = false;
+                    }
+                    (Some(RootVar::Implicit(var)), RootVarSpec::None)
+                }
+            },
+            _ => (var.map(RootVar::Global), RootVarSpec::Global(name_node)),
+        }
+    }
+
+    /// Rust-only: the entry of `PrototypePropertiesCache::names` of a name info of this run.
+    fn global_index_of(&mut self, id: u32) -> u32 {
+        let index = id as usize;
+        if self.run_to_global.len() <= index {
+            self.run_to_global
+                .resize(self.outer.name_infos.len().max(index + 1), u32::MAX);
+        }
+        if self.run_to_global[index] == u32::MAX {
+            let info = &self.outer.name_infos[index];
+            let names = &mut self.cache.as_mut().unwrap().names;
+            let (global, _) = names.insert_full((info.name.clone(), info.symbol_type));
+            let global = u32::try_from(global).unwrap();
+            self.run_to_global[index] = global;
+            if self.global_to_run.len() <= global as usize {
+                self.global_to_run.resize(global as usize + 1, u32::MAX);
+            }
+            self.global_to_run[global as usize] = id;
+        }
+        self.run_to_global[index]
+    }
+
+    fn ref_to_global(&mut self, r: Ref) -> Ref {
+        if r.is_dummy() {
+            r
+        } else {
+            Ref(self.global_index_of(r.0))
+        }
+    }
+
+    /// Rust-only: ends the log of the statement just visited and keeps it.
+    fn finish_recording(&mut self, t: &mut NodeTraversal<'_>) {
+        let mut recording = self.recording.take().unwrap();
+        if !recording.cacheable {
+            return;
+        }
+        for op in &mut recording.ops {
+            *op = match *op {
+                Op::NameInfo(info) => Op::NameInfo(self.global_index_of(info)),
+                Op::SymbolUse { info, def } => Op::SymbolUse {
+                    info: self.global_index_of(info),
+                    def: self.ref_to_global(def),
+                },
+                Op::GlobalUse(info) => Op::GlobalUse(self.global_index_of(info)),
+                Op::SetReferencesSuper(r) => Op::SetReferencesSuper(self.ref_to_global(r)),
+                Op::SetReadsClosureVariables(r) => {
+                    Op::SetReadsClosureVariables(self.ref_to_global(r))
+                }
+                Op::Declare { info, symbol } => Op::Declare {
+                    info: self.global_index_of(info),
+                    symbol,
+                },
+                Op::GlobalName {
+                    node,
+                    in_global_hoist_scope,
+                    is_declaration,
+                    def,
+                } => Op::GlobalName {
+                    node,
+                    in_global_hoist_scope,
+                    is_declaration,
+                    def: self.ref_to_global(def),
+                },
+            };
+        }
+        let compiler = t.get_compiler();
+        let stamps = std::iter::once(recording.unit)
+            .chain(recording.functions)
+            .map(|n| (n, SyntacticScopeCache::cached_subtree_stamp(compiler, n)))
+            .collect();
+        let log = UnitLog {
+            script: recording.script,
+            stamps,
+            flags: recording.flags,
+            ops: recording.ops,
+            symbols: recording.symbols,
+        };
+        if self.verify
+            && let Some(cached) = self.cache.as_ref().unwrap().units.get(&recording.unit)
+            && cached.is_current(compiler, recording.script)
+        {
+            assert!(
+                cached.ops == log.ops && cached.symbols == log.symbols,
+                "CLOSURE_RS_PROTOTYPE_PROPERTIES_CACHE=verify: the kept log of {} differs from a \
+                 traversal;\nkept ops: {:?}\nkept symbols: {:?}\nnew ops: {:?}\nnew symbols: {:?}",
+                recording.unit.to_string(compiler),
+                cached.ops,
+                cached.symbols,
+                log.ops,
+                log.symbols
+            );
+        }
+        self.fresh.insert(recording.unit, Arc::new(log));
+    }
+
+    /// Rust-only: the name info of this run of an entry of `PrototypePropertiesCache::names`,
+    /// made by `getNameInfoForName` at its first use.
+    fn name_info_of_global(&mut self, global: u32) -> NameInfoId {
+        let index = global as usize;
+        if self.global_to_run.len() <= index {
+            self.global_to_run.resize(index + 1, u32::MAX);
+        }
+        if self.global_to_run[index] == u32::MAX {
+            let (name, r#type) = self.cache.as_ref().unwrap().names.get_index(index).unwrap();
+            let id = self.outer.get_name_info_for_name(name, *r#type);
+            let run = u32::try_from(id.0).unwrap();
+            self.global_to_run[index] = run;
+            if self.run_to_global.len() <= id.0 {
+                self.run_to_global
+                    .resize(self.outer.name_infos.len().max(id.0 + 1), u32::MAX);
+            }
+            self.run_to_global[id.0] = global;
+        }
+        NameInfoId(self.global_to_run[index] as usize)
+    }
+
+    fn resolve(&mut self, r: Ref) -> NameInfoId {
+        match r {
+            Ref::GLOBAL => self.outer.global_node,
+            Ref::EXTERN => self.outer.extern_node,
+            Ref::ANONYMOUS => self.outer.anonymous_node,
+            Ref(global) => self.name_info_of_global(global),
+        }
+    }
+
+    /// Rust-only (performance divergence): does to the analysis what the traversal of the
+    /// statement of `log` did when the log was made (see `PrototypePropertiesCache`).
+    fn replay(&mut self, t: &mut NodeTraversal<'_>, log: &UnitLog) {
+        let global = t.get_scope();
+        let chunk = t.get_chunk();
+        let chunk_index = chunk.as_ref().map(ChunkIndex::of);
+        let compiler = t.get_compiler();
+        let root_var = |compiler: &mut AbstractCompiler, spec: RootVarSpec| match spec {
+            RootVarSpec::None => None,
+            RootVarSpec::Local(name_node) => Some(RootVar::Local(name_node)),
+            RootVarSpec::Global(name_node) => {
+                let name = name_node.get_string(compiler);
+                global.get_var(compiler, name).map(RootVar::Global)
+            }
+        };
+        for &op in &log.ops {
+            match op {
+                Op::NameInfo(info) => {
+                    self.name_info_of_global(info);
+                }
+                Op::SymbolUse { info, def } => {
+                    let def = self.resolve(def);
+                    let info = self.name_info_of_global(info);
+                    if def != info {
+                        self.outer.symbol_graph.connect(def, chunk_index, info);
+                    }
+                }
+                Op::GlobalUse(info) => {
+                    let info = self.name_info_of_global(info);
+                    let global_node = self.outer.global_node;
+                    self.outer
+                        .symbol_graph
+                        .connect(global_node, chunk_index, info);
+                }
+                Op::SetReferencesSuper(r) => {
+                    let info = self.resolve(r);
+                    self.outer.name_infos[info.0].references_super = true;
+                }
+                Op::SetReadsClosureVariables(r) => {
+                    let info = self.resolve(r);
+                    self.outer.name_infos[info.0].read_closure_variables = true;
+                }
+                Op::Declare { info, symbol } => {
+                    let symbol = match log.symbols[symbol as usize] {
+                        SymbolSpec::ClassMember { node, var } => {
+                            let var = root_var(compiler, var);
+                            Symbol::ClassMemberFunction(ClassMemberFunction::new(
+                                compiler,
+                                node,
+                                var,
+                                chunk.clone(),
+                            ))
+                        }
+                        SymbolSpec::Assignment {
+                            expr,
+                            root_var: spec,
+                        } => Symbol::AssignmentPrototypeProperty(AssignmentPrototypeProperty::new(
+                            expr,
+                            root_var(compiler, spec),
+                            chunk.clone(),
+                        )),
+                        SymbolSpec::Literal {
+                            value,
+                            assign,
+                            root_var: spec,
+                        } => Symbol::LiteralPrototypeProperty(LiteralPrototypeProperty::new(
+                            value,
+                            assign,
+                            root_var(compiler, spec),
+                            chunk.clone(),
+                        )),
+                    };
+                    let info = self.name_info_of_global(info);
+                    self.outer.name_infos[info.0]
+                        .get_declarations_mut()
+                        .push_back(symbol);
+                }
+                Op::GlobalName {
+                    node,
+                    in_global_hoist_scope,
+                    is_declaration,
+                    def,
+                } => {
+                    let def = self.resolve(def);
+                    let name = node.get_string(compiler);
+                    let var = global.get_var(compiler, name.clone());
+                    self.outer.global_name(
+                        compiler,
+                        chunk.as_ref(),
+                        var,
+                        &name,
+                        node,
+                        in_global_hoist_scope,
+                        is_declaration,
+                        def,
+                    );
+                }
+            }
         }
     }
 
     /// If this is a non-function prototype assign, return the prop name. Otherwise, return null.
     // port: AnalyzePrototypeProperties.ProcessProperties#processNonFunctionPrototypeAssign
     fn process_non_function_prototype_assign(
+        &mut self,
         ast: &Ast,
         n: NodeId,
         parent: Option<NodeId>,
     ) -> Option<JsString> {
         if Self::is_assign_r_value(ast, n, parent) && !n.is_function(ast) {
-            return Self::get_prototype_property_name_from_r_value(ast, n);
+            return self.get_prototype_property_name_from_r_value(ast, n);
         }
         None
     }
@@ -637,11 +1259,26 @@ impl ProcessProperties<'_> {
     /// in multiple expressions (i.e., if there's a prototype property assignment in a more complex
     /// expression).
     // port: AnalyzePrototypeProperties.ProcessProperties#getPrototypePropertyNameFromRValue
-    fn get_prototype_property_name_from_r_value(ast: &Ast, r_value: NodeId) -> Option<JsString> {
+    fn get_prototype_property_name_from_r_value(
+        &mut self,
+        ast: &Ast,
+        r_value: NodeId,
+    ) -> Option<JsString> {
         let l_value = NodeUtil::get_best_l_value(ast, r_value);
         let l_value = l_value?;
         if !((NodeUtil::may_be_object_lit_key(ast, l_value) && !l_value.is_quoted_string_key(ast))
             || NodeUtil::is_expr_assign(ast, l_value.get_grandparent(ast).unwrap()))
+        {
+            return None;
+        }
+        // Rust-only (performance divergence): the name of a GETPROP l-value is its qualified name,
+        // whose part before the last dot is the qualified name of its owner (a property name has
+        // no dot); that part ends with `.prototype` only when the owner is a GETPROP `prototype`.
+        // Other GETPROPs are rejected here, before the name is built.
+        if l_value.is_get_prop(ast)
+            && !l_value.get_first_child(ast).is_some_and(|owner| {
+                owner.is_get_prop(ast) && owner.get_string_ref(ast) == "prototype"
+            })
         {
             return None;
         }
@@ -660,51 +1297,6 @@ impl ProcessProperties<'_> {
         }
 
         Some(l_value_name.substring(last_dot + 1, l_value_name.length()))
-    }
-
-    /// Processes a NAME node to see if it's a global function declaration. If it is, record it
-    /// and return true. Otherwise, return false.
-    // port: AnalyzePrototypeProperties.ProcessProperties#processGlobalFunctionDeclaration
-    fn process_global_function_declaration(
-        &mut self,
-        t: &mut NodeTraversal<'_>,
-        name_node: NodeId,
-        v: VarId,
-    ) -> bool {
-        let first_child = name_node.get_first_child(t);
-        let parent = name_node.get_parent(t).unwrap();
-
-        if
-        // Check for a named FUNCTION.
-        self.is_global_function_declaration(t, parent)
-            // Check for a VAR declaration.
-            || first_child.is_some_and(|first_child| self.is_global_function_declaration(t, first_child))
-        {
-            let name = name_node.get_string(t);
-            let chunk = t.get_chunk();
-            let symbol =
-                Symbol::GlobalFunction(GlobalFunction::new(t.get_compiler(), name_node, v, chunk));
-            let name_info = self
-                .outer
-                .get_name_info_for_name(&name, AnalyzePrototypeProperties::VAR);
-            self.outer.name_infos[name_info.0]
-                .get_declarations_mut()
-                .push_back(symbol);
-
-            // If the function name is exported, we should create an edge here
-            // so that it's never removed.
-            if t.get_compiler()
-                .get_coding_convention()
-                .is_exported(&name, /* local= */ false)
-                || self.outer.anchor_unused_vars
-            {
-                let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
-                self.add_global_use_of_symbol(&name, chunk, AnalyzePrototypeProperties::VAR);
-            }
-
-            return true;
-        }
-        false
     }
 
     /// Examines a qualified name ending in `.prototype`.
@@ -733,18 +1325,19 @@ impl ProcessProperties<'_> {
                 if NodeUtil::is_expr_assign(t, grand_parent)
                     && NodeUtil::is_name_decl_or_simple_assign_lhs(t, n, parent)
                 {
-                    let root_var = Self::maybe_get_var(t, root);
+                    let (root_var, spec) = self.maybe_get_var(t, root);
                     let chunk = t.get_chunk();
                     let prop = Symbol::AssignmentPrototypeProperty(
                         AssignmentPrototypeProperty::new(grand_parent, root_var, chunk),
                     );
-                    let name_info = self.outer.get_name_info_for_name(
+                    self.op_declare(
                         &n.get_string(t),
-                        AnalyzePrototypeProperties::PROPERTY,
+                        SymbolSpec::Assignment {
+                            expr: grand_parent,
+                            root_var: spec,
+                        },
+                        prop,
                     );
-                    self.outer.name_infos[name_info.0]
-                        .get_declarations_mut()
-                        .push_back(prop);
                     return true;
                 }
             }
@@ -759,22 +1352,21 @@ impl ProcessProperties<'_> {
                             // modification, so key may be STRING_KEY, GETTER_DEF, SETTER_DEF, or
                             // MEMBER_FUNCTION_DEF
                             let name = k.get_string(t);
-                            let root_var = Self::maybe_get_var(t, root);
+                            let (root_var, spec) = self.maybe_get_var(t, root);
                             let chunk = t.get_chunk();
-                            let prop =
-                                Symbol::LiteralPrototypeProperty(LiteralPrototypeProperty::new(
-                                    k.get_first_child(t).unwrap(),
-                                    n,
-                                    root_var,
-                                    chunk,
-                                ));
-                            let name_info = self.outer.get_name_info_for_name(
-                                &name,
-                                AnalyzePrototypeProperties::PROPERTY,
+                            let value = k.get_first_child(t).unwrap();
+                            let prop = Symbol::LiteralPrototypeProperty(
+                                LiteralPrototypeProperty::new(value, n, root_var, chunk),
                             );
-                            self.outer.name_infos[name_info.0]
-                                .get_declarations_mut()
-                                .push_back(prop);
+                            self.op_declare(
+                                &name,
+                                SymbolSpec::Literal {
+                                    value,
+                                    assign: n,
+                                    root_var: spec,
+                                },
+                                prop,
+                            );
                         }
                         key = k.get_next(t);
                     }
@@ -797,33 +1389,56 @@ impl ProcessProperties<'_> {
         }
 
         let class_name_node = NodeUtil::get_name_node(t, n.get_grandparent(t).unwrap());
-        let var = match class_name_node {
+        let (var, spec) = match class_name_node {
             Some(class_name_node) if class_name_node.is_name(t) => {
                 let scope = t.get_scope();
                 let class_name = class_name_node.get_string(t);
-                scope.get_var(t.get_compiler(), class_name)
+                let var = scope.get_var(t.get_compiler(), class_name);
+                self.root_var_of(t.get_compiler(), class_name_node, var)
             }
-            _ => None,
+            _ => (None, RootVarSpec::None),
         };
         let chunk = t.get_chunk();
         let symbol = Symbol::ClassMemberFunction(ClassMemberFunction::new(t, n, var, chunk));
-        let name_info = self
-            .outer
-            .get_name_info_for_name(&name, AnalyzePrototypeProperties::PROPERTY);
-        self.outer.name_infos[name_info.0]
-            .get_declarations_mut()
-            .push_back(symbol);
+        self.op_declare(
+            &name,
+            SymbolSpec::ClassMember { node: n, var: spec },
+            symbol,
+        );
     }
 
     // port: AnalyzePrototypeProperties.ProcessProperties#maybeGetVar
-    fn maybe_get_var(t: &mut NodeTraversal<'_>, maybe_name: NodeId) -> Option<VarId> {
+    fn maybe_get_var(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        maybe_name: NodeId,
+    ) -> (Option<RootVar>, RootVarSpec) {
         if maybe_name.is_name(t) {
             let scope = t.get_scope();
             let name = maybe_name.get_string(t);
-            scope.get_var(t.get_compiler(), name)
+            let var = scope.get_var(t.get_compiler(), name);
+            self.root_var_of(t.get_compiler(), maybe_name, var)
         } else {
-            None
+            (None, RootVarSpec::None)
         }
+    }
+}
+
+impl AnalyzePrototypeProperties {
+    // port: AnalyzePrototypeProperties.ProcessProperties#addSymbolUse
+    /// Rust-only parameter: `def`, the name info the use is attributed to (`current_def`).
+    fn add_symbol_use(
+        &mut self,
+        name: &JsString,
+        chunk: Option<ChunkIndex>,
+        r#type: SymbolType,
+        def: NameInfoId,
+    ) -> NameInfoId {
+        let info = self.get_name_info_for_name(name, r#type);
+        if def != info {
+            self.symbol_graph.connect(def, chunk, info);
+        }
+        info
     }
 
     // port: AnalyzePrototypeProperties.ProcessProperties#addGlobalUseOfSymbol
@@ -832,12 +1447,75 @@ impl ProcessProperties<'_> {
         name: &JsString,
         chunk: Option<ChunkIndex>,
         r#type: SymbolType,
+    ) -> NameInfoId {
+        let global_node = self.global_node;
+        let name_info = self.get_name_info_for_name(name, r#type);
+        self.symbol_graph.connect(global_node, chunk, name_info);
+        name_info
+    }
+
+    /// Rust-only: adds a declaration of the property or var `name`.
+    fn declare(&mut self, name: &JsString, r#type: SymbolType, symbol: Symbol) -> NameInfoId {
+        let name_info = self.get_name_info_for_name(name, r#type);
+        self.name_infos[name_info.0]
+            .get_declarations_mut()
+            .push_back(symbol);
+        name_info
+    }
+
+    /// The NAME branch of `ProcessProperties#visit` for a NAME `node` that resolves to the global
+    /// var `var` or to none (Rust-only shape: `is_declaration` is the test of
+    /// `processGlobalFunctionDeclaration`, `def` the name info a use is attributed to).
+    #[allow(clippy::too_many_arguments)]
+    fn global_name(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        chunk: Option<&JSChunk>,
+        var: Option<VarId>,
+        name: &JsString,
+        node: NodeId,
+        in_global_hoist_scope: bool,
+        is_declaration: bool,
+        def: NameInfoId,
     ) {
-        let global_node = self.outer.global_node;
-        let name_info = self.outer.get_name_info_for_name(name, r#type);
-        self.outer
-            .symbol_graph
-            .connect(global_node, chunk, name_info);
+        let Some(var) = var else {
+            return;
+        };
+        // Only process global functions.
+        if !var.is_global(compiler) {
+            return;
+        }
+        let initial_value = var.get_initial_value(compiler);
+        if !initial_value.is_some_and(|value| value.is_function(compiler)) {
+            return;
+        }
+        let chunk_index = chunk.map(ChunkIndex::of);
+        if in_global_hoist_scope {
+            // port: AnalyzePrototypeProperties.ProcessProperties#processGlobalFunctionDeclaration
+            if is_declaration {
+                let symbol = Symbol::GlobalFunction(GlobalFunction::new(
+                    compiler,
+                    node,
+                    var,
+                    chunk.cloned(),
+                ));
+                self.declare(name, Self::VAR, symbol);
+
+                // If the function name is exported, we should create an edge here
+                // so that it's never removed.
+                if compiler
+                    .get_coding_convention()
+                    .is_exported(name, /* local= */ false)
+                    || self.anchor_unused_vars
+                {
+                    self.add_global_use_of_symbol(name, chunk_index, Self::VAR);
+                }
+            } else {
+                self.add_global_use_of_symbol(name, chunk_index, Self::VAR);
+            }
+        } else {
+            self.add_symbol_use(name, chunk_index, Self::VAR, def);
+        }
     }
 }
 
@@ -978,6 +1656,35 @@ impl<G> EdgeCallback<NameInfoId, Option<ChunkIndex>, G> for PropagateReferences<
     }
 }
 
+/// The root var of a symbol (Java keeps the `Var`). Rust-only shape (performance divergence): a
+/// var of a function or block scope is kept by its declaring name node, which identifies the var
+/// as its handle would within one run (one scope per function or block, one var per declaring
+/// name node), so that a symbol replayed from a log (`PrototypePropertiesCache`) can name the
+/// var without the scope; a local var without a declaring name node (an implicit var) keeps its
+/// handle. Java reads the var only to ask whether it is global, for the name node of a global
+/// var, and to compare two root vars.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RootVar {
+    Global(VarId),
+    Local(NodeId),
+    Implicit(VarId),
+}
+
+impl RootVar {
+    /// `var.isGlobal()`.
+    pub fn is_global(self) -> bool {
+        matches!(self, RootVar::Global(_))
+    }
+
+    /// The var, when it is global.
+    pub fn global_var(self) -> Option<VarId> {
+        match self {
+            RootVar::Global(var) => Some(var),
+            _ => None,
+        }
+    }
+}
+
 /// The declaration of an abstract symbol (Java interfaces Symbol, Property and PrototypeProperty
 /// with their four implementations).
 pub enum Symbol {
@@ -990,7 +1697,7 @@ pub enum Symbol {
 impl Symbol {
     /// The variable for the root of this symbol.
     // port: AnalyzePrototypeProperties.Symbol#getRootVar
-    pub fn get_root_var(&self) -> Option<VarId> {
+    pub fn get_root_var(&self) -> Option<RootVar> {
         match self {
             Symbol::GlobalFunction(s) => s.get_root_var(),
             Symbol::ClassMemberFunction(s) => s.get_root_var(),
@@ -1044,7 +1751,7 @@ impl Symbol {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum SymbolType {
     PROPERTY,
     VAR,
@@ -1074,8 +1781,10 @@ impl GlobalFunction {
     }
 
     // port: AnalyzePrototypeProperties.GlobalFunction#getRootVar
-    pub fn get_root_var(&self) -> Option<VarId> {
-        Some(self.var)
+    pub fn get_root_var(&self) -> Option<RootVar> {
+        // A global function's var is global (`ProcessProperties#visit` makes one only for a
+        // global var).
+        Some(RootVar::Global(self.var))
     }
 
     // port: AnalyzePrototypeProperties.GlobalFunction#getChunk
@@ -1086,13 +1795,13 @@ impl GlobalFunction {
 
 pub struct ClassMemberFunction {
     node: NodeId,
-    var: Option<VarId>,
+    var: Option<RootVar>,
     chunk: Option<JSChunk>,
 }
 
 impl ClassMemberFunction {
     // port: AnalyzePrototypeProperties.ClassMemberFunction#ClassMemberFunction
-    fn new(ast: &Ast, node: NodeId, var: Option<VarId>, chunk: Option<JSChunk>) -> Self {
+    fn new(ast: &Ast, node: NodeId, var: Option<RootVar>, chunk: Option<JSChunk>) -> Self {
         check_state!(node.get_parent(ast).unwrap().is_class_members(ast));
         check_state!(
             node.is_member_function_def(ast) || node.is_setter_def(ast) || node.is_getter_def(ast)
@@ -1101,7 +1810,7 @@ impl ClassMemberFunction {
     }
 
     // port: AnalyzePrototypeProperties.ClassMemberFunction#getRootVar
-    pub fn get_root_var(&self) -> Option<VarId> {
+    pub fn get_root_var(&self) -> Option<RootVar> {
         self.var
     }
 
@@ -1131,14 +1840,14 @@ impl ClassMemberFunction {
 /// ```
 pub struct AssignmentPrototypeProperty {
     expr_node: NodeId,
-    root_var: Option<VarId>,
+    root_var: Option<RootVar>,
     chunk: Option<JSChunk>,
 }
 
 impl AssignmentPrototypeProperty {
     /// @param node An EXPR node.
     // port: AnalyzePrototypeProperties.AssignmentPrototypeProperty#AssignmentPrototypeProperty
-    fn new(node: NodeId, root_var: Option<VarId>, chunk: Option<JSChunk>) -> Self {
+    fn new(node: NodeId, root_var: Option<RootVar>, chunk: Option<JSChunk>) -> Self {
         Self {
             expr_node: node,
             root_var,
@@ -1147,7 +1856,7 @@ impl AssignmentPrototypeProperty {
     }
 
     // port: AnalyzePrototypeProperties.AssignmentPrototypeProperty#getRootVar
-    pub fn get_root_var(&self) -> Option<VarId> {
+    pub fn get_root_var(&self) -> Option<RootVar> {
         self.root_var
     }
 
@@ -1183,13 +1892,18 @@ impl AssignmentPrototypeProperty {
 pub struct LiteralPrototypeProperty {
     value: NodeId,
     assign: NodeId,
-    root_var: Option<VarId>,
+    root_var: Option<RootVar>,
     chunk: Option<JSChunk>,
 }
 
 impl LiteralPrototypeProperty {
     // port: AnalyzePrototypeProperties.LiteralPrototypeProperty#LiteralPrototypeProperty
-    fn new(value: NodeId, assign: NodeId, root_var: Option<VarId>, chunk: Option<JSChunk>) -> Self {
+    fn new(
+        value: NodeId,
+        assign: NodeId,
+        root_var: Option<RootVar>,
+        chunk: Option<JSChunk>,
+    ) -> Self {
         Self {
             value,
             assign,
@@ -1199,7 +1913,7 @@ impl LiteralPrototypeProperty {
     }
 
     // port: AnalyzePrototypeProperties.LiteralPrototypeProperty#getRootVar
-    pub fn get_root_var(&self) -> Option<VarId> {
+    pub fn get_root_var(&self) -> Option<RootVar> {
         self.root_var
     }
 
@@ -1240,6 +1954,9 @@ impl NameContext {
 /// Information on all properties or global variables of a given name.
 pub struct NameInfo {
     pub name: JsString,
+    /// Rust-only: whether this is the name info of a property or of a var (Java keeps the two
+    /// kinds in separate maps), for a log to name it.
+    symbol_type: SymbolType,
 
     referenced: bool,
     declarations: VecDeque<Symbol>,
@@ -1260,9 +1977,10 @@ impl NameInfo {
     /// @param name The name of the property that this represents. May be null to signify dummy
     ///     nodes in the property graph.
     // port: AnalyzePrototypeProperties.NameInfo#NameInfo
-    fn new(name: JsString) -> Self {
+    fn new(name: JsString, symbol_type: SymbolType) -> Self {
         Self {
             name,
+            symbol_type,
             referenced: false,
             declarations: VecDeque::new(),
             deepest_common_chunk_ref: None,

@@ -152,6 +152,9 @@ pub struct Compiler {
         crate::inline_object_literals::InlineObjectLiteralsCleanCache,
     /// The references of unchanged top-level statements for `OptimizeCalls`.
     pub(crate) optimize_calls_unit_cache: crate::optimize_calls::UnitReferenceCache,
+    pub(crate) prototype_properties_cache:
+        crate::analyze_prototype_properties::PrototypePropertiesCache,
+    pub(crate) inline_properties_cache: crate::inline_properties::InlinePropertiesCache,
     /// Kept facts of candidate functions of `InlineFunctions`.
     pub(crate) inline_functions_facts: crate::inline_functions::FunctionFactsCache,
     /// What the walks of `InlineSimpleMethods` found in unchanged top-level statements.
@@ -310,6 +313,8 @@ impl Compiler {
             inline_vars_clean_cache: Default::default(),
             inline_object_literals_clean_cache: Default::default(),
             optimize_calls_unit_cache: Default::default(),
+            prototype_properties_cache: Default::default(),
+            inline_properties_cache: Default::default(),
             inline_functions_facts: Default::default(),
             inline_simple_methods_cache: Default::default(),
             dae_unit_cache: Default::default(),

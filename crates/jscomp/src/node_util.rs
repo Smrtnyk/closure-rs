@@ -43,6 +43,23 @@ impl NodeUtil {
     pub const JSC_PROPERTY_NAME_FN: &'static str = "JSCompiler_renameProperty";
     pub const LARGEST_BASIC_LATIN: u16 = 0x7f;
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ExternNamesMode {
+    Off,
+    On,
+    Verify,
+}
+
+/// `CLOSURE_RS_EXTERN_NAMES=off|verify` (`NodeUtil::try_collect_bundled_extern_variable_names`).
+static EXTERN_NAMES_MODE: LazyLock<ExternNamesMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_EXTERN_NAMES").as_deref() {
+            Ok("off") => ExternNamesMode::Off,
+            Ok("verify") => ExternNamesMode::Verify,
+            _ => ExternNamesMode::On,
+        },
+    );
+
 static GOOG_MODULE_DECLARE_LEGACY_NAMESPACE: LazyLock<QualifiedName> =
     LazyLock::new(|| QualifiedName::of("goog.module.declareLegacyNamespace"));
 static GOOG_SET_TEST_ONLY: LazyLock<QualifiedName> =
@@ -5100,8 +5117,40 @@ impl NodeUtil {
         // unchanged bundled extern prefixes plus shallow scan of appended/synthetic global scripts,
         // avoiding a full ReferenceCollector traversal of ~250K extern AST nodes.
         if let Some(names) = Self::try_collect_bundled_extern_variable_names(compiler, externs) {
+            if *EXTERN_NAMES_MODE == ExternNamesMode::Verify {
+                let full = Self::collect_extern_variable_names_by_traversal(compiler, externs);
+                let mut missing: Vec<String> = full
+                    .iter()
+                    .filter(|name| !names.contains(*name))
+                    .map(JsString::to_string_lossy)
+                    .collect();
+                let mut extra: Vec<String> = names
+                    .iter()
+                    .filter(|name| !full.contains(*name))
+                    .map(JsString::to_string_lossy)
+                    .collect();
+                missing.sort();
+                extra.sort();
+                assert!(
+                    missing.is_empty() && extra.is_empty(),
+                    "CLOSURE_RS_EXTERN_NAMES=verify: the extern variable names from the bundled \
+                     records and the scan ({} names) differ from a traversal of all externs ({} \
+                     names); only in the traversal: {missing:?}; only from the scan: {extra:?}",
+                    names.len(),
+                    full.len()
+                );
+            }
             return names;
         }
+        Self::collect_extern_variable_names_by_traversal(compiler, externs)
+    }
+
+    /// Java's `collectExternVariableNames`: the names of the non-parameter vars that a
+    /// `ReferenceCollector` traversal of the externs finds a reference to.
+    fn collect_extern_variable_names_by_traversal(
+        compiler: &mut AbstractCompiler,
+        externs: NodeId,
+    ) -> IndexSet<JsString> {
         use crate::{
             reference_collector::ReferenceCollector, syntactic_scope_creator::SyntacticScopeCreator,
         };
@@ -5131,6 +5180,51 @@ impl NodeUtil {
         fn scan_simple_global_decls(ast: &Ast, n: NodeId, out: &mut IndexSet<JsString>) -> bool {
             let token = n.get_token(ast);
             match token {
+                // Rust-only (performance divergence): a function with plain parameters and an
+                // empty body (the usual extern stub, `function F(a, b) {}` or
+                // `F.prototype.m = function(a) {};`) and a class are scanned too (Java's
+                // `ReferenceCollector` traversal of all externs ran whenever a user externs file
+                // had one). Such a function's only vars are its parameters (left out) and its
+                // name (a global var for a declaration, a var of its own scope for a named
+                // expression, never a parameter: a name shared with a parameter is left to the
+                // traversal); its body references nothing. A class adds its name the same way;
+                // its members are scanned as any other node. `CLOSURE_RS_EXTERN_NAMES=off`
+                // leaves both to the traversal, `=verify` compares the names with it.
+                Token::FUNCTION if *EXTERN_NAMES_MODE != ExternNamesMode::Off => {
+                    let name = n.get_first_child(ast).unwrap();
+                    let params = name.get_next(ast).unwrap();
+                    let body = params.get_next(ast).unwrap();
+                    let fn_name = name.get_string_ref(ast);
+                    if !body.is_block(ast)
+                        || body.has_children(ast)
+                        || params.children(ast).any(|p| {
+                            !p.is_name(ast)
+                                || p.has_children(ast)
+                                || p.get_string_ref(ast) == fn_name
+                                || p.get_string_ref(ast) == "arguments"
+                        })
+                    {
+                        return false;
+                    }
+                    if !fn_name.is_empty() {
+                        out.insert(fn_name.clone());
+                    }
+                    return true;
+                }
+                Token::CLASS if *EXTERN_NAMES_MODE != ExternNamesMode::Off => {
+                    let name = n.get_first_child(ast).unwrap();
+                    if name.is_name(ast) && !name.get_string_ref(ast).is_empty() {
+                        out.insert(name.get_string(ast));
+                    }
+                    let mut child = name.get_next(ast);
+                    while let Some(c) = child {
+                        if !scan_simple_global_decls(ast, c, out) {
+                            return false;
+                        }
+                        child = c.get_next(ast);
+                    }
+                    return true;
+                }
                 Token::FUNCTION
                 | Token::CLASS
                 | Token::BLOCK
