@@ -4060,25 +4060,38 @@ impl Compiler {
 impl Compiler {
     // port: Compiler#resolveSibling
     pub fn resolve_sibling(from_path: &str, to_path: &str) -> String {
+        // Rust-only (performance divergence): `String#split("/")` on the Rust strings, as slices
+        // of them (Java's split of a one-character literal: the parts between the separators, the
+        // trailing empty ones dropped, or the whole string if it has no separator).
+        fn split(path: &str) -> Vec<&str> {
+            let mut parts: Vec<&str> = path.split('/').collect();
+            if parts.len() > 1 {
+                while parts.last().is_some_and(|part| part.is_empty()) {
+                    parts.pop();
+                }
+            }
+            parts
+        }
         if to_path.starts_with('/') {
             return to_path.into();
         }
-        let mut from_parts = closure_rhino::java_lang::string::split(from_path, "/");
-        let mut to_parts = closure_rhino::java_lang::string::split(to_path, "/");
+        let mut from_parts = split(from_path);
+        let to_parts = split(to_path);
+        let mut to_parts = &to_parts[..];
         if !from_parts.is_empty() {
             from_parts.pop();
         }
         while !from_parts.is_empty() && !to_parts.is_empty() {
             if to_parts[0] == "." {
-                to_parts.remove(0);
+                to_parts = &to_parts[1..];
             } else if to_parts[0] == ".." {
-                to_parts.remove(0);
+                to_parts = &to_parts[1..];
                 from_parts.pop();
             } else {
                 break;
             }
         }
-        from_parts.extend(to_parts);
+        from_parts.extend_from_slice(to_parts);
         from_parts.join("/")
     }
     // port: Compiler#addSourceMapSourceFiles
@@ -4112,15 +4125,13 @@ impl Compiler {
                 .iter()
                 .zip(content)
                 .map(|(source, _)| {
-                    crate::source_map_resolver::SourceMapResolver::get_relative_path(
-                        input_source_map.get_original_path(),
-                        &source
-                            .as_ref()
-                            .expect("null original source")
-                            .to_string_lossy(),
-                    )
-                    .get_name()
-                    .into()
+                    self.excerpt_provider
+                        .get_relative_path(
+                            input_source_map.get_original_path(),
+                            source.as_ref().expect("null original source"),
+                        )
+                        .get_name()
+                        .into()
                 })
                 .collect();
             self.resolved_source_map_sources
@@ -6559,6 +6570,71 @@ mod transpilation_namespace_tests {
                     .get_slot_declaration_node(&mut compiler, &name.into()),
                 Some(Some(original))
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod resolve_sibling_tests {
+    use super::Compiler;
+
+    /// `Compiler#resolveSibling` with `String#split` as the Java port reads it.
+    fn reference(from_path: &str, to_path: &str) -> String {
+        if to_path.starts_with('/') {
+            return to_path.into();
+        }
+        let mut from_parts = closure_rhino::java_lang::string::split(from_path, "/");
+        let mut to_parts = closure_rhino::java_lang::string::split(to_path, "/");
+        if !from_parts.is_empty() {
+            from_parts.pop();
+        }
+        while !from_parts.is_empty() && !to_parts.is_empty() {
+            if to_parts[0] == "." {
+                to_parts.remove(0);
+            } else if to_parts[0] == ".." {
+                to_parts.remove(0);
+                from_parts.pop();
+            } else {
+                break;
+            }
+        }
+        from_parts.extend(to_parts);
+        from_parts.join("/")
+    }
+
+    #[test]
+    fn splits_like_java() {
+        let paths = [
+            "",
+            "/",
+            "//",
+            "a",
+            "a/",
+            "a//",
+            "/a",
+            "a/b",
+            "a//b",
+            "./a",
+            "../a",
+            "a/./b",
+            "a/../b",
+            "../../x/y.js",
+            "./../x/",
+            "src/é/ü.ts",
+            ".",
+            "..",
+            "./",
+            "../",
+            "a/b/c/d.js.map",
+        ];
+        for from in paths {
+            for to in paths {
+                assert_eq!(
+                    Compiler::resolve_sibling(from, to),
+                    reference(from, to),
+                    "{from:?} {to:?}"
+                );
+            }
         }
     }
 }

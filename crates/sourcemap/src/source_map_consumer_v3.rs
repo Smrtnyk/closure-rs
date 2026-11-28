@@ -178,6 +178,13 @@ impl SourceMapConsumerV3 {
     }
     // port: SourceMapConsumerV3#getMappingForLine
     pub fn get_mapping_for_line(&self, line_number: i32, column: i32) -> Option<OriginalMapping> {
+        self.get_entry_for_line(line_number, column)
+            .map(|entry| entry.to_original_mapping())
+    }
+    /// Rust-only (performance divergence): what `get_mapping_for_line` finds, as the fields of the
+    /// mapping it builds (with the same exceptions), for a caller that builds its own mapping from
+    /// them.
+    pub fn get_entry_for_line(&self, line_number: i32, column: i32) -> Option<MappingEntry<'_>> {
         let line_number = line_number.wrapping_sub(1);
         let column = column.wrapping_sub(1);
         let m = self.mappings.as_ref().unwrap();
@@ -282,7 +289,7 @@ impl SourceMapConsumerV3 {
         }
     }
     // port: SourceMapConsumerV3#getPreviousMapping
-    fn get_previous_mapping(&self, mut line_number: i32) -> Option<OriginalMapping> {
+    fn get_previous_mapping(&self, mut line_number: i32) -> Option<MappingEntry<'_>> {
         let mappings = self.mappings.as_ref().unwrap();
         loop {
             if line_number == 0 {
@@ -297,34 +304,34 @@ impl SourceMapConsumerV3 {
         self.get_original_mapping_for_entry(index, Precision::APPROXIMATE_LINE)
     }
     // port: SourceMapConsumerV3#getOriginalMappingForEntry
+    // (the fields of the mapping; `MappingEntry::to_original_mapping` builds it.)
     fn get_original_mapping_for_entry(
         &self,
         index: i32,
         precision: Precision,
-    ) -> Option<OriginalMapping> {
+    ) -> Option<MappingEntry<'_>> {
         let mappings = self.mappings.as_ref().unwrap();
         let source_file_id = mappings.get_source_file_id(index);
         if source_file_id == UNMAPPED {
             None
         } else {
-            let mut x = OriginalMapping::new_builder();
-            x.set_original_file(
-                array_get(self.sources.as_ref().unwrap(), source_file_id)
-                    .as_ref()
-                    .unwrap_or_else(|| panic!("java.lang.NullPointerException")),
-            )
-            .set_line_number(mappings.get_source_line(index).wrapping_add(1))
-            .set_column_position(mappings.get_source_column(index).wrapping_add(1))
-            .set_precision(precision);
+            let original_file = array_get(self.sources.as_ref().unwrap(), source_file_id)
+                .as_ref()
+                .unwrap_or_else(|| panic!("java.lang.NullPointerException"));
             let name_id = mappings.get_name_id(index);
-            if name_id != UNMAPPED {
-                x.set_identifier(
-                    array_get(self.names.as_ref().unwrap(), name_id)
-                        .as_ref()
-                        .unwrap_or_else(|| panic!("java.lang.NullPointerException")),
-                );
-            }
-            Some(x.finish())
+            let identifier = (name_id != UNMAPPED).then(|| {
+                array_get(self.names.as_ref().unwrap(), name_id)
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("java.lang.NullPointerException"))
+            });
+            Some(MappingEntry {
+                original_file,
+                source_index: source_file_id as usize,
+                line_number: mappings.get_source_line(index).wrapping_add(1),
+                column_position: mappings.get_source_column(index).wrapping_add(1),
+                identifier,
+                precision,
+            })
         }
     }
     // Preserve the Java statement order.
@@ -427,6 +434,33 @@ impl SourceMapConsumerV3 {
     }
 }
 
+/// Rust-only (performance divergence): the fields of the mapping that
+/// `SourceMapConsumerV3::get_mapping_for_line` returns, read from the map in place.
+#[derive(Clone, Copy, Debug)]
+pub struct MappingEntry<'a> {
+    pub original_file: &'a JsString,
+    /// The index of `original_file` in the map's sources.
+    pub source_index: usize,
+    pub line_number: i32,
+    pub column_position: i32,
+    pub identifier: Option<&'a JsString>,
+    pub precision: Precision,
+}
+impl MappingEntry<'_> {
+    /// The mapping `get_mapping_for_line` returns (`getOriginalMappingForEntry`'s builder calls).
+    pub fn to_original_mapping(&self) -> OriginalMapping {
+        let mut x = OriginalMapping::new_builder();
+        x.set_original_file(self.original_file.clone())
+            .set_line_number(self.line_number)
+            .set_column_position(self.column_position)
+            .set_precision(self.precision);
+        if let Some(identifier) = self.identifier {
+            x.set_identifier(identifier.clone());
+        }
+        x.finish()
+    }
+}
+
 pub trait EntryVisitor {
     // port: SourceMapConsumerV3.EntryVisitor#visit
     fn visit(
@@ -501,6 +535,7 @@ impl StringCharIterator {
         }
     }
     // port: SourceMapConsumerV3.StringCharIterator#peek
+    #[allow(dead_code)] // MappingBuilder reads the mappings' units directly.
     fn peek(&self) -> u16 {
         self.content.char_at(self.current)
     }
@@ -580,7 +615,8 @@ fn unpack_id(id: i32) -> i32 {
 }
 
 struct MappingBuilder<'a> {
-    content: StringCharIterator,
+    /// Java's `StringCharIterator` over the mappings; `build_entries` reads its units directly.
+    content: JsString,
     flat_entries: Vec<i32>,
     line_start: Vec<i32>,
     line_count: i32,
@@ -606,7 +642,7 @@ impl<'a> MappingBuilder<'a> {
         sources: &'a [Option<JsString>],
         names: Option<&'a [Option<JsString>]>,
     ) -> Self {
-        let content = StringCharIterator::new(line_map);
+        let content = line_map;
         let entry_size = if use_compact_mappings { 4 } else { 5 };
         let length = estimated_entries.wrapping_mul(entry_size);
         if length < 0 {
@@ -648,27 +684,41 @@ impl<'a> MappingBuilder<'a> {
 
     // Rust-only (performance divergence): the compact or wide record layout is fixed for a
     // whole map. Read each relative entry, validate it, and append its absolute fields once.
+    // The mappings are read as a slice of units with an index (Java: `StringCharIterator`, whose
+    // `hasNext`/`peek` are the bounds tests below; `Base64VLQ::decode_units` reads past the end
+    // with the iterator's exception).
+    // port: SourceMapConsumerV3.MappingBuilder#tryConsumeToken
+    // port: SourceMapConsumerV3.MappingBuilder#entryComplete
+    // port: SourceMapConsumerV3.MappingBuilder#nextValue
     fn build_entries<const WIDTH: usize>(mut self) -> Result<Mappings, Error> {
+        const SEMICOLON: u16 = b';' as u16;
+        const COMMA: u16 = b',' as u16;
+        let content = self.content.clone();
+        let units = content.as_units();
+        let mut i = 0;
         let mut temp = [0; Self::MAX_ENTRY_VALUES];
         let mut entries_count = 0;
         let mut lines_count = 0;
         self.set_line_start(0, 0);
-        while self.content.has_next() {
-            if self.try_consume_token(b';' as u16) {
+        while let Some(&c) = units.get(i) {
+            if c == SEMICOLON {
+                i += 1;
                 lines_count += 1;
                 self.set_line_start(lines_count, entries_count);
                 self.line += 1;
                 self.previous_col = 0;
             } else {
                 let mut entry_values = 0;
-                while !self.entry_complete() {
-                    let value = self.next_value();
+                while units.get(i).is_some_and(|&c| c != SEMICOLON && c != COMMA) {
+                    let value = Base64VLQ::decode_units(units, &mut i);
                     *array_get_mut(&mut temp, entry_values) = value;
                     entry_values += 1;
                 }
                 self.set_entry::<WIDTH>(&temp[..entry_values as usize])?;
                 entries_count += WIDTH as i32;
-                self.try_consume_token(b',' as u16);
+                if units.get(i) == Some(&COMMA) {
+                    i += 1;
+                }
             }
         }
         if entries_count > self.get_line_start(lines_count) {
@@ -774,26 +824,6 @@ impl<'a> MappingBuilder<'a> {
             self.line_start.truncate(lines_count as usize + 1);
         }
         self.line_count = lines_count;
-    }
-    // port: SourceMapConsumerV3.MappingBuilder#tryConsumeToken
-    fn try_consume_token(&mut self, token: u16) -> bool {
-        if self.content.has_next() && self.content.peek() == token {
-            self.content.next();
-            return true;
-        }
-        false
-    }
-    // port: SourceMapConsumerV3.MappingBuilder#entryComplete
-    fn entry_complete(&self) -> bool {
-        if !self.content.has_next() {
-            return true;
-        }
-        let c = self.content.peek();
-        c == b';' as u16 || c == b',' as u16
-    }
-    // port: SourceMapConsumerV3.MappingBuilder#nextValue
-    fn next_value(&mut self) -> i32 {
-        Base64VLQ::decode_from(&mut self.content)
     }
 }
 // Trivial mutable array access bridge preserving Java exception text.

@@ -1956,3 +1956,40 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   well and panics if that changes anything (for one visited itself: if anything below it does),
   and computes every kept side-effect answer again; `CLOSURE_RS_PEEPHOLE_FIXPOINT_STATS=1` prints
   the statements checked, skipped and recorded per traversal.
+- `sourcemap/gson/stream/json_reader.rs` (`next_quoted_value`, `seek`): Gson reads a quoted value
+  from its 1024-unit buffer, refilled from the input as it goes, into a growing StringBuilder once
+  the value has an escape or runs past the buffer. Here the value is read from the input itself
+  (the buffer holds a copy of it): a value without escapes is copied once, a value with escapes is
+  assembled in a buffer the reader keeps, and the plain runs are found a few units at a time, then
+  sixteen at once. The buffer is refilled from the end of the value if the value ran past it.
+  Where the buffer starts is not observable (line and column are relative to it, and the
+  byte-order-mark test of `fillBuffer` cannot hold inside a value); each error is raised at the
+  unit, and with the position, Gson raises it at. A test compares both loops on random documents.
+- `sourcemap/source_map_consumer_v3.rs` (`MappingBuilder::build_entries`, `get_entry_for_line`,
+  `MappingEntry`), `base64_vlq.rs` (`decode_units`): an input map's mappings are decoded from a
+  slice of its units (Java: a `StringCharIterator`, with the same exception past the end); the
+  output map's lookups (`compiler_source_excerpt_provider.rs`, `get_source_mapping_cached`) read
+  the fields of the entry `getMappingForLine` would build its mapping from and build the resolved
+  mapping once, and keep the path resolved for each source of an input map by the source's index.
+- `jscomp/compiler_source_excerpt_provider.rs` (`get_relative_path`, `relative_paths`),
+  `source_map_resolver.rs` (`relative_path_string`, `source_file_at`): the path
+  `SourceMapResolver#getRelativePath` resolves for an input map's path and a source it names is
+  resolved once and used for both the names of the map's sources (`addSourceMapSourceFiles`) and
+  the original source a mapping into it registers. `CLOSURE_RS_SOURCE_PATH_CACHE=off` resolves
+  every path anew; `=verify` resolves each kept path anew as well and panics if it differs.
+- `jscomp/compiler.rs` (`resolve_sibling`): `String#split("/")` on the Rust strings, as slices
+  (Java's split of a one-character literal); a test compares it with the split of the port.
+- `sourcemap/util.rs` (`write_escaped_string`): every escape is written as a fixed six-byte copy
+  of which the escape's own bytes are kept.
+- `jscomp/print_stream_error_report_generator.rs` (`ReportText`), `cli/command_line_runner.rs`
+  (`drain_compiler_error_stream`): a report's text is written to the generator's stream in one
+  piece when the report ends (or when formatting a message panics), and what the compiler wrote
+  to its error stream goes to stderr in one write at each drain (Java prints each message and its
+  line end as it goes: two system calls per message on an unbuffered stderr). The same bytes reach
+  stderr in the same order at the same points; nothing else is written in between.
+- `rhino/java_lang/charset.rs` (`Charset::decode`): a run of ASCII bytes of UTF-8 is measured
+  sixteen bytes at a time (their high bits tested together) and widened in one copy (Java's
+  decoder converts one byte at a time); a test compares it with the byte-at-a-time decoder.
+- `jscomp/source_file/line_count.rs` (`num_lines`): the line terminators and the CRs of each block
+  of 64 units are counted in bytes, without a branch (the same count as the filter it replaces,
+  which the compiler did not vectorize; every input is counted when its parsed code is cleared).

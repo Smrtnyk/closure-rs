@@ -21,11 +21,56 @@ use crate::{
     error_manager::ErrorManager, region::Region, source_excerpt_provider::SourceExcerptProvider,
     source_file::SourceFile, source_map_input::SourceMapInput,
 };
-use closure_rhino::fast_hash::IndexMap;
+use closure_rhino::{fast_hash::IndexMap, js_string::JsString};
 use closure_sourcemap::{
     proto::mapping::OriginalMapping, source_map_consumer_v3::SourceMapConsumerV3,
 };
 use std::sync::{Arc, Mutex};
+/// Rust-only (performance divergence): `CLOSURE_RS_SOURCE_PATH_CACHE` for the paths the provider
+/// keeps (`relative_paths`): `off` resolves every path anew, as Java does; `verify` resolves each
+/// kept path anew as well and panics if it differs.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SourcePathCache {
+    Off,
+    On,
+    Verify,
+}
+static SOURCE_PATH_CACHE: std::sync::LazyLock<SourcePathCache> =
+    std::sync::LazyLock::new(
+        || match std::env::var("CLOSURE_RS_SOURCE_PATH_CACHE").as_deref() {
+            Ok("off") => SourcePathCache::Off,
+            Ok("verify") => SourcePathCache::Verify,
+            _ => SourcePathCache::On,
+        },
+    );
+/// A path the provider keeps for `base` and `relative` (`None` with
+/// `CLOSURE_RS_SOURCE_PATH_CACHE=off`), checked against `resolve` with `=verify`.
+fn kept_path(
+    kept: &Mutex<IndexMap<String, IndexMap<JsString, String>>>,
+    base: &str,
+    relative: &JsString,
+    resolve: impl FnOnce() -> String,
+) -> Option<String> {
+    if *SOURCE_PATH_CACHE == SourcePathCache::Off {
+        return None;
+    }
+    let known = kept
+        .lock()
+        .unwrap()
+        .get(base)
+        .and_then(|paths| paths.get(relative))
+        .cloned()?;
+    if *SOURCE_PATH_CACHE == SourcePathCache::Verify {
+        let resolved = resolve();
+        assert!(
+            known == resolved,
+            "CLOSURE_RS_SOURCE_PATH_CACHE=verify: base {base:?}, relative {:?}: kept {known:?}, \
+             resolved {resolved:?}",
+            relative.to_string_lossy()
+        );
+    }
+    Some(known)
+}
 #[derive(Default)]
 pub(crate) struct CompilerSourceExcerptProvider {
     pub files: Mutex<IndexMap<String, Arc<SourceFile>>>,
@@ -33,21 +78,52 @@ pub(crate) struct CompilerSourceExcerptProvider {
     pub input_source_maps: Arc<Mutex<crate::compiler::InputSourceMaps>>,
     pub pending_errors: crate::sorting_error_manager::DeferredReports,
     resolved_source_map: Mutex<ResolvedSourceMap>,
+    /// Rust-only (performance divergence): every path `SourceMapResolver#getRelativePath` gave,
+    /// by its base path (an input map's) and the relative path (a source the map names): the
+    /// names of an input map's sources and the original sources the mappings register.
+    relative_paths: Mutex<IndexMap<String, IndexMap<JsString, String>>>,
     /// Rust-only: the file name of the last `SourceFileMapping::get_source_mapping` call and its
     /// conversion to a Rust string.
     last_mapping_name: Mutex<Option<(closure_rhino::js_string::JsString, String)>>,
 }
+/// Java's `resolvedSourceMap` (the map path, the original file and the path resolved for them,
+/// of the last lookup), kept as JS strings so that a mapping in the file last resolved needs no
+/// string conversion (Rust-only, performance divergence).
 #[derive(Default)]
 struct ResolvedSourceMap {
     original_path: String,
-    source_map_path: String,
-    relative_path: String,
-    /// Rust-only: `source_map_path` and `relative_path` as JS strings, so that a mapping in the
-    /// file last resolved needs no string conversion (performance divergence).
     source_map_path_js: closure_rhino::js_string::JsString,
     relative_path_js: closure_rhino::js_string::JsString,
 }
 impl CompilerSourceExcerptProvider {
+    /// `SourceMapResolver.getRelativePath(base_file_path, relative_path)`.
+    ///
+    /// Rust-only (performance divergence): the path is resolved once for each pair (see
+    /// `relative_paths`); the file is built from it as `getRelativePath` builds it.
+    pub(crate) fn get_relative_path(
+        &self,
+        base_file_path: &str,
+        relative_path: &JsString,
+    ) -> SourceFile {
+        let resolve = || {
+            crate::source_map_resolver::SourceMapResolver::relative_path_string(
+                base_file_path,
+                &relative_path.to_string_lossy(),
+            )
+        };
+        let known = kept_path(&self.relative_paths, base_file_path, relative_path, resolve);
+        let path = known.unwrap_or_else(|| {
+            let path = resolve();
+            self.relative_paths
+                .lock()
+                .unwrap()
+                .entry(base_file_path.to_owned())
+                .or_default()
+                .insert(relative_path.clone(), path.clone());
+            path
+        });
+        crate::source_map_resolver::SourceMapResolver::source_file_at(path)
+    }
     fn get_file(&self, name: Option<&str>) -> Option<Arc<SourceFile>> {
         let name = name?;
         self.files
@@ -138,33 +214,31 @@ impl SourceExcerptProvider for CompilerSourceExcerptProvider {
         let mut cache = self.resolved_source_map.lock().unwrap();
         // Rust-only: compares the result's file as a JS string, so the common case (the file
         // last resolved) converts no string (performance divergence).
+        let result_original_file = result.get_original_file();
         let relative_path = if source_map_original_path == cache.original_path
-            && result.get_original_file() == cache.source_map_path_js
+            && result_original_file == cache.source_map_path_js
         {
             cache.relative_path_js.clone()
         } else {
-            let result_original_path = result.get_original_file().to_string_lossy();
-            let relative =
-                Compiler::resolve_sibling(source_map_original_path, &result_original_path);
-            if self.get_file(Some(&relative)).is_none() && !result_original_path.is_empty() {
-                let source = crate::source_map_resolver::SourceMapResolver::get_relative_path(
-                    map.get_original_path(),
-                    &result_original_path,
-                );
+            let relative = Compiler::resolve_sibling(
+                source_map_original_path,
+                &result_original_file.to_string_lossy(),
+            );
+            // Rust-only (performance divergence): a pool string, which every mapping into this
+            // file copies without a reference count (see `SourceMapConsumerV3`'s names).
+            let relative_js =
+                closure_rhino::rhino_string_pool::RhinoStringPool::add_or_get(relative.as_str());
+            if self.get_file(Some(&relative)).is_none() && !result_original_file.is_empty() {
+                let source = self.get_relative_path(map.get_original_path(), &result_original_file);
                 self.original_sources
                     .lock()
                     .unwrap()
-                    .entry(relative.clone())
+                    .entry(relative)
                     .or_insert_with(|| Arc::new(source));
             }
             cache.original_path = source_map_original_path.into();
-            cache.source_map_path = result_original_path;
-            cache.source_map_path_js = result.get_original_file().clone();
-            // Rust-only (performance divergence): a pool string, which every mapping into this
-            // file copies without a reference count (see `SourceMapConsumerV3`'s names).
-            cache.relative_path_js =
-                closure_rhino::rhino_string_pool::RhinoStringPool::add_or_get(relative.as_str());
-            cache.relative_path = relative;
+            cache.source_map_path_js = result_original_file;
+            cache.relative_path_js = relative_js;
             cache.relative_path_js.clone()
         };
         Some(with_resolved_file(result, relative_path))
@@ -224,8 +298,7 @@ impl SourceFileMapping for Arc<CompilerSourceExcerptProvider> {
                         crate::source_file_mapping::FileMappingCache {
                             name: rust_name,
                             consumer,
-                            resolved: None,
-                            resolved_paths: Default::default(),
+                            resolved_paths: Vec::new(),
                         },
                     );
                     cache.current = Some(index);
@@ -235,42 +308,43 @@ impl SourceFileMapping for Arc<CompilerSourceExcerptProvider> {
         };
         let file = &mut cache.files[file];
         let consumer = file.consumer.as_ref()?;
-        let Some(result) = consumer.get_mapping_for_line(line, column.wrapping_add(1)) else {
+        // Rust-only (performance divergence): the fields of the entry found, read in place; the
+        // mapping is built once, with the resolved path (`with_resolved_file` of the consumer's
+        // mapping).
+        let Some(entry) = consumer.get_entry_for_line(line, column.wrapping_add(1)) else {
             return Some(OriginalMapping::get_default_instance().clone());
         };
-        let original_file = result.get_original_file();
-        let relative_path = match &file.resolved {
-            Some((resolved_file, relative_path)) if *resolved_file == original_file => {
-                relative_path.clone()
-            }
-            _ => {
-                if let Some(relative_path) = file.resolved_paths.get(&original_file) {
-                    let relative_path = relative_path.clone();
-                    file.resolved = Some((original_file, relative_path.clone()));
-                    relative_path
-                } else {
-                    // The first node mapped to this original file: the lookup resolves the path
-                    // (and registers the original source), then what it resolved. The lookup
-                    // finds `result` again, with the path resolved for `original_file` (read from
-                    // the mapping, not from `resolved_source_map`, which a lookup on another
-                    // thread may have replaced in the meantime).
-                    let mapping = SourceExcerptProvider::get_source_mapping(
-                        self.as_ref(),
-                        Some(&file.name),
-                        line,
-                        column,
-                    );
-                    if let Some(mapping) = &mapping {
-                        let relative_path = mapping.get_original_file();
-                        file.resolved_paths
-                            .insert(original_file.clone(), relative_path.clone());
-                        file.resolved = Some((original_file, relative_path));
-                    }
-                    return mapping;
+        let Some(Some(relative_path)) = file.resolved_paths.get(entry.source_index) else {
+            // The first node mapped to this source: the lookup resolves the path (and registers
+            // the original source), then what it resolved. The lookup finds the same entry, with
+            // the path resolved for its file (read from the mapping, not from
+            // `resolved_source_map`, which a lookup on another thread may have replaced in the
+            // meantime).
+            let source_index = entry.source_index;
+            let mapping = SourceExcerptProvider::get_source_mapping(
+                self.as_ref(),
+                Some(&file.name),
+                line,
+                column,
+            );
+            if let Some(mapping) = &mapping {
+                if file.resolved_paths.len() <= source_index {
+                    file.resolved_paths.resize(source_index + 1, None);
                 }
+                file.resolved_paths[source_index] = Some(mapping.get_original_file());
             }
+            return mapping;
         };
-        Some(with_resolved_file(result, relative_path))
+        let mut builder = OriginalMapping::new_builder();
+        builder
+            .set_original_file(relative_path.clone())
+            .set_line_number(entry.line_number)
+            .set_column_position(entry.column_position.wrapping_sub(1))
+            .set_precision(entry.precision);
+        if let Some(identifier) = entry.identifier {
+            builder.set_identifier(identifier.clone());
+        }
+        Some(builder.finish())
     }
     fn try_clone(&self) -> Option<Box<dyn SourceFileMapping + Send>> {
         // Every lookup locks the state it shares (input maps, resolved paths, original sources)

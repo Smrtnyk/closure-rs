@@ -135,12 +135,23 @@ impl Charset {
         out.reserve(bytes.len().saturating_sub(i));
         while i < bytes.len() {
             if self == Self::UTF_8 && bytes[i] < 128 {
-                let run = bytes[i..]
+                // Rust-only (performance divergence): the run is measured sixteen bytes at a time
+                // while all of them are ASCII (their high bits tested together), then one byte at
+                // a time, and copied in one widening copy.
+                const HIGH_BITS: u128 = 0x8080_8080_8080_8080_8080_8080_8080_8080;
+                let mut end = i;
+                while let Some(block) = bytes.get(end..end + 16) {
+                    if u128::from_le_bytes(block.try_into().unwrap()) & HIGH_BITS != 0 {
+                        break;
+                    }
+                    end += 16;
+                }
+                end += bytes[end..]
                     .iter()
                     .position(|b| *b >= 128)
-                    .unwrap_or(bytes.len() - i);
-                out.extend(bytes[i..i + run].iter().map(|b| u16::from(*b)));
-                i += run;
+                    .unwrap_or(bytes.len() - end);
+                out.extend(bytes[i..end].iter().map(|b| u16::from(*b)));
+                i = end;
                 continue;
             }
             let (units, consumed, malformed) = match self {
@@ -281,6 +292,53 @@ mod encoder_tests {
                     _ => !(0xd800..=0xdfff).contains(&c),
                 };
                 assert_eq!(encoder.can_encode(c), expected, "{charset:?} U+{c:04X}");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod decoder_tests {
+    use super::{Charset, decode_utf8};
+
+    /// The decoder one byte (or sequence) at a time, without the ASCII runs.
+    fn reference(bytes: &[u8]) -> Vec<u16> {
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i < bytes.len() {
+            let (units, consumed, malformed) = decode_utf8(bytes, i);
+            if malformed {
+                out.push(0xfffd);
+            } else {
+                out.extend(units);
+            }
+            i += consumed;
+        }
+        out
+    }
+
+    #[test]
+    fn ascii_runs_decode_as_single_bytes() {
+        let pieces: [&[u8]; 6] = [
+            b"abcdefghijklmnopqrstuvwxyz0123456789",
+            "é€😀".as_bytes(),
+            &[0xff],
+            &[0xe2, 0x82],
+            b"\n\t ",
+            &[0x7f, 0x80],
+        ];
+        let mut text = Vec::new();
+        for round in 0..200usize {
+            text.extend_from_slice(pieces[(round * 7 + round / 3) % pieces.len()]);
+            for start in [0, 1, 7, 15, 16, 17] {
+                let Some(bytes) = text.get(start.min(text.len())..) else {
+                    continue;
+                };
+                assert_eq!(
+                    Charset::UTF_8.decode(bytes, true).unwrap().as_units(),
+                    reference(bytes).as_slice(),
+                    "round {round} start {start}"
+                );
             }
         }
     }

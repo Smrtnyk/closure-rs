@@ -117,4 +117,33 @@ impl Base64VLQ {
         }
         Self::from_vlq_signed(result)
     }
+
+    /// Rust-only (performance divergence): `decode` reading the UTF-16 units of a string from
+    /// index `*pos`, as `SourceMapConsumerV3.StringCharIterator` would (with its exception past
+    /// the end), and leaving `*pos` after the value.
+    #[inline]
+    pub(crate) fn decode_units(units: &[u16], pos: &mut usize) -> i32 {
+        let mut result = 0i32;
+        let mut shift = 0u32;
+        let mut i = *pos;
+        loop {
+            let Some(&c) = units.get(i) else {
+                panic!(
+                    "java.lang.StringIndexOutOfBoundsException: Index {i} out of bounds for length {}",
+                    units.len()
+                );
+            };
+            i += 1;
+            let mut digit = Base64::from_base64(c);
+            let continuation = (digit & Self::VLQ_CONTINUATION_BIT) != 0;
+            digit &= Self::VLQ_BASE_MASK;
+            result = result.wrapping_add(digit.wrapping_shl(shift));
+            shift = shift.wrapping_add(Self::VLQ_BASE_SHIFT);
+            if !continuation {
+                break;
+            }
+        }
+        *pos = i;
+        Self::from_vlq_signed(result)
+    }
 }
