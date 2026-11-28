@@ -1004,6 +1004,9 @@ pub struct Ast {
     preparse_node_prop_slots: Vec<u32>,
     /// Rust-only (performance divergence): whether `changed_nodes` is kept (see `track_changes`).
     tracking_changes: bool,
+    /// Rust-only (performance divergence): whether in-place changes of node data beyond the four
+    /// flags are recorded as flag changes too (see `track_data_changes`).
+    tracking_data_changes: bool,
     change_log_id: Option<Arc<()>>,
     change_log_drain: u64,
     /// Lazily built by repeated syntax queries. Moving this arena also moves its index.
@@ -1068,6 +1071,17 @@ const TRACKED_FLAG_PROPS_MASK: u64 = (1u64 << (Prop::JSDOC_INFO as u8))
     | (1u64 << (Prop::SIDE_EFFECT_FLAGS as u8))
     | (1u64 << (Prop::IS_CONSTANT_NAME as u8))
     | (1u64 << (Prop::CONSTANT_VAR_FLAGS as u8));
+/// Rust-only (performance divergence): the node properties whose in-place changes
+/// `Ast::track_data_changes` leaves unrecorded: the change tracker's own bookkeeping
+/// (`CHANGE_TIME`, `DELETED`), where a node comes from (`SOURCE_FILE`, `INPUT_ID`), comments, and a
+/// script's `FEATURE_SET` (its one reader, `PeepholeOptimizationsPass`, keys it apart).
+const UNTRACKED_DATA_PROPS_MASK: u64 = (1u64 << (Prop::CHANGE_TIME as u8))
+    | (1u64 << (Prop::DELETED as u8))
+    | (1u64 << (Prop::SOURCE_FILE as u8))
+    | (1u64 << (Prop::INPUT_ID as u8))
+    | (1u64 << (Prop::NON_JSDOC_COMMENT as u8))
+    | (1u64 << (Prop::TRAILING_NON_JSDOC_COMMENT as u8))
+    | (1u64 << (Prop::FEATURE_SET as u8));
 
 impl Ast {
     pub fn new() -> Self {
@@ -1087,6 +1101,49 @@ impl Ast {
     fn record_flag_change(&mut self, n: NodeId) {
         if self.tracking_changes && self.changed_flag_nodes.last() != Some(&n) {
             self.changed_flag_nodes.push(n);
+        }
+    }
+
+    /// Rust-only (performance divergence): from now on, also records as flag changes
+    /// (`take_changed_flag_nodes`) every in-place change of a node's other data: its number or
+    /// bigint, its color or type, and every property except those in `UNTRACKED_DATA_PROPS_MASK`.
+    /// A number, bigint, color or type of a node without a parent that can only be an expression
+    /// is left out: such a node is in no statement, and attaching it records its new parent.
+    /// Together with the structural log, the stamps of a statement then change whenever anything a
+    /// reader of its subtree can see changes (`PeepholeOptimizationsPass`). Implies
+    /// `track_changes`.
+    pub fn track_data_changes(&mut self) {
+        self.tracking_changes = true;
+        self.tracking_data_changes = true;
+    }
+
+    /// The properties besides the four flags whose changes are recorded as flag changes: none, or
+    /// after `track_data_changes` all but `UNTRACKED_DATA_PROPS_MASK`. Derived from the flag
+    /// rather than kept in a field: a field that made `Ast` larger cost about 4 MB of peak
+    /// memory in the release build (measured on a two-line compile).
+    #[inline]
+    fn data_props_mask(&self) -> u64 {
+        !UNTRACKED_DATA_PROPS_MASK & u64::from(self.tracking_data_changes).wrapping_neg()
+    }
+
+    /// `track_data_changes`: records that data of `n` changed.
+    #[cold]
+    #[inline(never)]
+    fn record_data_change_now(&mut self, n: NodeId) {
+        if self[L(n)].parent.is_some()
+            || !crate::ir::IR::may_be_expression(self, n)
+            || crate::ir::IR::may_be_statement(self, n)
+        {
+            self.record_flag_change(n);
+        }
+    }
+
+    /// `track_data_changes`: records that the type or color of `node` changes to `value` (the
+    /// public setters call it; a clone's copy goes to a new node).
+    #[inline]
+    fn note_node_type_change(&mut self, node: NodeId, value: Option<NodeType>) {
+        if self.tracking_data_changes && self.node_type_slot(node) != value {
+            self.record_data_change_now(node);
         }
     }
 
@@ -2513,6 +2570,9 @@ impl NodeId {
         let head = ast[other].prop_list_head.clone();
         ast.snapshot_watches.change(self, snapshot_watch::DOC);
         ast.set_props_replacing_all(self, head);
+        if ast.tracking_data_changes {
+            ast.record_data_change_now(self);
+        }
         let src_mask = ast.prop_masks[src];
         ast.prop_masks[dst] = src_mask;
         if src_mask & (1u64 << Prop::CHANGE_TIME as u8) != 0 {
@@ -2682,6 +2742,8 @@ impl NodeId {
             if prop == Prop::JSDOC_INFO {
                 ast.snapshot_watches.change(self, snapshot_watch::DOC);
                 ast.record_flag_change(self);
+            } else if ast.data_props_mask() & (1u64 << (prop as u8)) != 0 {
+                ast.record_flag_change(self);
             }
             let head = ast.take_prop_list(self);
             ast.set_prop_list_preserving_inline(
@@ -2699,11 +2761,11 @@ impl NodeId {
     pub fn put_int_prop(self, ast: &mut Ast, prop: Prop, value: i32) {
         let slot = self.arena_index();
         let bit = 1u64 << (prop as u8);
+        const TRACKED_INT_PROPS: u64 = (1u64 << (Prop::SIDE_EFFECT_FLAGS as u8))
+            | (1u64 << (Prop::CONSTANT_VAR_FLAGS as u8))
+            | (1u64 << (Prop::IS_CONSTANT_NAME as u8));
         let changed = ast.tracking_changes
-            && matches!(
-                prop,
-                Prop::SIDE_EFFECT_FLAGS | Prop::CONSTANT_VAR_FLAGS | Prop::IS_CONSTANT_NAME
-            )
+            && (TRACKED_INT_PROPS | ast.data_props_mask()) & bit != 0
             && self.get_int_prop(ast, prop) != value;
         // Rust-only (performance divergence): store boolean flags, 2-bit CONSTANT_VAR_FLAGS,
         // CHANGE_TIME, and 8-bit SIDE_EFFECT_FLAGS inline without allocating `Arc<PropListItem>`.
@@ -2811,15 +2873,7 @@ impl NodeId {
         if prop == Prop::JSDOC_INFO {
             ast.snapshot_watches.change(self, snapshot_watch::DOC);
         }
-        if record_flag
-            && matches!(
-                prop,
-                Prop::JSDOC_INFO
-                    | Prop::SIDE_EFFECT_FLAGS
-                    | Prop::CONSTANT_VAR_FLAGS
-                    | Prop::IS_CONSTANT_NAME
-            )
-        {
+        if record_flag && (TRACKED_FLAG_PROPS_MASK | ast.data_props_mask()) & bit != 0 {
             ast.record_flag_change(self);
         }
         if INLINE_INT_PROPS_MASK & bit != 0 {
@@ -3159,6 +3213,9 @@ impl NodeId {
             NodeKind::Number { number } => *number = x,
             _ => panic!("ClassCastException"),
         }
+        if ast.tracking_data_changes {
+            ast.record_data_change_now(self);
+        }
     }
     // port: Node#getBigInt
     pub fn get_big_int(self, ast: &Ast) -> Arc<BigInt> {
@@ -3174,6 +3231,9 @@ impl NodeId {
         match &mut ast.payload_mut(self).kind {
             NodeKind::BigInt { bigint } => *bigint = number,
             _ => panic!("ClassCastException"),
+        }
+        if ast.tracking_data_changes {
+            ast.record_data_change_now(self);
         }
     }
     // port: Node#getString
@@ -3828,6 +3888,8 @@ impl NodeId {
         ast.set_props_replacing_all(self, head);
         if (old_mask | ast.prop_masks[self.arena_index()]) & TRACKED_FLAG_PROPS_MASK != 0 {
             ast.record_flag_change(self);
+        } else if ast.tracking_data_changes {
+            ast.record_data_change_now(self);
         }
     }
     // port: Node#getParent
@@ -4684,7 +4746,9 @@ impl NodeId {
             self.to_string(ast)
         );
         if x.is_some() || cur.is_some() {
-            ast.set_node_type(self, x.map(NodeType::JSType));
+            let value = x.map(NodeType::JSType);
+            ast.note_node_type_change(self, value);
+            ast.set_node_type(self, value);
         }
         self
     }
@@ -4716,6 +4780,7 @@ impl NodeId {
             self.to_string(ast)
         );
         let slot = x.map(|color| NodeType::Color(ast.color_slot(color)));
+        ast.note_node_type_change(self, slot);
         ast.set_node_type(self, slot);
         self
     }
@@ -4728,12 +4793,15 @@ impl NodeId {
             self.to_string(ast)
         );
         debug_assert!((slot as usize) < ast.colors.len());
+        ast.note_node_type_change(self, Some(NodeType::Color(slot)));
         ast.set_node_type(self, Some(NodeType::Color(slot)));
         self
     }
     // port: Node#copyTypeFrom
     pub fn copy_type_from(self, ast: &mut Ast, other: NodeId) -> Self {
-        ast.set_node_type(self, ast.node_type_slot(other));
+        let value = ast.node_type_slot(other);
+        ast.note_node_type_change(self, value);
+        ast.set_node_type(self, value);
         self
     }
     // port: Node#getJSDocInfo

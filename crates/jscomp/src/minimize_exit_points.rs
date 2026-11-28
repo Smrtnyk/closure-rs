@@ -66,6 +66,17 @@ impl AbstractPeepholeOptimization for MinimizeExitPoints {
         "com.google.javascript.jscomp.MinimizeExitPoints"
     }
 
+    // Rust-only (performance divergence): audited for `PeepholeFixpoint`. Every visited node
+    // reads its own subtree; a BLOCK also whether its parent is a FUNCTION (never true for a
+    // statement). Moving the statements after an IF that ends in a matching exit asks
+    // `NodeUtil::is_within_loop` about the IF's ancestors
+    // (`try_convert_all_block_scoped_following`): for an IF below a visited loop the answer is
+    // that loop, but below a visited LABEL or SWITCH the walk goes on above it, so those two are
+    // listed.
+    fn fixpoint_context_tokens(&self) -> Option<&'static [Token]> {
+        Some(&[Token::LABEL, Token::SWITCH])
+    }
+
     // Rust-only (performance divergence): restrict dispatch to control-flow containers (plus
     // SCRIPT so the normalization precondition still fires on empty unnormalized scripts).
     fn candidate_tokens(&self) -> Option<&'static [Token]> {

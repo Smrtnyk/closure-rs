@@ -169,6 +169,22 @@ impl Builder {
 }
 
 impl AstAnalyzer {
+    /// Rust-only (performance divergence): whether `other` answers every question about the same
+    /// tree as `self` does (same settings; the accessor summary is asked only when getters are not
+    /// assumed pure, and one gathered again mostly has the same content).
+    pub(crate) fn same_answers(&self, other: &AstAnalyzer) -> bool {
+        self.use_types_for_local_optimization == other.use_types_for_local_optimization
+            && self.assume_getters_are_pure == other.assume_getters_are_pure
+            && self.assume_known_builtins_are_pure == other.assume_known_builtins_are_pure
+            && self.has_regexp_global_references == other.has_regexp_global_references
+            && (self.assume_getters_are_pure
+                || match (&self.accessor_summary, &other.accessor_summary) {
+                    (None, None) => true,
+                    (Some(a), Some(b)) => Arc::ptr_eq(a, b) || **a == **b,
+                    _ => false,
+                })
+    }
+
     // port: AstAnalyzer#AstAnalyzer
     pub fn new(options: Options, accessor_summary: Option<Arc<AccessorSummary>>) -> Self {
         check_argument!(

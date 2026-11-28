@@ -87,7 +87,7 @@ impl AbstractPeepholeOptimizationFields {
     }
 
     // Rust-only: Java's `astAnalyzer.` field dereference (NullPointerException when unset).
-    fn ast_analyzer(&self) -> &AstAnalyzer {
+    pub(crate) fn ast_analyzer(&self) -> &AstAnalyzer {
         check_not_null!(self.ast_analyzer.as_ref())
     }
 }
@@ -167,6 +167,31 @@ pub trait AbstractPeepholeOptimization {
     /// may say so (`add_feature_to_enclosing_script` checks it).
     fn may_add_features(&self) -> bool {
         true
+    }
+
+    /// Rust-only (performance divergence): `None` unless this optimization was audited for the
+    /// fixed-point records of `PeepholeOptimizationsPass` (`PeepholeFixpoint`); a pass keeps
+    /// records only when every one of its optimizations returns `Some`.
+    ///
+    /// The *statement* of a node is its nearest ancestor-or-self whose parent is a BLOCK, SCRIPT or
+    /// MODULE_BODY. An audited optimization guarantees: a call of `optimize_subtree` that changes
+    /// nothing (reports no change and no error, adds no feature and leaves the tree as it was)
+    /// reads of the tree only the node's statement, plus facts about the statement's parent that
+    /// hold for each of those three tokens (it is a statement block; it is no LABEL, FUNCTION or
+    /// CLASS_MEMBERS), unless the node has one of the returned tokens. Beyond the tree it may read
+    /// the bodies of functions nested in the node's subtree, the features `script_features_read`
+    /// names of the enclosing script, the compiler options, the life cycle stage, the accessor
+    /// summary and `has_reg_exp_global_references`: the pass keys all of those itself.
+    /// It must keep no state from one call to the next.
+    fn fixpoint_context_tokens(&self) -> Option<&'static [closure_rhino::token::Token]> {
+        None
+    }
+
+    /// Rust-only (performance divergence): the features of the script around the node whose
+    /// presence `optimize_subtree` may read, and whether the script has features at all (see
+    /// `fixpoint_context_tokens`).
+    fn script_features_read(&self) -> &'static [Feature] {
+        &[]
     }
 
     /// Rust-only (performance divergence): optional cheap node-level filter for high-frequency

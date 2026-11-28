@@ -216,6 +216,12 @@ impl AbstractPeepholeOptimization for StatementFusion {
         "com.google.javascript.jscomp.StatementFusion"
     }
 
+    // Rust-only (performance divergence): audited for `PeepholeFixpoint`. A BLOCK reads its
+    // children and whether its parent is a FUNCTION (never true for a statement).
+    fn fixpoint_context_tokens(&self) -> Option<&'static [Token]> {
+        Some(&[])
+    }
+
     // Rust-only (performance divergence): StatementFusion only acts on BLOCK nodes.
     fn candidate_tokens(&self) -> Option<&'static [Token]> {
         Some(&[Token::BLOCK])

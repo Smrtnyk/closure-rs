@@ -1930,3 +1930,29 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   as redeclarations, and the vars nobody took are dropped. A Closure namespace anywhere leaves the
   scope to a new scan. `CLOSURE_RS_GLOBAL_SCOPE_MERGE=off` restores the removal-only update and
   new scans; `CLOSURE_RS_SCOPE_CACHE=verify` checks every updated scope against a new scan.
+- `jscomp/peephole_optimizations_pass.rs` (`PeepholeFixpoint`, `FixpointRun`), the
+  `fixpoint_context_tokens` / `script_features_read` audits of every peephole optimization,
+  `rhino/node.rs` (`Ast::track_data_changes`), `syntactic_scope_cache.rs` (`change_clock`,
+  `unchanged_since`): a traversal of a peephole pass records each statement (a child of a BLOCK,
+  SCRIPT or MODULE_BODY) whose visit, of the statement and of every node below it, changed nothing
+  (no change report, no error, no feature), and a later traversal with the same optimizations
+  skips it while nothing in it changed (Java visits every node of every changed function in each
+  round of the pass's loop and in each run). The audits say which tokens' visits may read beyond
+  their statement (RETURN and THROW: the node after them in control flow; LABEL and SWITCH:
+  MinimizeExitPoints asks whether they lie in a loop; LET and CONST: OptimizeLetAndConstPeephole
+  asks about the block around them); a statement with such a node or a nested function (another
+  change scope, which subtree comparisons, cost estimates and CollectPropertyAssignments read)
+  below it is not recorded, one that is such a node itself is skipped below and visited itself.
+  `Ast::track_data_changes` makes every in-place change of node data a visit reads (properties,
+  colors, numbers) a flag change, so the statement's stamps cover it; the options, the life cycle
+  stage, the accessor summary (when getters are not assumed pure), `has_reg_exp_global_references`
+  and the stamp resets key each traversal, and the script features CollectPropertyAssignments
+  reads key each record. A record made on the normalized AST also holds for the same pass on the
+  denormalized one (each optimization only does less there) unless its visit took the one path
+  ReplaceKnownMethods takes only when normalized (`peephole_normalized_reads`).
+  `peephole_remove_dead_code.rs` (`StatementSideEffects`): the side-effect answer for each
+  statement of a block in `try_optimize_block` is kept in the same way.
+  `CLOSURE_RS_PEEPHOLE_FIXPOINT=off` keeps nothing; `=verify` traverses every skipped statement as
+  well and panics if that changes anything (for one visited itself: if anything below it does),
+  and computes every kept side-effect answer again; `CLOSURE_RS_PEEPHOLE_FIXPOINT_STATS=1` prints
+  the statements checked, skipped and recorded per traversal.

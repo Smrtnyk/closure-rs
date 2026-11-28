@@ -712,6 +712,14 @@ impl AbstractPeepholeOptimization for PeepholeSubstituteAlternateSyntax {
         "com.google.javascript.jscomp.PeepholeSubstituteAlternateSyntax"
     }
 
+    // Rust-only (performance divergence): audited for `PeepholeFixpoint`. NAME asks
+    // `NodeUtil::is_l_value` (ancestors up to a destructuring root, inside the statement), an
+    // EXPR_RESULT whether its parent is a LABEL, TRUE / FALSE and TEMPLATELIT the token of their
+    // parent; every other token reads its subtree and its parent only to report a change.
+    fn fixpoint_context_tokens(&self) -> Option<&'static [Token]> {
+        Some(&[])
+    }
+
     // Rust-only (performance divergence): exclude late-only tokens when `self.late` is false,
     // and pre-filter high-frequency `NAME` / `GETPROP` nodes inline before virtual dispatch.
     fn candidate_tokens(&self) -> Option<&'static [Token]> {
