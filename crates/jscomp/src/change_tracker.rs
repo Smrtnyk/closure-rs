@@ -142,7 +142,11 @@ impl ChangeTracker {
 
     // port: ChangeTracker#incrementChangeStamp
     pub fn increment_change_stamp(&mut self) {
-        self.change_stamp.fetch_add(1, Ordering::Relaxed);
+        // Rust-only (performance divergence): only this tracker writes the stamp (the handlers
+        // that share it read it), so a plain load and store replace a locked read-modify-write.
+        let stamp = self.change_stamp.load(Ordering::Relaxed);
+        self.change_stamp
+            .store(stamp.wrapping_add(1), Ordering::Relaxed);
     }
 
     // port: ChangeTracker#resetChangeStamp

@@ -1712,8 +1712,7 @@ impl JSType for TypeId {
     }
     // port: JSType#getTypeParameters
     fn get_type_parameters(self, reg: &JSTypeRegistry) -> Vec<TypeId> {
-        let map = self.get_template_type_map(reg);
-        let keys = map.get_template_keys();
+        let keys = template_type_map_ref(self, reg).get_template_keys();
         keys[keys.len() - self.get_template_param_count(reg)..].to_vec()
     }
     // port: JSType#getTemplateParamCount

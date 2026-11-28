@@ -4228,6 +4228,21 @@ impl NodeUtil {
         source_name
     }
 
+    // port: NodeUtil#getSourceFile
+    /// Rust-only: `get_source_file` by reference (no reference-count traffic).
+    pub fn get_source_file_ref(
+        ast: &Ast,
+        mut n: Option<NodeId>,
+    ) -> Option<&Arc<dyn StaticSourceFile>> {
+        let mut source_name = None;
+        while source_name.is_none() && n.is_some() {
+            let node = n.unwrap();
+            source_name = node.get_static_source_file_ref(ast);
+            n = node.get_parent(ast);
+        }
+        source_name
+    }
+
     // port: NodeUtil#getInputId
     #[allow(clippy::collapsible_if)] // Retain Java control flow.
     pub fn get_input_id(ast: &Ast, n: NodeId) -> Option<Arc<InputId>> {

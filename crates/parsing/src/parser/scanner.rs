@@ -889,10 +889,20 @@ impl Scanner {
         {
             return Token::new(k.type_(), self.get_token_range(begin_token));
         }
-        let mut value = self
-            .source
-            .contents
-            .substring(value_start_index as usize, self.index as usize);
+        let mut value = if contains_unicode_escape {
+            self.source
+                .contents
+                .substring(value_start_index as usize, self.index as usize)
+        } else {
+            // Rust-only (performance divergence): Java takes a substring here and the IR factory
+            // interns it when it makes the node. A spelling without escapes is the identifier's
+            // value, so it is interned here instead: the pool returns the entry the IR factory's
+            // `addOrGet` would, the token shares it without reference counting, and no temporary
+            // string is made and freed per identifier.
+            closure_rhino::rhino_string_pool::RhinoStringPool::add_or_get_slice(
+                &self.source.contents.as_units()[value_start_index as usize..self.index as usize],
+            )
+        };
         if is_private_identifier && value == "#" {
             let position = self.get_position_at(begin_token);
             self.report_error_at(position, "Invalid usage of #", &[]);
