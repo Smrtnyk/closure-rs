@@ -331,6 +331,16 @@ impl SourceMap {
         let name = self.fixup_source_location(name);
         self.generator.add_sources_content(name, code.cloned());
     }
+    /// Rust-only (performance divergence): `add_source_file` with the code `read` gives, read
+    /// when a map that names the file is written (`add_sources_content_read_later`).
+    pub fn add_source_file_read_later(
+        &mut self,
+        name: &JsString,
+        read: closure_sourcemap::source_map_generator::SourceContentReader,
+    ) {
+        let name = self.fixup_source_location(name);
+        self.generator.add_sources_content_read_later(name, read);
+    }
     // port: SourceMap#getOriginalName
     fn get_original_name(ast: &Ast, node: NodeId) -> Option<JsString> {
         if let Some(original_name) = node.get_original_name(ast) {

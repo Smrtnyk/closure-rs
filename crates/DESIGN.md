@@ -1181,8 +1181,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   units per step (`h·31^16` plus a dot product with constant powers, which vectorizes; the same
   sum mod 2^32), so hashing large texts (input source maps, their `sourcesContent`) costs less.
 - `jscomp/source_file/line_count.rs` `line_offsets`, `source_file.rs` `find_line_offsets`: the line
-  offsets skip blocks of sixteen units without a line terminator (a test that vectorizes), and a
-  pending line count of the same text is taken from them (the two agree, as Java checks).
+  terminators of each block of sixteen units are found at once (a byte per unit, a test that
+  vectorizes) and only the units found are looked at, and a pending line count of the same text
+  is taken from the offsets (the two agree, as Java checks).
 - `sourcemap/source_map_consumer_v3.rs`, `jscomp/source_map.rs`, `compiler_source_excerpt_provider.rs`:
   the file names and symbol names of a parsed input source map, the resolved original file names
   (`getSourceMapping`'s relative path), the generated file names of `SourceMap#addMapping` and the
@@ -1542,9 +1543,11 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   precomputing path and the pruned traversal. `CLOSURE_RS_PARALLEL_ANALYSIS=off` restores the
   serial paths of Java's shape; `=verify` takes the parallel paths' verified code with one thread.
 - `rhino/js_string.rs` (`PartialEq<str> for JsString`, `JsStrLike::equals_units` for `str`): a JS
-  string is compared with a `str` as `equals_units` does: an ASCII `str` of another length, or
-  whose ASCII first byte is not the first code unit, differs at once, without encoding it to
-  UTF-16 (names are compared with `"undefined"`, `"arguments"`, ... everywhere).
+  string is compared with a `str` as `equals_units` does, inlined where it is called (nearly always
+  with a literal, whose length and ASCII-ness are then known there): a string of as many units as
+  the `str` has bytes is equal when every byte is ASCII and equal to its unit; a string with fewer
+  units can only equal a non-ASCII `str`, which is encoded to UTF-16; never encoding an ASCII `str`
+  (names are compared with `"undefined"`, `"arguments"`, ... everywhere).
 - `jscomp/abstract_peephole_optimization.rs` (`has_new_features`, `may_add_features`),
   `peephole_optimizations_pass.rs`: after an `optimizeSubtree` call the pass asks whether the
   optimization added features without copying them into a list, and not for the optimizations
@@ -2021,3 +2024,29 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   (`JsString::from_latin1`, `charset.rs`), `JsString::concat` fills an array of the exact size, and
   built code is copied once (`CodeBuilder::to_js_string`, `MappedCodePrinter::get_code`,
   `StringBuilder::to_js_string`); `FunctionBodySites` collects sites in a kept thread-local buffer.
+- `rhino/js_string.rs` (`JsString`, `LONG`, `long_hash_code`): a string of 512 code units or more
+  (a file's text, a source map and its strings, printed code) carries a key made from its length
+  and sixteen units instead of its `hashCode()`; the key is a function of the code units, so equal
+  strings still have equal keys, which is all equality and hashing use. `hashCode` of such a
+  string is computed when first asked and kept by contents in one locked table (Java caches it in
+  the string when first asked); short strings are unchanged.
+- `sourcemap/source_map_generator_v3.rs` (`add_sources_content_read_later`, `SourceContent`),
+  `jscomp/compiler.rs` (`add_files_to_source_map`): with `--source_map_include_content` an input's
+  code is read (`getCode`, the same code Java reads when the map is reset) when a map that names
+  the input is written, instead of for every input at every reset: an input whose nodes all map
+  through its input source map is not decoded again, nor kept. A file that cannot be read any more
+  by then fails when its map is written instead of at the reset.
+- `jscomp/source_map_input.rs` (`decode_raw`, `adopt_decoded_from`), `jscomp/source_file.rs`
+  (`has_code_of_by_bytes`): an input source map's text is read without keeping it in its source
+  file (Java keeps it until the end) and dropped once parsed; a map that replaces another of the
+  same input is compared with it by the files' bytes when both are files on disk in the same
+  charset (equal bytes decode to equal text), else by the texts, read again without keeping them.
+  Only an inline map's text is asked for again (`getBase64SourceMapContents`), and it is in memory.
+- `rhino/java_lang/charset.rs` (`ascii_string`, used by `utf8_encoded_text` and
+  `JsString::to_string_lossy`): a string of ASCII units becomes a Rust string by narrowing every
+  unit to its byte in a string of the exact size (tests and copy that vectorize); other strings
+  are decoded char by char as before (the result is the same for ASCII).
+- `rhino/java_lang.rs` (`character_flags`, `ASCII_FLAGS`): the `Character` properties of an ASCII
+  character (`isWhitespace`, `isJavaIdentifierPart`, ... ; identifier checks, excerpt padding) are
+  read from a table built from the ranges at compile time instead of a binary search of the
+  ranges; a test compares the table with the search.

@@ -18,6 +18,9 @@
 
 use crate::{file_position::FilePosition, source_map_section::SourceMapSection};
 use closure_rhino::js_string::JsString;
+/// Rust-only (performance divergence): what gives a source's content when a map that names the
+/// source is written (`SourceMapGenerator::add_sources_content_read_later`).
+pub type SourceContentReader = std::sync::Arc<dyn Fn() -> JsString + Send + Sync>;
 pub trait SourceMapGenerator {
     // port: SourceMapGenerator#appendTo
     fn append_to(
@@ -53,6 +56,12 @@ pub trait SourceMapGenerator {
     );
     // port: SourceMapGenerator#addSourcesContent
     fn add_sources_content(&mut self, source: JsString, content: Option<JsString>);
+    /// Rust-only, not in Java (performance divergence): `add_sources_content` with a content
+    /// that `read` gives when the map is written, and only if the map names the source. The
+    /// default reads it now.
+    fn add_sources_content_read_later(&mut self, source: JsString, read: SourceContentReader) {
+        self.add_sources_content(source, Some(read()));
+    }
     // port: SourceMapGenerator#validate
     fn validate(&mut self, validate: bool);
     // port: SourceMapGenerator#setWrapperPrefix

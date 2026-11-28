@@ -66,7 +66,9 @@ impl SourceMapInput {
         }
     }
     fn decode_raw(&self) -> Result<Option<Arc<SourceMapConsumerV3>>, DecodeError> {
-        match self.source_file.get_code() {
+        // Rust-only (performance divergence): Java keeps the text in the source file
+        // (`getCode`); it is read without keeping it (the same text), and dropped once parsed.
+        match self.source_file.load_code_uncached() {
             Ok(source_map_contents) => {
                 let mut consumer = SourceMapConsumerV3::new();
                 match consumer.parse(source_map_contents) {
@@ -196,13 +198,18 @@ impl SourceMapInput {
             }
             state.parsed_source_map.clone()
         };
-        let (Ok(text), Ok(earlier_text)) =
-            (self.source_file.get_code(), earlier.source_file.get_code())
-        else {
-            return;
-        };
-        if text != earlier_text {
-            return;
+        // The texts are read without keeping them (see `decode_raw`), and compared as bytes when
+        // both are files on disk.
+        if !self.source_file.has_code_of_by_bytes(&earlier.source_file) {
+            let (Ok(text), Ok(earlier_text)) = (
+                self.source_file.load_code_uncached(),
+                earlier.source_file.load_code_uncached(),
+            ) else {
+                return;
+            };
+            if text != earlier_text {
+                return;
+            }
         }
         let mut state = self.state.lock().unwrap();
         if state.decoded || state.in_progress {
@@ -303,5 +310,49 @@ mod tests {
         assert!(again.get_source_map(&mut errors).is_none());
         assert_eq!(errors.get_warning_count(), 2);
         assert_eq!(errors.get_error_count(), 0);
+    }
+
+    /// Maps on disk are compared by their bytes, or by their texts when the bytes differ (here a
+    /// byte order mark, which reading drops); neither text is kept in its source file.
+    #[test]
+    fn adopts_a_map_on_disk_by_bytes_or_text() {
+        let dir = std::env::temp_dir().join(format!("closure-rs-smi-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let on_disk = |name: &str, bytes: &[u8]| {
+            let path = dir.join(name);
+            std::fs::write(&path, bytes).unwrap();
+            SourceMapInput::new(Arc::new(SourceFile::from_file(path.to_str().unwrap())))
+        };
+        let mut errors = SortingErrorManager::new(Vec::new());
+        let earlier = on_disk("a.js.map", MAP.as_bytes());
+        earlier.predecode_into_cache();
+        let decoded = earlier.get_source_map(&mut errors).unwrap();
+        assert!(!earlier.source_file.has_source_in_memory());
+        let same = on_disk("same.js.map", MAP.as_bytes());
+        assert!(same.source_file.has_code_of_by_bytes(&earlier.source_file));
+        same.adopt_decoded_from(&earlier, false);
+        assert!(Arc::ptr_eq(
+            &same.get_cached_source_map().unwrap().unwrap(),
+            &decoded
+        ));
+        let marked = on_disk("bom.js.map", &[b"\xef\xbb\xbf", MAP.as_bytes()].concat());
+        assert!(
+            !marked
+                .source_file
+                .has_code_of_by_bytes(&earlier.source_file)
+        );
+        marked.adopt_decoded_from(&earlier, false);
+        assert!(Arc::ptr_eq(
+            &marked.get_cached_source_map().unwrap().unwrap(),
+            &decoded
+        ));
+        let other = on_disk("other.js.map", MAP.replace("AAAAA", "AACAA").as_bytes());
+        other.adopt_decoded_from(&earlier, false);
+        assert!(other.get_cached_source_map().is_none());
+        for input in [&same, &marked, &other] {
+            assert!(!input.source_file.has_source_in_memory());
+        }
+        assert_eq!(errors.get_warning_count() + errors.get_error_count(), 0);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

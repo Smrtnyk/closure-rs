@@ -20,10 +20,14 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-/// Rust-only layout (performance divergence): a string carries its `hashCode()` next to the
-/// reference to its code units, computed once when the string is made (Java's String caches it in
-/// the object). Hashing and `hashCode` read it without touching the code units, and strings with
-/// different hashes compare unequal without reading them.
+/// Rust-only layout (performance divergence): a string carries a key next to the reference to its
+/// code units, computed once when the string is made from the code units alone, so that equal
+/// strings have equal keys. Hashing reads it without touching the code units, and strings with
+/// different keys compare unequal without reading them. For a string of fewer than `LONG` units
+/// the key is its `hashCode()` (Java's String caches it in the object), which `hashCode` reads.
+/// For a longer string (a file's text, a source map, printed code: almost never hashed) the key is
+/// made from the length and a few units, and `hashCode` computes the Java hash when first asked
+/// (`long_hash_code`), as Java does for a string whose hash was not asked for yet.
 ///
 /// A string interned by `RhinoStringPool` is `Interned`: the pool keeps its code units for the
 /// rest of the process, so copies of it share them without reference counting, and two interned
@@ -52,21 +56,24 @@ fn empty() -> JsString {
     });
     EMPTY.clone()
 }
+/// Rust-only (performance divergence): the length from which a string's key is not its
+/// `hashCode()` (see `JsString`).
+const LONG: usize = 512;
 impl JsString {
     pub fn from_units(units: impl Into<Vec<u16>>) -> Self {
         let units: Vec<u16> = units.into();
-        Self(Repr::Shared(Self::java_hash(&units), units.into()))
+        Self(Repr::Shared(Self::key(&units), units.into()))
     }
     /// Rust-only: a string of the code units `units`.
     pub fn from_slice(units: &[u16]) -> Self {
-        Self(Repr::Shared(Self::java_hash(units), units.into()))
+        Self(Repr::Shared(Self::key(units), units.into()))
     }
     /// Rust-only (performance divergence): the string with one code unit per byte of `bytes`
     /// (ISO-8859-1, and ASCII text in any ASCII-compatible charset), made straight in an array of
     /// the exact size: one allocation and no copy of a buffer (`from_units` copies its vector).
     pub fn from_latin1(bytes: &[u8]) -> Self {
         let units: Arc<[u16]> = bytes.iter().map(|&b| u16::from(b)).collect();
-        Self(Repr::Shared(Self::java_hash(&units), units))
+        Self(Repr::Shared(Self::key(&units), units))
     }
     /// Rust-only (performance divergence): the string of `len` code units that `fill` writes,
     /// made in an array of the exact size (zeroed first: the array is not shared yet, so `fill`
@@ -74,7 +81,25 @@ impl JsString {
     fn filled(len: usize, fill: impl FnOnce(&mut [u16])) -> Self {
         let mut units: Arc<[u16]> = std::iter::repeat_n(0, len).collect();
         fill(Arc::get_mut(&mut units).expect("a new array has one owner"));
-        Self(Repr::Shared(Self::java_hash(&units), units))
+        Self(Repr::Shared(Self::key(&units), units))
+    }
+    /// Rust-only: the key of a string of the code units `units` (see `JsString`): their
+    /// `hashCode()` if there are fewer than `LONG`, else a mix of the length and sixteen units
+    /// (eight from the start, eight from the end; `long_key`).
+    #[inline]
+    fn key(units: &[u16]) -> u32 {
+        if units.len() < LONG {
+            Self::java_hash(units)
+        } else {
+            Self::long_key(units)
+        }
+    }
+    #[inline(never)]
+    fn long_key(units: &[u16]) -> u32 {
+        let (head, tail) = (&units[..8], &units[units.len() - 8..]);
+        head.iter().chain(tail).fold(units.len() as u32, |k, &u| {
+            k.wrapping_mul(31).wrapping_add(u32::from(u))
+        })
     }
     /// Rust-only: `String#hashCode` of `units`, `Σ units[i]·31^(n-1-i)` (mod 2^32).
     fn java_hash(units: &[u16]) -> u32 {
@@ -129,10 +154,7 @@ impl JsString {
     }
     /// A pool entry for code units read directly from a snapshot.
     pub(crate) fn interned_copy(units: &[u16]) -> Self {
-        Self(Repr::Interned(
-            Self::java_hash(units),
-            Box::leak(units.into()),
-        ))
+        Self(Repr::Interned(Self::key(units), Box::leak(units.into())))
     }
     fn hash_bits(&self) -> u32 {
         match &self.0 {
@@ -244,7 +266,11 @@ impl JsString {
         self.as_units().is_empty()
     }
     // port: String#hashCode
+    #[inline]
     pub fn hash_code(&self) -> i32 {
+        if self.length() >= LONG {
+            return long_hash_code(self);
+        }
         self.hash_bits() as i32
     }
     // port: String#compareTo
@@ -297,8 +323,31 @@ impl JsString {
     }
     /// Explicitly lossy UTF-8 convenience conversion; Java strings stay in `as_units()`.
     pub fn to_string_lossy(&self) -> String {
-        String::from_utf16_lossy(self.as_units())
+        let units = self.as_units();
+        crate::java_lang::charset::ascii_string(units)
+            .unwrap_or_else(|| String::from_utf16_lossy(units))
     }
+}
+/// Rust-only (performance divergence): `hashCode()` of a string of at least `LONG` units, computed
+/// when first asked for and then kept, by contents, for the rest of the process. The lock makes the
+/// computation happen once for each contents, whichever threads ask. Long strings are almost never
+/// asked for their hash (no time on the `chunks` benchmark), so a shared table is enough; the
+/// strings it keeps alive are the few that were asked.
+#[cold]
+#[inline(never)]
+fn long_hash_code(s: &JsString) -> i32 {
+    static HASHES: std::sync::LazyLock<
+        std::sync::Mutex<crate::fast_hash::IndexMap<JsString, i32>>,
+    > = std::sync::LazyLock::new(Default::default);
+    let mut hashes = HASHES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(&hash) = hashes.get(s) {
+        return hash;
+    }
+    let hash = JsString::java_hash(s.as_units()) as i32;
+    hashes.insert(s.clone(), hash);
+    hash
 }
 /// Rust-only (performance divergence): the first index of `needle` (non-empty) in `hay`, as
 /// `String#indexOf` finds it: scans for the first unit, then compares the rest (Java's loop does
@@ -339,29 +388,30 @@ pub trait JsStrLike {
         self.with_units(|s| s == units)
     }
 }
+/// Whether the code units of `s`, which is not ASCII, are `units`.
+#[inline(never)]
+fn non_ascii_equals_units(s: &str, units: &[u16]) -> bool {
+    units.iter().copied().eq(s.encode_utf16())
+}
 /// Rust-only fast path (performance divergence): an ASCII str has one code unit per byte, so it is
 /// compared with code units without converting it.
 fn ascii_units_eq(units: &[u16], s: &str) -> bool {
     units.len() == s.len() && units.iter().zip(s.bytes()).all(|(a, b)| *a == u16::from(b))
 }
 impl JsStrLike for str {
+    /// Rust-only (performance divergence): inlined, so that for a literal (nearly every caller)
+    /// its length and whether it is ASCII are known where it is compared.
+    #[inline]
     fn equals_units(&self, units: &[u16]) -> bool {
-        // A str of n bytes has at most n UTF-16 code units, an ASCII str exactly n.
-        if units.len() > self.len() {
-            return false;
+        // A str of n bytes has n UTF-16 code units if it is ASCII, fewer otherwise. With n units,
+        // it is equal only if every byte is ASCII and equal to its unit.
+        if units.len() == self.len() {
+            return units
+                .iter()
+                .zip(self.bytes())
+                .all(|(&unit, byte)| unit < 0x80 && unit == u16::from(byte));
         }
-        // Rust-only (performance divergence): an ASCII first byte is the first code unit, so a
-        // different first unit decides without looking at the rest of the str.
-        if let (Some(&first), Some(&unit)) = (self.as_bytes().first(), units.first())
-            && first.is_ascii()
-            && unit != u16::from(first)
-        {
-            return false;
-        }
-        if self.is_ascii() {
-            return ascii_units_eq(units, self);
-        }
-        units.iter().copied().eq(self.encode_utf16())
+        units.len() < self.len() && !self.is_ascii() && non_ascii_equals_units(self, units)
     }
     fn is_prefix_of(&self, units: &[u16]) -> bool {
         // Rust-only (performance divergence): an ASCII first byte is the first code unit, so a
@@ -444,7 +494,7 @@ impl From<&str> for JsString {
         // re-growth).
         if s.is_ascii() {
             let units: Arc<[u16]> = s.bytes().map(u16::from).collect();
-            return Self(Repr::Shared(Self::java_hash(&units), units));
+            return Self(Repr::Shared(Self::key(&units), units));
         }
         let mut units = Vec::with_capacity(s.len());
         units.extend(s.encode_utf16());
@@ -463,8 +513,8 @@ impl From<&JsString> for JsString {
 }
 impl PartialEq for JsString {
     fn eq(&self, s: &Self) -> bool {
-        // The cached hashes are compared first (equal strings have equal hashes); two interned
-        // strings are equal only if they are the same pool entry.
+        // The keys are compared first (equal strings have equal keys); two interned strings are
+        // equal only if they are the same pool entry.
         if self.hash_bits() != s.hash_bits() {
             return false;
         }
@@ -477,7 +527,7 @@ impl PartialEq for JsString {
 impl Eq for JsString {}
 impl Hash for JsString {
     fn hash<H: Hasher>(&self, h: &mut H) {
-        h.write_u32(self.hash_code() as u32);
+        h.write_u32(self.hash_bits());
     }
 }
 impl Ord for JsString {
@@ -494,6 +544,7 @@ impl PartialOrd for JsString {
     }
 }
 impl PartialEq<str> for JsString {
+    #[inline]
     fn eq(&self, s: &str) -> bool {
         // Rust-only fast path (performance divergence): an ASCII str has one code unit per byte,
         // so a string of another length differs without converting the str.
@@ -501,6 +552,7 @@ impl PartialEq<str> for JsString {
     }
 }
 impl PartialEq<&str> for JsString {
+    #[inline]
     fn eq(&self, s: &&str) -> bool {
         self == *s
     }
@@ -539,6 +591,50 @@ mod java_hash_tests {
                 .iter()
                 .fold(0i32, |h, &u| h.wrapping_mul(31).wrapping_add(i32::from(u)));
             assert_eq!(JsString::java_hash(&units), expected as u32, "{len}");
+            // `hashCode` gives it for strings of every length, also when asked again.
+            let s = JsString::from_slice(&units);
+            assert_eq!(s.hash_code(), expected, "{len}");
+            assert_eq!(s.clone().hash_code(), expected, "{len}");
+            assert_eq!(JsString::from_slice(&units).hash_code(), expected, "{len}");
+        }
+    }
+
+    /// Strings of `LONG` units and more: equal strings, however made, are equal, hash alike and
+    /// give Java's hash; strings that differ only between the units the key reads are unequal.
+    #[test]
+    fn long_strings_compare_and_hash_by_contents() {
+        use crate::rhino_string_pool::RhinoStringPool;
+        use std::hash::BuildHasher;
+        let hash_of = |s: &JsString| crate::fast_hash::FastBuildHasher::default().hash_one(s);
+        for len in [super::LONG - 1, super::LONG, super::LONG + 1, 5000] {
+            let text: String = (0..len)
+                .map(|i| char::from(b'a' + (i % 26) as u8))
+                .collect();
+            let units: Vec<u16> = text.encode_utf16().collect();
+            let made = [
+                JsString::from(text.as_str()),
+                JsString::from_units(units.clone()),
+                JsString::from_slice(&units),
+                JsString::from_latin1(text.as_bytes()),
+                JsString::from_slice(&units[..len / 2])
+                    .concat(&JsString::from_slice(&units[len / 2..])),
+                RhinoStringPool::add_or_get(JsString::from_slice(&units)),
+            ];
+            let expected = units
+                .iter()
+                .fold(0i32, |h, &u| h.wrapping_mul(31).wrapping_add(i32::from(u)));
+            for a in &made {
+                assert_eq!(a.hash_code(), expected, "{len}");
+                for b in &made {
+                    assert!(a == b, "{len}");
+                    assert_eq!(hash_of(a), hash_of(b), "{len}");
+                }
+            }
+            let mut other = units.clone();
+            other[len / 2] = u16::from(b'#');
+            let other = JsString::from_units(other);
+            assert!(made[0] != other, "{len}");
+            assert_eq!(made[0].cmp(&other), units[len / 2].cmp(&u16::from(b'#')));
         }
     }
 }
@@ -576,6 +672,10 @@ mod equals_units_tests {
                 assert_eq!(s.is_prefix_of(&units), expected, "{s:?} prefix of {t:?}");
             }
         }
+        // Units equal to the bytes of a str's UTF-8 encoding are not its code units.
+        assert!(!"é".equals_units(&[0xc3, 0xa9]));
+        assert!(!"aé".equals_units(&[0x61, 0xc3, 0xa9]));
+        assert!("aé".equals_units(&[0x61, 0xe9]));
         // A lone surrogate is never the encoding of a str.
         assert!(!"a".equals_units(&[0xd800]));
         assert!(!"ab".equals_units(&[u16::from(b'a'), 0xdc00]));

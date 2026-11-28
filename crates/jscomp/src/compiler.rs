@@ -1697,8 +1697,15 @@ impl Compiler {
         {
             let mut map = map.lock().unwrap();
             for file in files {
-                let source = file.get_code().unwrap_or_else(|error| panic!("{error}"));
-                map.add_source_file(&file.get_name().into(), Some(&source));
+                // Rust-only (performance divergence): Java reads every file's code here; it is
+                // read (as `getCode` reads it, the same code) when a map that names the file is
+                // written. A file no mapping names, such as an input whose nodes all map
+                // through its input source map, is not read again.
+                let file = file.clone();
+                map.add_source_file_read_later(
+                    &file.get_name().into(),
+                    Arc::new(move || file.get_code().unwrap_or_else(|error| panic!("{error}"))),
+                );
             }
         }
     }
