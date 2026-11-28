@@ -1107,7 +1107,7 @@ impl<'a> AbstractScopeBuilder<'a> {
         {
             self.input_id = NodeUtil::get_input_id(compiler, root);
             check_not_null!(self.input_id.as_ref());
-            self.has_source_name = NodeUtil::get_source_file(compiler, Some(root)).is_some();
+            self.has_source_name = NodeUtil::get_source_file_ref(compiler, Some(root)).is_some();
             self.handle_function_inputs(compiler);
             return;
         }
@@ -3045,7 +3045,7 @@ impl Callback for AbstractScopeBuilder<'_> {
             || (parent.is_none() && self.input_id.is_some())
         {
             check_not_null!(self.input_id.as_ref());
-            self.has_source_name = NodeUtil::get_source_file(compiler, Some(n)).is_some();
+            self.has_source_name = NodeUtil::get_source_file_ref(compiler, Some(n)).is_some();
         }
         if parent.is_none() || self.in_current_scope(t) {
             self.visit_preorder(t, n, parent);
@@ -3157,7 +3157,7 @@ impl Callback for AbstractScopeBuilder<'_> {
                 t.position_at_node(value);
                 if record & declarations::HAS_FUNCTION != 0 {
                     check_not_null!(self.input_id.as_ref());
-                    self.has_source_name = NodeUtil::get_source_file(t, Some(value)).is_some();
+                    self.has_source_name = NodeUtil::get_source_file_ref(t, Some(value)).is_some();
                     self.define_function_literal(t.get_compiler(), value);
                 } else {
                     self.attach_literal_types(t.get_compiler(), value);

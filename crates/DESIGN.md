@@ -2050,3 +2050,19 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   character (`isWhitespace`, `isJavaIdentifierPart`, ... ; identifier checks, excerpt padding) are
   read from a table built from the ranges at compile time instead of a binary search of the
   ranges; a test compares the table with the search.
+- Reference counts not taken (atomic increments and decrements of `Arc`s and of the change stamp;
+  no decision, so no switch). `parsing/parser/scanner.rs`: an identifier without escapes is
+  interned when it is scanned (`RhinoStringPool::add_or_get_slice`), so its token, the parser and
+  the IR factory share the pool entry the factory's `addOrGet` would return, without a temporary
+  string per identifier. `jscomp/change_tracker.rs` (`increment_change_stamp`): only the tracker
+  writes the stamp, so a load and a store replace the locked add. `rhino/hamt_pmap.rs`: children
+  are borrowed while two maps are reconciled or compared (`get_child`, `equivalent`), and a new
+  child array is collected in one allocation from the children it keeps (`insert_child`,
+  `replace_child`, `delete_child`) instead of copying all of them and then changing the copy.
+  `jscomp/linked_flow_scope.rs`: the overlay scope of a lookup or inference is borrowed from the
+  flow scope's map, and names are passed to scope lookups by reference (a root without a dot
+  included). Getters that only read: `NodeUtil::get_source_file_ref` (a scope builder checks
+  for a source file), `NodeId::srcref_if_missing` and `set_static_source_file_from` (the
+  property list is walked by reference), `template_type_map_ref` in `getTypeParameters` and a
+  prototype's construction check, `AmbiguateProperties::get_color`, a GlobalNamespace name's
+  base name, the chunk passed to `maybeHandlePrototypePrefix`.

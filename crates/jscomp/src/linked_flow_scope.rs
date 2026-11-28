@@ -33,7 +33,7 @@ use closure_jstype::{TypeId, prelude::JSType};
 use closure_rhino::{
     check_not_null, hamt_pmap::HamtPMap, js_string::JsString, jsdoc_info::JSDocInfo, node::NodeId,
 };
-use std::{any::Any, sync::Arc};
+use std::{any::Any, borrow::Cow, sync::Arc};
 
 #[derive(Debug)]
 pub struct LinkedFlowScope {
@@ -116,41 +116,41 @@ impl LinkedFlowScope {
     }
 
     // port: LinkedFlowScope#getRootOfQualifiedName
-    fn get_root_of_qualified_name(name: &JsString) -> JsString {
+    /// Rust-only: a name without a dot is its own root and is borrowed (no reference counting).
+    fn get_root_of_qualified_name(name: &JsString) -> Cow<'_, JsString> {
         let index = name.index_of_char(u16::from(b'.'));
         if index < 0 {
-            name.clone()
+            Cow::Borrowed(name)
         } else {
-            name.substring(0, index as usize)
+            Cow::Owned(name.substring(0, index as usize))
         }
     }
 
     // port: LinkedFlowScope#getOverlayScopeForName
-    /// Returns the overlay scope corresponding to this qualified name
-    fn get_overlay_scope_for_name(
-        &self,
-        compiler: &mut AbstractCompiler,
-        name: &JsString,
-        create: bool,
-    ) -> Option<OverlayScopeRef> {
+    /// The syntactic scope whose overlay scope `getOverlayScopeForName` returns (Rust-only split,
+    /// so that callers can borrow the overlay instead of cloning it).
+    fn get_scope_for_name(&self, compiler: &mut AbstractCompiler, name: &JsString) -> TypedScope {
         let root_var = self
             .syntactic_scope
-            .get_var(compiler, Self::get_root_of_qualified_name(name));
+            .get_var(compiler, &*Self::get_root_of_qualified_name(name));
         let scope = root_var.map(|root_var| root_var.get_scope(compiler));
-        let scope = scope.unwrap_or(self.function_scope);
-        self.get_overlay_scope_for_scope(scope, create)
+        scope.unwrap_or(self.function_scope)
     }
 
     // port: LinkedFlowScope#getOverlayScopeForScope
     /// Returns the overlay scope corresponding to this syntactic scope.
+    /// Rust-only: borrows the overlay scope when there is one; `create` makes a new one (owned)
+    /// otherwise.
     fn get_overlay_scope_for_scope(
         &self,
         scope: TypedScope,
         create: bool,
-    ) -> Option<OverlayScopeRef> {
-        let overlay = self.scopes.get(&scope).cloned();
+    ) -> Option<Cow<'_, OverlayScopeRef>> {
+        let overlay = self.scopes.get(&scope).map(Cow::Borrowed);
         if overlay.is_none() && create {
-            return Some(OverlayScopeRef(Arc::new(OverlayScope::new(scope))));
+            return Some(Cow::Owned(OverlayScopeRef(Arc::new(OverlayScope::new(
+                scope,
+            )))));
         }
         overlay
     }
@@ -158,16 +158,19 @@ impl LinkedFlowScope {
     /// The rest of `inferSlotType` once the overlay scope of `symbol` is known.
     fn infer_slot_type_in(
         self: Arc<Self>,
-        scope: OverlayScopeRef,
+        scope: TypedScope,
         symbol: &JsString,
         type_: Option<TypeId>,
     ) -> Arc<dyn FlowScope> {
-        let new_scope = scope.infer(symbol, type_);
+        let (scope, new_scope) = {
+            let overlay = check_not_null!(self.get_overlay_scope_for_scope(scope, true));
+            (overlay.0.scope, overlay.infer(symbol, type_))
+        };
         // Aggressively remove empty scopes to maintain a reasonable equivalence.
         let new_scopes = if !new_scope.0.slots.is_empty() {
-            self.scopes.plus(scope.0.scope, new_scope)
+            self.scopes.plus(scope, new_scope)
         } else {
-            self.scopes.minus(&scope.0.scope)
+            self.scopes.minus(&scope)
         };
         if !new_scopes.ptr_eq(&self.scopes) {
             let has_qualified =
@@ -313,8 +316,8 @@ impl LinkedFlowScope {
                             };
                             if slot_b.is_none_or(|slot_b| slot_b.0.type_.is_none()) {
                                 let slot_a = check_not_null!(slot_a);
-                                let fn_slot = typed_scope_b
-                                    .and_then(|scope| scope.get_slot(compiler, name.clone()));
+                                let fn_slot =
+                                    typed_scope_b.and_then(|scope| scope.get_slot(compiler, &name));
                                 let fn_slot_type =
                                     fn_slot.and_then(|fn_slot| fn_slot.get_type(compiler));
                                 if fn_slot_type.is_none() || fn_slot_type == slot_a.0.type_ {
@@ -333,8 +336,8 @@ impl LinkedFlowScope {
                                 }
                             } else if slot_a.is_none_or(|slot_a| slot_a.0.type_.is_none()) {
                                 let slot_b = check_not_null!(slot_b);
-                                let fn_slot = typed_scope_a
-                                    .and_then(|scope| scope.get_slot(compiler, name.clone()));
+                                let fn_slot =
+                                    typed_scope_a.and_then(|scope| scope.get_slot(compiler, &name));
                                 let fn_slot_type =
                                     fn_slot.and_then(|fn_slot| fn_slot.get_type(compiler));
                                 if fn_slot_type.is_none() || fn_slot_type == slot_b.0.type_ {
@@ -385,7 +388,7 @@ impl FlowScope for LinkedFlowScope {
         symbol: &JsString,
         type_: Option<TypeId>,
     ) -> Arc<dyn FlowScope> {
-        let scope = check_not_null!(self.get_overlay_scope_for_name(compiler, symbol, true));
+        let scope = self.get_scope_for_name(compiler, symbol);
         self.infer_slot_type_in(scope, symbol, type_)
     }
 
@@ -401,7 +404,6 @@ impl FlowScope for LinkedFlowScope {
         // (simple) name up in.
         debug_assert!(!symbol.as_units().contains(&u16::from(b'.')));
         let scope = declared.map_or(self.function_scope, |var| var.get_scope(compiler));
-        let scope = check_not_null!(self.get_overlay_scope_for_scope(scope, true));
         self.infer_slot_type_in(scope, symbol, type_)
     }
     // port: LinkedFlowScope#inferQualifiedSlot
@@ -421,7 +423,7 @@ impl FlowScope for LinkedFlowScope {
             // undeclared qualified names in the global scope) with no real benefit.
             return self;
         }
-        let mut v = self.syntactic_scope.get_var(compiler, symbol.clone());
+        let mut v = self.syntactic_scope.get_var(compiler, symbol);
         if v.is_none() && !self.function_scope.is_bottom(compiler) {
             // NOTE(sdh): Qualified names are declared on scopes lazily via this method.
             // The difficulty is that it's not always clear which scope they need to be
@@ -434,7 +436,7 @@ impl FlowScope for LinkedFlowScope {
             // undeclared.
             let root_var = self
                 .syntactic_scope
-                .get_var(compiler, Self::get_root_of_qualified_name(symbol));
+                .get_var(compiler, &*Self::get_root_of_qualified_name(symbol));
             let root_scope = match root_var {
                 Some(root_var) => root_var.get_scope(compiler),
                 None => self.syntactic_scope.get_global_scope(compiler),
@@ -524,8 +526,9 @@ impl FlowScope for LinkedFlowScope {
             };
             (slot, Some(var))
         } else {
+            let scope = self.get_scope_for_name(compiler, name);
             let slot = self
-                .get_overlay_scope_for_name(compiler, name, false)
+                .get_overlay_scope_for_scope(scope, false)
                 .and_then(|scope| scope.get_slot(compiler, name));
             (slot, None)
         }
@@ -713,11 +716,7 @@ impl OverlayScopeRef {
     fn get_slot(&self, compiler: &mut AbstractCompiler, name: &JsString) -> Option<FlowSlot> {
         match self.0.slots.get(name) {
             Some(slot) => Some(FlowSlot::Overlay(slot.0.clone())),
-            None => self
-                .0
-                .scope
-                .get_slot(compiler, name.clone())
-                .map(FlowSlot::Var),
+            None => self.0.scope.get_slot(compiler, name).map(FlowSlot::Var),
         }
     }
 }

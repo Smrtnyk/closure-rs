@@ -533,7 +533,7 @@ impl Callback for ProcessPropertiesAndConstructors<'_> {
                 if NodeUtil::is_name_declaration(t, parent) || parent.unwrap().is_function(t) =>
             {
                 let color = AmbiguateProperties::get_color(t, n);
-                self.outer.create_node(&color);
+                self.outer.create_node(color);
             }
             Token::OBJECTLIT | Token::OBJECT_PATTERN => {
                 self.process_object_lit_or_pattern(t, n);
@@ -555,11 +555,11 @@ impl ProcessPropertiesAndConstructors<'_> {
     // port: AmbiguateProperties.ProcessPropertiesAndConstructors#processGetProp
     fn process_get_prop(&mut self, ast: &Ast, get_prop: NodeId) {
         let r#type = AmbiguateProperties::get_color(ast, get_prop.get_first_child(ast).unwrap());
-        self.maybe_mark_candidate(ast, get_prop, &r#type);
+        self.maybe_mark_candidate(ast, get_prop, r#type);
         if NodeUtil::is_lhs_of_assign(ast, get_prop)
             || NodeUtil::is_statement(ast, get_prop.get_parent(ast).unwrap())
         {
-            self.outer.create_node(&r#type);
+            self.outer.create_node(r#type);
         }
     }
 
@@ -596,7 +596,7 @@ impl ProcessPropertiesAndConstructors<'_> {
 
             let mut key = object_literal.get_first_child(t);
             while let Some(k) = key {
-                self.process_object_property(t, object_literal, k, &r#type);
+                self.process_object_property(t, object_literal, k, r#type);
                 key = k.get_next(t);
             }
         }
@@ -666,7 +666,7 @@ impl ProcessPropertiesAndConstructors<'_> {
         let r#type = AmbiguateProperties::get_color(ast, object_lit);
         let mut key = object_lit.get_first_child(ast);
         while let Some(k) = key {
-            self.process_object_property(ast, object_lit, k, &r#type);
+            self.process_object_property(ast, object_lit, k, r#type);
             key = k.get_next(ast);
         }
     }
@@ -685,7 +685,7 @@ impl ProcessPropertiesAndConstructors<'_> {
     // port: AmbiguateProperties.ProcessPropertiesAndConstructors#processClass
     fn process_class(&mut self, ast: &Ast, class_node: NodeId) {
         let class_constructor_type = AmbiguateProperties::get_color(ast, class_node);
-        self.outer.create_node(&class_constructor_type);
+        self.outer.create_node(class_constructor_type);
         // In theory all CLASS colors should be a function with a known prototype, but in
         // practice typecasts mean that this is not always the case.
 
@@ -782,12 +782,13 @@ impl AmbiguateProperties {
 
     /// This method gets the Color from the Node argument or UNKNOWN if not present.
     // port: AmbiguateProperties#getColor
-    fn get_color(ast: &Ast, n: NodeId) -> Color {
-        let r#type = n.get_color(ast);
+    /// Rust-only: borrows the color (no reference counting; every caller only reads it).
+    fn get_color(ast: &Ast, n: NodeId) -> &Color {
+        let r#type = n.get_color_ref(ast);
         match r#type {
             // TODO(bradfordcsmith): This branch indicates a compiler bug. It should throw an
             // exception.
-            None => standard_colors::UNKNOWN.clone(),
+            None => &standard_colors::UNKNOWN,
             Some(r#type) => r#type,
         }
     }

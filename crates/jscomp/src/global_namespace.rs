@@ -1324,7 +1324,7 @@ impl<'g> BuildGlobalNamespace<'g> {
         r#type: NameProp,
         metadata: Option<&Arc<ModuleMetadata>>,
     ) {
-        if self.maybe_handle_prototype_prefix(compiler, chunk.clone(), scope, n, name, metadata) {
+        if self.maybe_handle_prototype_prefix(compiler, chunk.as_ref(), scope, n, name, metadata) {
             return;
         }
 
@@ -1413,7 +1413,7 @@ impl<'g> BuildGlobalNamespace<'g> {
         name: &JsString,
         metadata: Option<&Arc<ModuleMetadata>>,
     ) {
-        if self.maybe_handle_prototype_prefix(compiler, chunk.clone(), scope, n, name, metadata) {
+        if self.maybe_handle_prototype_prefix(compiler, chunk.as_ref(), scope, n, name, metadata) {
             return;
         }
 
@@ -1448,7 +1448,7 @@ impl<'g> BuildGlobalNamespace<'g> {
         name: &JsString,
         metadata: Option<&Arc<ModuleMetadata>>,
     ) {
-        if self.maybe_handle_prototype_prefix(compiler, chunk.clone(), scope, n, name, metadata) {
+        if self.maybe_handle_prototype_prefix(compiler, chunk.as_ref(), scope, n, name, metadata) {
             return;
         }
         let r#type = self.determine_ref_type_for_get(compiler, n, n, name);
@@ -1675,12 +1675,13 @@ impl<'g> BuildGlobalNamespace<'g> {
     fn maybe_handle_prototype_prefix(
         &mut self,
         compiler: &AbstractCompiler,
-        chunk: Option<JSChunk>,
+        chunk: Option<&JSChunk>,
         scope: Option<ScopeId>,
         n: NodeId,
         name: &JsString,
         metadata: Option<&Arc<ModuleMetadata>>,
     ) -> bool {
+        // Rust-only: the chunk is borrowed and cloned only for a reference that keeps it.
         // We use a string-based approach instead of inspecting the parse tree
         // to avoid complexities with object literals, possibly nested, beneath
         // assignments.
@@ -1716,7 +1717,14 @@ impl<'g> BuildGlobalNamespace<'g> {
         }
 
         let name_obj = self.get_or_create_name(&prefix, metadata);
-        self.add_or_confirm_ref(compiler, name_obj, n, RefType::PROTOTYPE_GET, scope, chunk);
+        self.add_or_confirm_ref(
+            compiler,
+            name_obj,
+            n,
+            RefType::PROTOTYPE_GET,
+            scope,
+            chunk.cloned(),
+        );
         true
     }
 
@@ -2858,7 +2866,8 @@ impl Name {
     // port: GlobalNamespace.Name#isToStringValueOfInObjectLiteral
     pub fn is_to_string_value_of_in_object_literal(self, gn: &GlobalNamespace) -> bool {
         let parent = self.get_parent(gn);
-        let base_name = self.get_base_name(gn);
+        // Rust-only: the base name is borrowed (no reference counting).
+        let base_name = &gn.name_data(self).base_name;
         parent.is_some_and(|parent| parent.is_object_literal(gn))
             && (base_name == "toString" || base_name == "valueOf")
     }

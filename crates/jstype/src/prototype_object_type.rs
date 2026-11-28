@@ -172,7 +172,10 @@ pub(crate) fn initialize_after_allocation(t: TypeId, reg: &mut JSTypeRegistry) {
     check_state!(
         !reg.prototype_data(t).anonymous_type || reg.prototype_data(t).class_name.is_none()
     );
-    check_state!(t.get_template_type_map(reg).size() >= reg.prototype_data(t).template_param_count);
+    check_state!(
+        crate::js_type::template_type_map_ref(t, reg).size()
+            >= reg.prototype_data(t).template_param_count
+    );
 }
 
 pub trait PrototypeObjectType {

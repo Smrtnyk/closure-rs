@@ -146,7 +146,7 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtPMap<K, V> {
     }
     // port: HamtPMap#equivalent
     pub fn equivalent(&self, that: &Self, mut equivalence: impl FnMut(&V, &V) -> bool) -> bool {
-        HamtNode::equivalent(self.root.clone(), that.root.clone(), &mut equivalence)
+        HamtNode::equivalent(self.root.as_ref(), that.root.as_ref(), &mut equivalence)
     }
 }
 impl<K: Clone + PartialEq + JavaHashCode + Display, V: Clone + PartialEq + Display> HamtPMap<K, V> {
@@ -199,6 +199,13 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> PMap<K, V> for H
     }
 }
 fn same_tree<K, V>(a: &Tree<K, V>, b: &Tree<K, V>) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+        _ => false,
+    }
+}
+fn same_tree_ref<K, V>(a: Option<&Arc<HamtNode<K, V>>>, b: Option<&Arc<HamtNode<K, V>>>) -> bool {
     match (a, b) {
         (None, None) => true,
         (Some(a), Some(b)) => Arc::ptr_eq(a, b),
@@ -386,8 +393,7 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
                     .map(|c| {
                         Self::reconcile::<KEEP_UNMATCHED>(None, Some(c.clone()), joiner).unwrap()
                     })
-                    .collect::<Vec<_>>()
-                    .into();
+                    .collect::<Children<K, V>>();
                 return match value {
                     Some(value) => Some(Self::new(
                         t2.key.clone(),
@@ -407,8 +413,7 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
                     .map(|c| {
                         Self::reconcile::<KEEP_UNMATCHED>(Some(c.clone()), None, joiner).unwrap()
                     })
-                    .collect::<Vec<_>>()
-                    .into();
+                    .collect::<Children<K, V>>();
                 return match value {
                     Some(value) => Some(Self::new(
                         t1.key.clone(),
@@ -466,9 +471,9 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
             mask &= !child_bit;
             let child1 = t1.get_child(child_bit);
             let child2 = t2.get_child(child_bit);
-            let child = Self::reconcile::<KEEP_UNMATCHED>(child1.clone(), child2.clone(), joiner);
-            same_children_as1 &= same_tree(&child, &child1);
-            same_children_as2 &= same_tree(&child, &child2);
+            let child = Self::reconcile::<KEEP_UNMATCHED>(child1.cloned(), child2.cloned(), joiner);
+            same_children_as1 &= same_tree_ref(child.as_ref(), child1);
+            same_children_as2 &= same_tree_ref(child.as_ref(), child2);
             if let Some(child) = child {
                 new_children.push(child);
             } else {
@@ -492,21 +497,24 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         }
     }
     // port: HamtPMap#equivalent(HamtPMap, HamtPMap, BiPredicate)
+    // Rust-only: the trees are borrowed (Java passes references; no reference counting).
     fn equivalent(
-        t1: Tree<K, V>,
-        t2: Tree<K, V>,
+        t1: Option<&Arc<Self>>,
+        t2: Option<&Arc<Self>>,
         equivalence: &mut impl FnMut(&V, &V) -> bool,
     ) -> bool {
-        if same_tree(&t1, &t2) {
+        if same_tree_ref(t1, t2) {
             return true;
         }
         let (Some(t1), Some(mut t2)) = (t1, t2) else {
             return false;
         };
+        let pivoted;
         if t1.hash != t2.hash {
             return false;
         } else if t1.key != t2.key {
-            t2 = t2.pivot(t1.key.as_ref().unwrap(), t1.hash);
+            pivoted = t2.pivot(t1.key.as_ref().unwrap(), t1.hash);
+            t2 = &pivoted;
             if t2.value.is_none() {
                 return false;
             }
@@ -533,9 +541,10 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         (self.mask & (bit - 1)).count_ones() as usize
     }
     // port: HamtPMap#getChild
-    fn get_child(&self, bit: u32) -> Tree<K, V> {
+    // Rust-only: borrows the child (callers clone it where they keep it).
+    fn get_child(&self, bit: u32) -> Option<&Arc<Self>> {
         if self.mask & bit != 0 {
-            Some(self.children[self.index(bit)].clone())
+            Some(&self.children[self.index(bit)])
         } else {
             None
         }
@@ -697,15 +706,21 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         }
     }
 }
+// Rust-only (performance divergence) in the three functions below: the new array is collected
+// in one allocation from the children it keeps, instead of copying all children into a list
+// (a reference count for each) and then changing the list; the result is the same array.
 // port: HamtPMap#insertChild
 fn insert_child<K, V>(
     children: &Children<K, V>,
     index: usize,
     child: Arc<HamtNode<K, V>>,
 ) -> Children<K, V> {
-    let mut new_children = children.to_vec();
-    new_children.insert(index, child);
-    new_children.into()
+    children[..index]
+        .iter()
+        .cloned()
+        .chain(std::iter::once(child))
+        .chain(children[index..].iter().cloned())
+        .collect()
 }
 // port: HamtPMap#replaceChild
 fn replace_child<K, V>(
@@ -713,18 +728,23 @@ fn replace_child<K, V>(
     index: usize,
     child: Arc<HamtNode<K, V>>,
 ) -> Children<K, V> {
-    let mut new_children = children.to_vec();
-    new_children[index] = child;
-    new_children.into()
+    children[..index]
+        .iter()
+        .cloned()
+        .chain(std::iter::once(child))
+        .chain(children[index + 1..].iter().cloned())
+        .collect()
 }
 // port: HamtPMap#deleteChild
 fn delete_child<K, V>(children: &Children<K, V>, index: usize) -> Children<K, V> {
     if children.len() == 1 {
         return empty_children();
     }
-    let mut new_children = children.to_vec();
-    new_children.remove(index);
-    new_children.into()
+    children[..index]
+        .iter()
+        .chain(&children[index + 1..])
+        .cloned()
+        .collect()
 }
 struct Iter<'a, K, V> {
     queue: VecDeque<&'a HamtNode<K, V>>,

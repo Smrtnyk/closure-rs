@@ -3712,11 +3712,13 @@ impl NodeId {
                 .as_ref()
                 .is_none_or(|p| p.prop_type == Prop::SOURCE_FILE as u8 && p.next.is_none())
         {
-            let mut tail = ast[other].prop_list_head.clone().unwrap();
+            // Rust-only: the list is walked by reference; only its tail is cloned.
+            let mut tail = ast[other].prop_list_head.as_ref().unwrap();
             while let Some(next) = &tail.next {
-                tail = next.clone();
+                tail = next;
             }
             if tail.prop_type == Prop::SOURCE_FILE as u8 {
+                let tail = tail.clone();
                 ast.set_prop_list_preserving_inline(self, Some(tail));
                 return;
             }
@@ -4750,7 +4752,7 @@ impl NodeId {
     }
     // port: Node#srcrefIfMissing
     pub fn srcref_if_missing(self, ast: &mut Ast, other: NodeId) -> Self {
-        if self.get_static_source_file(ast).is_none() {
+        if self.get_static_source_file_ref(ast).is_none() {
             self.set_static_source_file_from(ast, other);
             ast[C(self)].lineno_charno = ast[C(other)].lineno_charno;
             ast[C(self)].length = ast[C(other)].length;
