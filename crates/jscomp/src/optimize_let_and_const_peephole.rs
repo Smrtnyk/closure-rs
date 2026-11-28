@@ -119,6 +119,13 @@ impl AbstractPeepholeOptimization for OptimizeLetAndConstPeephole {
         "com.google.javascript.jscomp.OptimizeLetAndConstPeephole"
     }
 
+    // Rust-only (performance divergence): audited for `PeepholeFixpoint`. LET and CONST read
+    // whether their parent is a SCRIPT and whether the BLOCK around them is a function body:
+    // listed.
+    fn fixpoint_context_tokens(&self) -> Option<&'static [Token]> {
+        Some(&[Token::LET, Token::CONST])
+    }
+
     crate::abstract_peephole_optimization::token_rules! {
         // port: OptimizeLetAndConstPeephole#optimizeSubtree
         fn optimize_subtree(&mut self, compiler, subtree) {

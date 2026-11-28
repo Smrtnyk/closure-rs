@@ -69,6 +69,17 @@ impl AbstractPeepholeOptimization for PeepholeCollectPropertyAssignments {
         "com.google.javascript.jscomp.PeepholeCollectPropertyAssignments"
     }
 
+    // Rust-only (performance divergence): audited for `PeepholeFixpoint`. SCRIPT and BLOCK read
+    // their children and whether the enclosing script has features and SPREAD_EXPRESSIONS among
+    // them (`array_literal_has_spread`).
+    fn fixpoint_context_tokens(&self) -> Option<&'static [Token]> {
+        Some(&[])
+    }
+
+    fn script_features_read(&self) -> &'static [Feature] {
+        &[Feature::SPREAD_EXPRESSIONS]
+    }
+
     fn candidate_tokens(&self) -> Option<&'static [closure_rhino::token::Token]> {
         Some(&[Token::SCRIPT, Token::BLOCK])
     }

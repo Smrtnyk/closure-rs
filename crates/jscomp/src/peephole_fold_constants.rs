@@ -2753,6 +2753,16 @@ impl AbstractPeepholeOptimization for PeepholeFoldConstants {
         "com.google.javascript.jscomp.PeepholeFoldConstants"
     }
 
+    // Rust-only (performance divergence): audited for `PeepholeFixpoint`. Only expressions, which
+    // read their subtree, their parent (`in_forced_string_context`, `try_fold_and_or`, tagged
+    // templates, the ADD around an ADD in `try_fold_adjacent_literal_leaves`,
+    // `NodeUtil::is_invocation_target`), the destructuring around a name (`NodeUtil::is_l_value`)
+    // and the bodies of object literal methods (`NodeUtil::references_own_receiver`). Errors it
+    // reports make the call one that changed something.
+    fn fixpoint_context_tokens(&self) -> Option<&'static [Token]> {
+        Some(&[])
+    }
+
     // Rust-only (performance divergence): `try_fold_get_prop` only folds object/array/string
     // literal receivers.
     fn fast_token_filter(

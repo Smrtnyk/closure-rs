@@ -26,8 +26,10 @@ use crate::{
     abstract_peephole_optimization::{
         AbstractPeepholeOptimization, AbstractPeepholeOptimizationFields,
     },
+    ast_analyzer::AstAnalyzer,
     node_util::{NodeUtil, ValueType},
     peephole_fold_constants::PeepholeFoldConstants,
+    syntactic_scope_cache::SyntacticScopeCache,
 };
 use closure_parsing::parser::feature_set::Feature;
 use closure_rhino::{
@@ -42,6 +44,73 @@ use std::collections::VecDeque;
 #[derive(Default)]
 pub struct PeepholeRemoveDeadCode {
     fields: AbstractPeepholeOptimizationFields,
+}
+
+/// Rust-only (performance divergence): `try_optimize_block` asks `may_have_side_effects` of every
+/// statement of every block it visits, again in each traversal of the pass although most
+/// statements are as they were. The answer depends only on the statement's subtree within its
+/// change scope (`AstAnalyzer` does not look into nested functions, and of the statement's
+/// parent, a BLOCK, SCRIPT or MODULE_BODY, only whether it holds declarations, which all three
+/// do) and on the analyzer's settings. It is kept per statement with the `SyntacticScopeCache`
+/// change clock and reused while neither the statement nor anything below it changed
+/// (structurally or in its data: `PeepholeOptimizationsPass` turns on `Ast::track_data_changes`
+/// first) and the analyzer answers alike. `PeepholeOptimizationsPass` sets `active` (`begin`)
+/// only for a traversal that keeps its fixed-point records, so never with
+/// `CLOSURE_RS_PEEPHOLE_FIXPOINT=off`; `=verify` computes every kept answer again and panics on a
+/// difference.
+#[derive(Default)]
+pub(crate) struct StatementSideEffects {
+    active: bool,
+    /// Set while `verify` traverses a statement the normal mode skips, so that the kept answers
+    /// are the same in both modes.
+    suspended: bool,
+    verify: bool,
+    analyzer: Option<AstAnalyzer>,
+    resets: u32,
+    /// Per arena index of a statement: 0 for none, else (1 + the index in `clocks` of the change
+    /// clock when the answer was computed) × 2 + the answer.
+    entries: crate::peephole_optimizations_pass::StatementTable<u32>,
+    /// The (round, flag round) of the change clock at computations, consecutive repeats once.
+    clocks: Vec<(u32, u32)>,
+    /// Answers kept and computed since the last `end` (`CLOSURE_RS_PEEPHOLE_FIXPOINT_STATS`).
+    kept: u64,
+    computed: u64,
+}
+
+impl StatementSideEffects {
+    /// Starts a traversal whose optimizations ask `analyzer` (one made by
+    /// `AbstractCompiler::get_ast_analyzer` now) with the stamp resets at `resets`.
+    pub(crate) fn begin(&mut self, analyzer: AstAnalyzer, resets: u32, verify: bool) {
+        if self.resets != resets
+            || self
+                .analyzer
+                .as_ref()
+                .is_none_or(|kept| !kept.same_answers(&analyzer))
+        {
+            self.entries.clear();
+            self.clocks.clear();
+        }
+        self.analyzer = Some(analyzer);
+        self.resets = resets;
+        self.verify = verify;
+        self.active = true;
+    }
+
+    /// Suspends or resumes the use of kept answers within a traversal.
+    pub(crate) fn set_suspended(&mut self, suspended: bool) {
+        self.suspended = suspended;
+    }
+
+    /// Ends the traversal `begin` started; returns how many answers it took from the cache and
+    /// how many it computed.
+    pub(crate) fn end(&mut self) -> (u64, u64) {
+        self.active = false;
+        self.suspended = false;
+        (
+            std::mem::take(&mut self.kept),
+            std::mem::take(&mut self.computed),
+        )
+    }
 }
 
 impl PeepholeRemoveDeadCode {
@@ -580,6 +649,15 @@ impl AbstractPeepholeOptimization for PeepholeRemoveDeadCode {
 
     fn get_class_name(&self) -> &'static str {
         "com.google.javascript.jscomp.PeepholeRemoveDeadCode"
+    }
+
+    // Rust-only (performance divergence): audited for `PeepholeFixpoint`. A BLOCK reads its
+    // children and whether its parent is a statement block or CLASS_MEMBERS
+    // (`NodeUtil::try_merge_block`), DO and TRY whether their parent is a LABEL, and
+    // `has_fixed_point_parent` the parent of an expression below the visited node; every other
+    // read is of the subtree, and of the parent only in a change.
+    fn fixpoint_context_tokens(&self) -> Option<&'static [Token]> {
+        Some(&[])
     }
 
     crate::abstract_peephole_optimization::token_rules! {
@@ -1135,7 +1213,7 @@ impl PeepholeRemoveDeadCode {
         while let Some(cur) = c {
             let next = cur.get_next(compiler); // save c.next, since 'c' may be removed
             if !Self::is_unremovable_node(compiler, cur)
-                && !self.may_have_side_effects(compiler, cur)
+                && !self.statement_may_have_side_effects(compiler, cur)
             {
                 // TODO(johnlenz): determine what this is actually removing. Candidates
                 //    include: EMPTY nodes, control structures without children
@@ -1245,6 +1323,64 @@ impl PeepholeRemoveDeadCode {
             }
         }
         self.add_feature_to_enclosing_script(Feature::LET_DECLARATIONS);
+    }
+
+    /// `may_have_side_effects` of `statement`, a child of a BLOCK, SCRIPT or MODULE_BODY, kept in
+    /// `StatementSideEffects`.
+    fn statement_may_have_side_effects(
+        &self,
+        compiler: &mut AbstractCompiler,
+        statement: NodeId,
+    ) -> bool {
+        let cache = &compiler.statement_side_effects;
+        if !cache.active || cache.suspended {
+            return self.may_have_side_effects(compiler, statement);
+        }
+        let resets = cache.resets;
+        let entry = cache.entries.get(statement);
+        let kept = if entry != 0 {
+            cache.clocks[(entry >> 1) as usize - 1]
+        } else {
+            (0, 0)
+        };
+        if entry != 0
+            && SyntacticScopeCache::unchanged_since(compiler, statement, (kept.0, kept.1, resets))
+        {
+            let answer = entry & 1 != 0;
+            if compiler.statement_side_effects.verify {
+                let computed = self.may_have_side_effects(compiler, statement);
+                assert_eq!(
+                    computed,
+                    answer,
+                    "CLOSURE_RS_PEEPHOLE_FIXPOINT=verify: kept side-effect answer {answer} \
+                     (clock {} / {}), computed {computed}, statement {}",
+                    kept.0,
+                    kept.1,
+                    statement.to_string_tree(compiler)
+                );
+            }
+            compiler.statement_side_effects.kept += 1;
+            return answer;
+        }
+        compiler.statement_side_effects.computed += 1;
+        // The clock is read before the answer is computed: an edit pending now (none can be in
+        // the statement unless an earlier one) is drained in a later round and voids the entry.
+        let (round, flag_round, clock_resets) = SyntacticScopeCache::change_clock(compiler);
+        let answer = self.may_have_side_effects(compiler, statement);
+        let cache = &mut compiler.statement_side_effects;
+        if clock_resets == resets {
+            if cache.clocks.len() >= 1 << 20 {
+                // Starts over rather than keep an ever longer list.
+                cache.entries.clear();
+                cache.clocks.clear();
+            }
+            if cache.clocks.last() != Some(&(round, flag_round)) {
+                cache.clocks.push((round, flag_round));
+            }
+            let entry = ((cache.clocks.len() as u32) << 1) | u32::from(answer);
+            cache.entries.set(statement, entry);
+        }
+        answer
     }
 
     /// Some nodes that are unremovable don't have side effects so they aren't caught by

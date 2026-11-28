@@ -79,6 +79,12 @@ impl AbstractPeepholeOptimization for J2clEqualitySameRewriterPass {
         Some(&[])
     }
 
+    // Rust-only (performance divergence): audited for `PeepholeFixpoint`: `optimize_subtree`
+    // reads nothing (the J2CL rewriting is not ported).
+    fn fixpoint_context_tokens(&self) -> Option<&'static [closure_rhino::token::Token]> {
+        Some(&[])
+    }
+
     // port: J2clEqualitySameRewriterPass#optimizeSubtree
     fn optimize_subtree(
         &mut self,

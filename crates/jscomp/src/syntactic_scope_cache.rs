@@ -699,6 +699,54 @@ impl SyntacticScopeCache {
         Self::cached_subtree_stamp(compiler, root)
     }
 
+    /// Rust-only (performance divergence): the rounds of `record_changes` so far, structural and
+    /// flag, and the number of resets, without draining pending changes. A node whose stamps are
+    /// at most these rounds later, with no reset in between, has not changed since this call (an
+    /// edit pending now is drained in a later round, so it can only make the node look changed).
+    #[inline]
+    pub(crate) fn change_clock(compiler: &AbstractCompiler) -> (u32, u32, u32) {
+        let cache = &compiler.syntactic_scope_cache;
+        (cache.round, cache.flag_round, cache.resets)
+    }
+
+    /// Rust-only (performance divergence): drains pending changes into the stamps, so that a
+    /// `change_clock` taken next sees every edit made before it.
+    #[inline]
+    pub(crate) fn drain_changes(compiler: &mut AbstractCompiler) {
+        compiler.ast.track_changes();
+        Self::record_changes(compiler);
+    }
+
+    /// Rust-only (performance divergence): whether neither `n` nor a node below it in its change
+    /// scope changed (structurally, or in a recorded flag) since `change_clock` returned `clock`.
+    /// Drains pending changes only when the stamps recorded so far do not answer already.
+    #[inline]
+    pub(crate) fn unchanged_since(
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        clock: (u32, u32, u32),
+    ) -> bool {
+        if !Self::recorded_unchanged_since(&compiler.syntactic_scope_cache, n, clock) {
+            return false;
+        }
+        if compiler
+            .ast
+            .no_changes_since(&compiler.syntactic_scope_cache.cursor)
+        {
+            return true;
+        }
+        Self::record_changes(compiler);
+        Self::recorded_unchanged_since(&compiler.syntactic_scope_cache, n, clock)
+    }
+
+    #[inline]
+    fn recorded_unchanged_since(cache: &Self, n: NodeId, clock: (u32, u32, u32)) -> bool {
+        let idx = n.arena_index();
+        cache.resets == clock.2
+            && cache.stamps.get(idx).copied().unwrap_or(0) <= clock.0
+            && cache.flag_stamps.get(idx).copied().unwrap_or(0) <= clock.1
+    }
+
     /// Reads the recorded stamp of `root` after `subtree_stamp` has already drained pending
     /// changes.
     #[inline]

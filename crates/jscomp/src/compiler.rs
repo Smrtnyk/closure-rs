@@ -142,6 +142,13 @@ pub struct Compiler {
     pub(crate) function_reference_sites: crate::reference_collector::FunctionReferenceCache,
     /// Cached semantic summaries of unchanged leaf functions for RemoveUnusedCode.
     pub(crate) remove_unused_code_cache: crate::remove_unused_code::RemoveUnusedCodeCache,
+    /// Statements a peephole traversal found at its fixed point (`PeepholeOptimizationsPass`).
+    pub(crate) peephole_fixpoint: crate::peephole_optimizations_pass::PeepholeFixpoint,
+    /// Kept side-effect answers for statements of blocks (`PeepholeRemoveDeadCode`).
+    pub(crate) statement_side_effects: crate::peephole_remove_dead_code::StatementSideEffects,
+    /// Rust-only (performance divergence): how often a peephole optimization took a path only a
+    /// normalized AST allows that a denormalized one replaces by another (`PeepholeFixpoint`).
+    pub(crate) peephole_normalized_reads: u64,
     /// Cached unchanged leaf functions known to have no flow-sensitive inline candidates.
     pub(crate) flow_inline_clean_cache:
         crate::flow_sensitive_inline_variables::FlowInlineCleanCache,
@@ -315,6 +322,9 @@ impl Compiler {
             externs_reference_summary: None,
             function_reference_sites: Default::default(),
             remove_unused_code_cache: Default::default(),
+            peephole_fixpoint: Default::default(),
+            statement_side_effects: Default::default(),
+            peephole_normalized_reads: 0,
             flow_inline_clean_cache: Default::default(),
             inline_vars_clean_cache: Default::default(),
             inline_object_literals_clean_cache: Default::default(),
@@ -1565,6 +1575,8 @@ impl Compiler {
         self.externs_reference_summary = None;
         self.function_reference_sites = Default::default();
         self.remove_unused_code_cache = Default::default();
+        self.peephole_fixpoint = Default::default();
+        self.statement_side_effects = Default::default();
         self.flow_inline_clean_cache = Default::default();
         self.inline_vars_clean_cache = Default::default();
         self.inline_object_literals_clean_cache = Default::default();
@@ -6227,6 +6239,8 @@ impl Compiler {
         self.externs_reference_summary = None;
         self.function_reference_sites = Default::default();
         self.remove_unused_code_cache = Default::default();
+        self.peephole_fixpoint = Default::default();
+        self.statement_side_effects = Default::default();
         self.flow_inline_clean_cache = Default::default();
         self.inline_vars_clean_cache = Default::default();
         self.inline_object_literals_clean_cache = Default::default();

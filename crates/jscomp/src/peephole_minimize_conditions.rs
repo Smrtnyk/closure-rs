@@ -1305,6 +1305,15 @@ impl AbstractPeepholeOptimization for PeepholeMinimizeConditions {
         "com.google.javascript.jscomp.PeepholeMinimizeConditions"
     }
 
+    // Rust-only (performance divergence): audited for `PeepholeFixpoint`. RETURN and THROW
+    // compare with the node that follows them in control flow and look for enclosing break
+    // targets, finally blocks and exception handlers: listed. IF reads whether its parent is a
+    // statement block (`try_remove_repeated_statements`); every other token reads its subtree and
+    // its parent only to report a change.
+    fn fixpoint_context_tokens(&self) -> Option<&'static [Token]> {
+        Some(&[Token::RETURN, Token::THROW])
+    }
+
     crate::abstract_peephole_optimization::token_rules! {
         // port: PeepholeMinimizeConditions#optimizeSubtree
         /// Tries to apply our various peephole minimizations on the passed in node.

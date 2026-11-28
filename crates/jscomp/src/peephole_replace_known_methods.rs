@@ -127,6 +127,11 @@ impl PeepholeReplaceKnownMethods {
                     } else {
                         None
                     };
+                    if qualified_name.is_some() {
+                        // Rust-only (performance divergence): without normalization the call
+                        // would go to the string methods below (`PeepholeFixpoint`).
+                        compiler.peephole_normalized_reads += 1;
+                    }
                     match qualified_name.unwrap_or_default() {
                         "Array" => {
                             return self.try_fold_known_array_methods(
@@ -2019,6 +2024,14 @@ impl AbstractPeepholeOptimization for PeepholeReplaceKnownMethods {
 
     fn get_class_name(&self) -> &'static str {
         "com.google.javascript.jscomp.PeepholeReplaceKnownMethods"
+    }
+
+    // Rust-only (performance divergence): audited for `PeepholeFixpoint`. Only CALL nodes, which
+    // read their subtree (the cost estimates of `try_fold_array_join` print nested functions) and
+    // their parent only to report a change. The one path a normalized AST takes that a
+    // denormalized one replaces by another bumps `peephole_normalized_reads`.
+    fn fixpoint_context_tokens(&self) -> Option<&'static [Token]> {
+        Some(&[])
     }
 
     fn candidate_tokens(&self) -> Option<&'static [closure_rhino::token::Token]> {
