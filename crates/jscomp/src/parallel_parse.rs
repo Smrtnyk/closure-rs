@@ -51,6 +51,15 @@ use std::sync::{
 
 /// The most worker threads one compilation uses.
 const MAX_THREADS: usize = 8;
+/// Rust-only (performance divergence): the estimated node count from which a preparse arena is
+/// reserved before parsing (an arena of about 1.4 MB, a file of about 100 KB). The arenas of
+/// smaller files grow as before: their growth copies little, while the room reserved beyond what
+/// they use stays allocated, beside hundreds of other arenas, until the compiler takes each
+/// parse, and with the allocator's default settings (transparent huge pages, freed memory kept
+/// for a second) such room is resident. The estimate is twice the nodes of a module with comments
+/// (one node per 12 to 13.5 code units in three.js and lodash-es): reserving it raised peak memory
+/// on inputs of hundreds of modules by up to 28 MB.
+const MIN_RESERVED_PREPARSE_NODES: usize = 1 << 14;
 const THREAD_NAME: &str = "closure-preparse";
 
 /// Rust-only (performance divergence): allows disabling multi-threaded helpers via environment.
@@ -627,11 +636,14 @@ pub(crate) fn finish(compiler: &mut AbstractCompiler) {
 fn parse(job: &Job, configs: &mut Vec<(Config, Config)>) -> Option<Preparsed> {
     let code = job.input.get_source_file().load_code_uncached().ok()?;
     let mut ast = Ast::new_for_preparse();
-    // Rust-only (performance divergence): room for the nodes this parse makes (see
-    // `Ast::estimated_parse_nodes`, and a fifth more: one file can be denser than the program);
-    // only capacity changes.
+    // Rust-only (performance divergence): room for the nodes the parse of a large file makes
+    // (see `Ast::estimated_parse_nodes`, and a fifth more: one file can be denser than the
+    // program); only capacity changes. A small file's arena grows as before (see
+    // `MIN_RESERVED_PREPARSE_NODES`).
     let nodes = Ast::estimated_parse_nodes(code.length());
-    ast.reserve_nodes(nodes + nodes / 5);
+    if nodes >= MIN_RESERVED_PREPARSE_NODES {
+        ast.reserve_nodes(nodes + nodes / 5);
+    }
     let index = configs
         .iter()
         .position(|(config, _)| *config == job.config)
