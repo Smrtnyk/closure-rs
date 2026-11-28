@@ -36,18 +36,83 @@ pub enum JsonToken {
     NULL,
     END_DOCUMENT,
 }
-/// Count UTF-16 units before the closing quote, an escape, or a literal newline.
-fn quoted_run_length(units: &[u16], quote: u16) -> usize {
-    let special = |c: u16| (c == quote) | (c == b'\\' as u16) | (c == b'\n' as u16);
-    let mut blocks = units.chunks_exact(8);
-    for (index, block) in blocks.by_ref().enumerate() {
-        // A fixed-size reduction lets LLVM compare eight UTF-16 units at once.
-        if block.iter().fold(false, |any, &c| any | special(c)) {
-            return index * 8 + block.iter().position(|&c| special(c)).unwrap();
+/// The units a quoted value ends a run of plain units at: the closing quote, an escape, or a
+/// literal newline (which moves the line).
+#[inline(always)]
+fn is_quoted_special(c: u16, quote: u16) -> bool {
+    (c == quote) | (c == b'\\' as u16) | (c == b'\n' as u16)
+}
+
+/// Whether one of the units of `block` ends a run of plain units, tested for all units at once
+/// (an OR over the lanes, which LLVM compares together).
+#[inline(always)]
+fn has_quoted_special<const N: usize>(block: &[u16; N], quote: u16) -> bool {
+    block
+        .iter()
+        .fold(0u16, |any, &c| any | u16::from(is_quoted_special(c, quote)))
+        != 0
+}
+
+/// How many units the run-finding functions test one at a time before testing sixteen at once:
+/// in embedded sources most runs between escapes are a few units long (indentation escaped as
+/// `\t`, line ends as `\n`).
+const SHORT_RUN: usize = 8;
+
+/// Appends to `out` the plain units of `units` from `start` up to the first unit that ends a run
+/// (see `is_quoted_special`), and returns that unit's index (`units.len()` if there is none).
+///
+/// Rust-only (performance divergence): after the first few units, sixteen units per step while
+/// none of them ends the run (Gson tests and copies one unit at a time).
+#[inline]
+fn copy_quoted_run(units: &[u16], start: usize, quote: u16, out: &mut Vec<u16>) -> usize {
+    let mut i = start;
+    for &c in units.iter().skip(start).take(SHORT_RUN) {
+        if is_quoted_special(c, quote) {
+            return i;
         }
+        out.push(c);
+        i += 1;
     }
-    let tail = blocks.remainder();
-    units.len() - tail.len() + tail.iter().position(|&c| special(c)).unwrap_or(tail.len())
+    while let Some(block) = units.get(i..i + 16) {
+        let block: &[u16; 16] = block.try_into().unwrap();
+        if has_quoted_special(block, quote) {
+            break;
+        }
+        out.extend_from_slice(block);
+        i += 16;
+    }
+    for &c in &units[i..] {
+        if is_quoted_special(c, quote) {
+            return i;
+        }
+        out.push(c);
+        i += 1;
+    }
+    i
+}
+
+/// The index of the first unit of `units` from `start` that ends a run of plain units
+/// (`units.len()` if there is none); after the first few units, sixteen units per step.
+#[inline]
+fn find_quoted_special(units: &[u16], start: usize, quote: u16) -> usize {
+    let mut i = start;
+    for &c in units.iter().skip(start).take(SHORT_RUN) {
+        if is_quoted_special(c, quote) {
+            return i;
+        }
+        i += 1;
+    }
+    while let Some(block) = units.get(i..i + 16) {
+        if has_quoted_special::<16>(block.try_into().unwrap(), quote) {
+            break;
+        }
+        i += 16;
+    }
+    let tail = &units[i..];
+    i + tail
+        .iter()
+        .position(|&c| is_quoted_special(c, quote))
+        .unwrap_or(tail.len())
 }
 
 pub struct JsonReader {
@@ -68,6 +133,12 @@ pub struct JsonReader {
     stack_size: usize,
     path_names: Vec<Option<JsString>>,
     path_indices: Vec<i32>,
+    /// Rust-only: the units of the quoted value being read when it has escapes, kept for the
+    /// next value (see `next_quoted_value`).
+    scratch: Vec<u16>,
+    /// Tests: read quoted values with Gson's loop (`next_quoted_value_gson`).
+    #[cfg(test)]
+    gson_strings: bool,
 }
 impl JsonReader {
     const MIN_INCOMPLETE_INTEGER: i64 = i64::MIN / 10;
@@ -119,6 +190,9 @@ impl JsonReader {
             stack_size: 1,
             path_names: vec![None; 32],
             path_indices: vec![0; 32],
+            scratch: Vec::new(),
+            #[cfg(test)]
+            gson_strings: false,
         }
     }
     // port: com.google.gson.stream.JsonReader#setLenient
@@ -655,19 +729,148 @@ impl JsonReader {
         ))
     }
     // port: com.google.gson.stream.JsonReader#nextQuotedValue
+    //
+    // Rust-only (performance divergence): Gson reads the value from its 1024-unit buffer, refilled
+    // from the input as it goes, into a growing StringBuilder once the value has an escape or runs
+    // past the buffer. Here the value is read from the input itself (the buffer holds a copy of
+    // the input from `buffer_origin`), its plain runs found sixteen units at a time: a value
+    // without escapes is copied once, from the input; a value with escapes is assembled in a
+    // buffer kept for the next value, then copied once. `seek` then leaves `pos` after the value,
+    // refilling the buffer from there if the value ran past it. Where the buffer starts is not
+    // observable: line, column (`pos - lineStart`, both relative to the buffer's start) and the
+    // later reads come out the same, and `fillBuffer`'s byte-order-mark test cannot hold inside a
+    // value (it needs the buffer to start where line 0 starts, before the opening quote). Every
+    // error is raised at the unit Gson raises it at, with `pos` where Gson's refill leaves it:
+    // after the last unit for an unterminated value or escape, after the `u` for a `\u` with fewer
+    // than four units left, after the escaped unit for an invalid escape.
     fn next_quoted_value(&mut self, quote: u16) -> Result<JsString, JsonParseException> {
+        #[cfg(test)]
+        if self.gson_strings {
+            return self.next_quoted_value_gson(quote);
+        }
+        let origin = self.buffer_origin();
+        let start = origin + self.pos;
+        let units = self.input.as_units();
+        let scratch = &mut self.scratch;
+        let mut line_number = self.line_number;
+        let mut line_start = self.line_start;
+        let mut escaped = false;
+        let mut p = start;
+        let outcome: Result<usize, (&'static str, usize)> = loop {
+            p = if escaped {
+                copy_quoted_run(units, p, quote, scratch)
+            } else {
+                find_quoted_special(units, p, quote)
+            };
+            let Some(&c) = units.get(p) else {
+                break Err(("Unterminated string", p));
+            };
+            p += 1;
+            if c == quote {
+                break Ok(p);
+            }
+            if c == b'\n' as u16 {
+                line_number += 1;
+                line_start = (p - origin) as i32;
+                if escaped {
+                    scratch.push(c);
+                }
+                continue;
+            }
+            // An escape (readEscapeCharacter).
+            if !escaped {
+                scratch.clear();
+                scratch.extend_from_slice(&units[start..p - 1]);
+                escaped = true;
+            }
+            let Some(&escape) = units.get(p) else {
+                break Err(("Unterminated escape sequence", p));
+            };
+            p += 1;
+            let unit = match escape {
+                0x75 /* u */ => {
+                    let Some(hex) = units.get(p..p + 4) else {
+                        break Err(("Unterminated escape sequence", p));
+                    };
+                    let mut result = 0u16;
+                    for &c in hex {
+                        result <<= 4;
+                        result += match c {
+                            0x30..=0x39 => c - 0x30,
+                            0x61..=0x66 => c - 0x61 + 10,
+                            0x41..=0x46 => c - 0x41 + 10,
+                            _ => crate::JavaException::throw(
+                                "java.lang.NumberFormatException: \\u",
+                                &JsString::from_slice(hex),
+                                "",
+                            ),
+                        };
+                    }
+                    p += 4;
+                    result
+                }
+                0x74 /* t */ => b'\t' as u16,
+                0x62 /* b */ => b'\x08' as u16,
+                0x6e /* n */ => b'\n' as u16,
+                0x72 /* r */ => b'\r' as u16,
+                0x66 /* f */ => b'\x0c' as u16,
+                0x0a => {
+                    line_number += 1;
+                    line_start = (p - origin) as i32;
+                    escape
+                }
+                0x27 | 0x22 | 0x5c | 0x2f => escape,
+                _ => break Err(("Invalid escape sequence", p)),
+            };
+            scratch.push(unit);
+        };
+        self.line_number = line_number;
+        self.line_start = line_start;
+        match outcome {
+            Ok(end) => {
+                let value = if escaped {
+                    JsString::from_slice(&self.scratch)
+                } else {
+                    JsString::from_slice(&self.input.as_units()[start..end - 1])
+                };
+                self.seek(end);
+                Ok(value)
+            }
+            Err((message, at)) => {
+                self.seek(at);
+                Err(self.syntax_error(message))
+            }
+        }
+    }
+    /// Rust-only: the index in the input of the buffer's first unit.
+    fn buffer_origin(&self) -> usize {
+        self.input_position - self.limit
+    }
+    /// Rust-only: moves `pos` to the unit at index `at` of the input (at or after the buffer's
+    /// start). Past the buffer, the buffer is refilled from `at` as `fillBuffer` would refill it
+    /// with `pos` at `at`.
+    fn seek(&mut self, at: usize) {
+        let origin = self.buffer_origin();
+        if at <= self.input_position {
+            self.pos = at - origin;
+            return;
+        }
+        self.line_start -= (at - origin) as i32;
+        let total = Self::BUFFER_SIZE.min(self.input.length() - at);
+        self.buffer[..total].copy_from_slice(&self.input.as_units()[at..at + total]);
+        self.pos = 0;
+        self.limit = total;
+        self.input_position = at + total;
+    }
+    /// Gson's loop, the reference for `next_quoted_value` in the tests.
+    #[cfg(test)]
+    fn next_quoted_value_gson(&mut self, quote: u16) -> Result<JsString, JsonParseException> {
         let mut builder: Option<Vec<u16>> = None;
         loop {
             let mut p = self.pos;
             let mut l = self.limit;
             let mut start = p;
             while p < l {
-                // Rust-only (performance divergence): skip ordinary UTF-16 runs together.
-                // The Gson branches below handle all escapes, newlines and buffer refills.
-                p += quoted_run_length(&self.buffer[p..l], quote);
-                if p == l {
-                    break;
-                }
                 let c = self.buffer[p];
                 p += 1;
                 if c == quote {
@@ -980,6 +1183,8 @@ impl JsonReader {
         self.get_path_with_previous(true)
     }
     // port: com.google.gson.stream.JsonReader#readEscapeCharacter
+    // (inlined into `next_quoted_value`; this is the reference for the tests.)
+    #[cfg(test)]
     fn read_escape_character(&mut self) -> Result<u16, JsonParseException> {
         if self.pos == self.limit && !self.fill_buffer(1) {
             return Err(self.syntax_error("Unterminated escape sequence"));
@@ -1165,5 +1370,136 @@ impl JsonElementTypeAdapter {
             }
             current = parent;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// xorshift64*, for reproducible documents.
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_f491_4f6c_dd1d)
+        }
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n as u64) as usize
+        }
+    }
+
+    /// A quoted value with plain runs, non-ASCII units, escapes and literal newlines.
+    fn value(rng: &mut Rng, quote: char, out: &mut Vec<u16>) {
+        out.push(quote as u16);
+        let most = if rng.below(4) == 0 { 400 } else { 12 };
+        let pieces = rng.below(most);
+        for _ in 0..pieces {
+            match rng.below(14) {
+                0 => out.push(b'\n' as u16),
+                1 => out.extend("\\n".encode_utf16()),
+                2 => {
+                    let e = [
+                        "\\t", "\\b", "\\r", "\\f", "\\/", "\\\\", "\\\"", "\\'", "\\\n",
+                    ];
+                    out.extend(e[rng.below(e.len())].encode_utf16());
+                }
+                3 => out.extend(format!("\\u{:04x}", rng.next() as u16).encode_utf16()),
+                4 => out.extend(format!("\\u{:04X}", rng.next() as u16).encode_utf16()),
+                5 => out.push(0xd83d),
+                6 => out.extend("é€".encode_utf16()),
+                7 => out.push(if quote == '"' { b'\'' } else { b'"' } as u16),
+                _ => {
+                    let most = if rng.below(8) == 0 { 2000 } else { 40 };
+                    let n = rng.below(most);
+                    out.extend((0..n).map(|i| b"abc def;,:{}[]0123"[i % 18] as u16));
+                }
+            }
+        }
+        out.push(quote as u16);
+    }
+
+    fn document(rng: &mut Rng) -> Vec<u16> {
+        let mut doc = Vec::new();
+        // Whitespace and newlines that move the buffer's boundaries.
+        let pad = rng.below(1100);
+        doc.extend((0..pad).map(|i| if i % 97 == 0 { b'\n' } else { b' ' } as u16));
+        doc.push(b'{' as u16);
+        let members = 1 + rng.below(6);
+        for m in 0..members {
+            if m > 0 {
+                doc.push(b',' as u16);
+            }
+            let quote = if rng.below(5) == 0 { '\'' } else { '"' };
+            value(rng, quote, &mut doc);
+            doc.push(b':' as u16);
+            match rng.below(4) {
+                0 => {
+                    doc.push(b'[' as u16);
+                    for i in 0..rng.below(5) {
+                        if i > 0 {
+                            doc.push(b',' as u16);
+                        }
+                        value(rng, '"', &mut doc);
+                    }
+                    doc.push(b']' as u16);
+                }
+                1 => doc.extend("12.5e3".encode_utf16()),
+                _ => value(rng, quote, &mut doc),
+            }
+        }
+        doc.push(b'}' as u16);
+        // Damage: cut it short, or put a bad escape or a bad token in.
+        match rng.below(6) {
+            0 => doc.truncate(rng.below(doc.len() + 1)),
+            1 => {
+                let at = rng.below(doc.len());
+                let bad = ["\\x", "\\u12", "\\uZZ12", "\\", "tru", "\\u"];
+                let bad: Vec<u16> = bad[rng.below(bad.len())].encode_utf16().collect();
+                doc.splice(at..at, bad);
+            }
+            _ => {}
+        }
+        doc
+    }
+
+    fn read(doc: &[u16], gson_strings: bool) -> String {
+        let doc = JsString::from_slice(doc);
+        let result = std::panic::catch_unwind(|| {
+            let mut reader = JsonReader::new(doc);
+            reader.set_lenient(true);
+            reader.gson_strings = gson_strings;
+            let element = reader.read_element();
+            let end = reader.peek();
+            format!("{element:?} {end:?} {}", reader.location_string())
+        });
+        result.unwrap_or_else(|panic| format!("panic: {}", crate::panic_message(panic)))
+    }
+
+    #[test]
+    fn quoted_values_read_as_gson_reads_them() {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let mut errors = 0;
+        let mut mismatch = None;
+        for case in 0..3000 {
+            let doc = document(&mut rng);
+            let expected = read(&doc, true);
+            errors += usize::from(!expected.starts_with("Ok("));
+            let actual = read(&doc, false);
+            if actual != expected {
+                mismatch = Some((case, actual, expected));
+                break;
+            }
+        }
+        std::panic::set_hook(previous);
+        if let Some((case, actual, expected)) = mismatch {
+            panic!("case {case}:\n{actual}\n{expected}");
+        }
+        // Both outcomes are exercised.
+        assert!(errors > 300 && errors < 2700, "{errors} errors");
     }
 }

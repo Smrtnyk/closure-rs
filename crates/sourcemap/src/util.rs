@@ -95,33 +95,32 @@ impl Util {
                 i = j;
                 continue;
             }
-            let hex;
-            let escape: &[u8] = match c {
-                0x0a => br"\n",
-                0x0d => br"\r",
-                0x09 => br"\t",
-                0x5c => br"\\",
-                0x22 => b"\\\"",
+            // Rust-only (performance divergence): every escape is written as six bytes, of which
+            // the escape's own are kept: a fixed-size copy instead of one of its length (the
+            // buffer keeps seven bytes free).
+            let (escape, escape_len): ([u8; 6], usize) = match c {
+                0x0a => (*b"\\n    ", 2),
+                0x0d => (*b"\\r    ", 2),
+                0x09 => (*b"\\t    ", 2),
+                0x5c => (*b"\\\\    ", 2),
+                0x22 => (*b"\\\"    ", 2),
                 0x3e if i >= 2
                     && units[i - 1] == units[i - 2]
                     && matches!(units[i - 1], 0x2d | 0x5d) =>
                 {
-                    br"\u003e"
+                    (*b"\\u003e", 6)
                 }
-                0x3c if Self::starts_html_sequence(s, i + 1) => br"\u003c",
+                0x3c if Self::starts_html_sequence(s, i + 1) => (*b"\\u003c", 6),
                 0x20..=0x7f => {
                     buf[len] = c as u8;
                     len += 1;
                     i += 1;
                     continue;
                 }
-                _ => {
-                    hex = Self::hex_escape(c);
-                    &hex
-                }
+                _ => (Self::hex_escape(c), 6),
             };
-            buf[len..len + escape.len()].copy_from_slice(escape);
-            len += escape.len();
+            buf[len..len + 6].copy_from_slice(&escape);
+            len += escape_len;
             i += 1;
         }
         buf[len] = b'"';

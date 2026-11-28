@@ -24,13 +24,30 @@ pub(super) fn is_line_terminator(unit: u16) -> bool {
 ///
 /// Rust-only (performance divergence): Java walks the text and skips the LF of each CRLF pair.
 /// This counts the same breaks as every line terminator less the CRLF pairs, in passes the
-/// compiler can vectorize (the pairs are looked for only in texts with a CR).
+/// compiler can vectorize (the pairs are looked for only in texts with a CR): the terminators and
+/// the CRs of each block of 64 units are counted in bytes, without a branch.
 pub(super) fn num_lines(units: &[u16]) -> i32 {
-    let terminators = units
-        .iter()
-        .filter(|&&unit| unit == 0x0A || unit == 0x0D || (unit | 1) == 0x2029)
-        .count();
-    let crlf_pairs = if units.contains(&0x0D) {
+    let is_terminator = |unit: u16| (unit == 0x0A) | (unit == 0x0D) | ((unit | 1) == 0x2029);
+    let mut blocks = units.chunks_exact(64);
+    let (mut terminators, mut crs) = (0usize, 0usize);
+    for block in &mut blocks {
+        let block: &[u16; 64] = block.try_into().unwrap();
+        terminators += usize::from(
+            block
+                .iter()
+                .fold(0u8, |n, &unit| n + u8::from(is_terminator(unit))),
+        );
+        crs += usize::from(
+            block
+                .iter()
+                .fold(0u8, |n, &unit| n + u8::from(unit == 0x0D)),
+        );
+    }
+    for &unit in blocks.remainder() {
+        terminators += usize::from(is_terminator(unit));
+        crs += usize::from(unit == 0x0D);
+    }
+    let crlf_pairs = if crs > 0 {
         units
             .windows(2)
             .filter(|pair| pair[0] == 0x0D && pair[1] == 0x0A)
@@ -143,6 +160,11 @@ mod tests {
             assert_eq!(num_lines(&text), reference(&text));
             assert_eq!(line_offsets(&text), reference_offsets(&text));
             assert_eq!(line_offsets(&text).len() as i32, num_lines(&text));
+        }
+        // Blocks of nothing but terminators (the per-block counts at their largest).
+        for unit in [0x0A, 0x0D, 0x2028] {
+            let text = vec![unit; 300];
+            assert_eq!(num_lines(&text), reference(&text));
         }
     }
 }

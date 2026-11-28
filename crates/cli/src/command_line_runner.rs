@@ -3542,10 +3542,21 @@ impl CommandLineRunner {
         result.unwrap_or_else(|error| std::panic::resume_unwind(error))
     }
     // Adapter for the compiler owner's Send writer and this runner's injectable stream.
+    // Rust-only (performance divergence): what the compiler wrote since the last drain goes to the
+    // error stream in one write (one per piece the compiler wrote is a system call each on an
+    // unbuffered stderr): the same bytes in the same order, at the same point.
     fn drain_compiler_error_stream(&mut self) {
         if let Some(receiver) = self.compiler_error_receiver.borrow_mut().as_mut() {
+            let mut pending: Vec<u8> = Vec::new();
             while let Ok(bytes) = receiver.try_recv() {
-                let _ = self.base.err.write_all(&bytes);
+                if pending.is_empty() {
+                    pending = bytes;
+                } else {
+                    pending.extend_from_slice(&bytes);
+                }
+            }
+            if !pending.is_empty() {
+                let _ = self.base.err.write_all(&pending);
             }
             let _ = self.base.err.flush();
         }

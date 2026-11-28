@@ -38,12 +38,10 @@ pub struct FileMappingCache {
     pub name: String,
     /// Its parsed input map (`None`: it has none that maps).
     pub consumer: Option<Arc<SourceMapConsumerV3>>,
-    /// The original file that map last named, and the path resolved for it.
-    pub resolved: Option<(JsString, JsString)>,
-    /// Every original file that map has named so far, and the path resolved for it (the path
-    /// depends only on the map and the original file; a bundle's map names many original files,
-    /// often in turn).
-    pub resolved_paths: closure_rhino::fast_hash::IndexMap<JsString, JsString>,
+    /// For each source of that map (by its index), the path resolved for it once a node was
+    /// mapped to it (the path depends only on the map and the source's name; a bundle's map names
+    /// many original files, often in turn).
+    pub resolved_paths: Vec<Option<JsString>>,
 }
 /// A SourceFileMapping maps a source file, line, and column into an {@link OriginalMapping}.
 ///

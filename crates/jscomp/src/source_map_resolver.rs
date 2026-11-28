@@ -110,13 +110,20 @@ impl SourceMapResolver {
     /// "baz/bam/qux.js") --> "baz/foo/bar.js"
     // port: SourceMapResolver#getRelativePath
     pub fn get_relative_path(base_file_path: &str, relative_path: &str) -> SourceFile {
+        Self::source_file_at(Self::relative_path_string(base_file_path, relative_path))
+    }
+    /// Rust-only: the path of the file `get_relative_path` returns.
+    pub(crate) fn relative_path_string(base_file_path: &str, relative_path: &str) -> String {
+        UnixPath::of(base_file_path)
+            .resolve_sibling(&UnixPath::of(relative_path))
+            .normalize()
+            .to_string()
+    }
+    /// Rust-only: the file `get_relative_path` returns for the path `relative_path_string`
+    /// returned.
+    pub(crate) fn source_file_at(path: String) -> SourceFile {
         SourceFile::builder()
-            .with_path(
-                UnixPath::of(base_file_path)
-                    .resolve_sibling(&UnixPath::of(relative_path))
-                    .normalize()
-                    .to_string(),
-            )
+            .with_path(path)
             .with_kind(SourceKind::NON_CODE)
             .build()
     }
