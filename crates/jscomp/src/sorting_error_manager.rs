@@ -21,6 +21,8 @@ use crate::{
     js_error::JSError,
 };
 use closure_rhino::node::Ast;
+use std::cmp::Ordering;
+use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 /// Rust adapter: reports that Java's message formatters make straight into the ErrorManager
@@ -30,7 +32,8 @@ use std::sync::{Arc, Mutex};
 /// [`SortingErrorManager::report_deferred`].
 pub type DeferredReports = Arc<Mutex<Vec<(CheckLevel, JSError)>>>;
 pub struct SortingErrorManager {
-    messages: Vec<ErrorWithLevel>,
+    // Java: a TreeSet ordered by LeveledJSErrorComparator.
+    messages: BTreeSet<SortedMessage>,
     original_error_count: i32,
     promoted_error_count: i32,
     warning_count: i32,
@@ -42,7 +45,7 @@ impl SortingErrorManager {
     // port: SortingErrorManager#SortingErrorManager
     pub fn new(error_report_generators: Vec<Box<dyn ErrorReportGenerator>>) -> Self {
         Self {
-            messages: Vec::new(),
+            messages: BTreeSet::new(),
             original_error_count: 0,
             promoted_error_count: 0,
             warning_count: 0,
@@ -71,27 +74,27 @@ impl SortingErrorManager {
     }
     // port: SortingErrorManager#getSortedDiagnostics
     pub fn get_sorted_diagnostics(&self) -> Vec<ErrorWithLevel> {
-        self.messages.clone()
+        self.messages.iter().map(|m| m.0.clone()).collect()
     }
     // port: SortingErrorManager#filterToListOf
     fn filter_to_list_of(&self, level: CheckLevel) -> Vec<JSError> {
         self.messages
             .iter()
-            .filter(|e| e.level == level)
-            .map(|e| e.error.clone())
+            .filter(|m| m.0.level == level)
+            .map(|m| m.0.error.clone())
             .collect()
     }
 }
 impl ErrorHandler for SortingErrorManager {
     // port: SortingErrorManager#report
     fn report(&mut self, level: CheckLevel, error: JSError) {
-        let e = ErrorWithLevel::new(error, level);
-        if let Err(index) = self
+        let original_error = error.get_type().level == CheckLevel::ERROR;
+        if self
             .messages
-            .binary_search_by(|p| LeveledJSErrorComparator.compare(Some(p), Some(&e)).cmp(&0))
+            .insert(SortedMessage(ErrorWithLevel::new(error, level)))
         {
             if level == CheckLevel::ERROR {
-                if e.error.get_type().level == CheckLevel::ERROR {
+                if original_error {
                     self.original_error_count += 1;
                 } else {
                     self.promoted_error_count += 1;
@@ -99,7 +102,6 @@ impl ErrorHandler for SortingErrorManager {
             } else if level == CheckLevel::WARNING {
                 self.warning_count += 1;
             }
-            self.messages.insert(index, e);
         }
     }
 }
@@ -145,6 +147,28 @@ impl ErrorManager for SortingErrorManager {
 pub trait ErrorReportGenerator: Send {
     // port: SortingErrorManager.ErrorReportGenerator#generateReport
     fn generate_report(&mut self, manager: &mut SortingErrorManager, ast: &Ast);
+}
+/// Rust adapter: an element of `SortingErrorManager::messages`, ordered and compared by
+/// `LeveledJSErrorComparator` as the elements of Java's `TreeSet` are (not by
+/// `ErrorWithLevel#equals`).
+struct SortedMessage(ErrorWithLevel);
+impl PartialEq for SortedMessage {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+impl Eq for SortedMessage {}
+impl PartialOrd for SortedMessage {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for SortedMessage {
+    fn cmp(&self, other: &Self) -> Ordering {
+        LeveledJSErrorComparator
+            .compare(Some(&self.0), Some(&other.0))
+            .cmp(&0)
+    }
 }
 pub struct LeveledJSErrorComparator;
 const P1_LT_P2: i32 = -1;
