@@ -62,25 +62,43 @@ pub(super) fn num_lines(units: &[u16]) -> i32 {
 /// `SourceFile#findLineOffsets`: the offset of each line, the first at 0, the others after each
 /// line terminator except a CR followed by LF (the line starts after the LF).
 ///
-/// Rust-only (performance divergence): blocks of sixteen units without a line terminator, found
-/// by a test the compiler can vectorize, are skipped (Java tests every unit).
+/// Rust-only (performance divergence): Java tests every unit. Here each block of sixteen units is
+/// tested at once, without a branch (a 0xff byte for each line terminator, which the compiler
+/// vectorizes), and only the units at the bytes set are looked at: source code has a line
+/// break in most blocks, but sixteen units or more per line break.
 #[allow(dead_code)] // The build script, which includes this file, counts lines only.
 pub(super) fn line_offsets(units: &[u16]) -> Vec<i32> {
     let mut offsets = vec![0];
+    let mut push = |i: usize| {
+        if !(units[i] == 0x0D && units.get(i + 1) == Some(&0x0A)) {
+            offsets.push((i + 1) as i32);
+        }
+    };
+    let mut blocks = units.chunks_exact(16);
     let mut start = 0;
-    for block in units.chunks(16) {
-        if block
-            .iter()
-            .fold(false, |any, &unit| any | is_line_terminator(unit))
-        {
-            for (j, &unit) in block.iter().enumerate() {
-                let i = start + j;
-                if is_line_terminator(unit) && !(unit == 0x0D && units.get(i + 1) == Some(&0x0A)) {
-                    offsets.push((i + 1) as i32);
-                }
+    for block in &mut blocks {
+        let block: &[u16; 16] = block.try_into().unwrap();
+        let lanes: [u16; 16] = std::array::from_fn(|j| {
+            let unit = block[j];
+            0u16.wrapping_sub(u16::from(
+                (unit == 0x0A) | (unit == 0x0D) | ((unit | 1) == 0x2029),
+            ))
+        });
+        let bytes: [u8; 16] = std::array::from_fn(|j| lanes[j] as u8);
+        // The top bit of each byte set.
+        let flags = u128::from_le_bytes(bytes) & (u128::MAX / 0xff * 0x80);
+        for (half, mut bits) in [flags as u64, (flags >> 64) as u64].into_iter().enumerate() {
+            while bits != 0 {
+                push(start + half * 8 + (bits.trailing_zeros() / 8) as usize);
+                bits &= bits - 1;
             }
         }
-        start += block.len();
+        start += 16;
+    }
+    for (j, &unit) in blocks.remainder().iter().enumerate() {
+        if is_line_terminator(unit) {
+            push(start + j);
+        }
     }
     offsets
 }

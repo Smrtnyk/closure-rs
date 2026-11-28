@@ -21,7 +21,7 @@ use crate::{
     file_position::FilePosition,
     gson::JsonElement,
     source_map_consumer_v3::SourceMapConsumerV3,
-    source_map_generator::SourceMapGenerator,
+    source_map_generator::{SourceContentReader, SourceMapGenerator},
     source_map_parse_exception::SourceMapParseException as Error,
     source_map_section::{SectionType, SourceMapSection},
     util::Util,
@@ -63,11 +63,19 @@ impl<F: FnMut(&JsString, &ExtensionValue, &ExtensionValue) -> ExtensionValue> Ex
         self(k, c, n)
     }
 }
+/// Rust-only (performance divergence): a source's content (Java keeps a String), or what reads it
+/// when the map is written (`add_sources_content_read_later`): a content the map never names is
+/// never read.
+#[derive(Clone)]
+enum SourceContent {
+    Text(JsString),
+    ReadLater(SourceContentReader),
+}
 #[derive(Clone, Default)]
 pub struct SourceMapGeneratorV3 {
     mappings: Vec<Mapping>,
     source_file_map: MappingNames,
-    source_file_content_map: IndexMap<JsString, Option<JsString>>,
+    source_file_content_map: IndexMap<JsString, Option<SourceContent>>,
     original_name_map: MappingNames,
     max_used_end_line: i32,
     offset_position: FilePosition,
@@ -194,7 +202,20 @@ impl SourceMapGeneratorV3 {
     // Java's map value is a nullable String: a null content (e.g. a null "sourcesContent" entry of
     // an input source map) is stored too, replacing earlier content, and is written as "".
     pub fn add_sources_content(&mut self, source: impl Into<JsString>, content: Option<JsString>) {
-        self.source_file_content_map.insert(source.into(), content);
+        self.source_file_content_map
+            .insert(source.into(), content.map(SourceContent::Text));
+    }
+    /// Rust-only (performance divergence): `add_sources_content` of the content `read` gives,
+    /// read when the map is written and only if the map names `source` (Java reads it now). The
+    /// content is the same whenever it is read; a later `add_sources_content` of `source`
+    /// replaces it as it replaces a content.
+    pub fn add_sources_content_read_later(
+        &mut self,
+        source: impl Into<JsString>,
+        read: SourceContentReader,
+    ) {
+        self.source_file_content_map
+            .insert(source.into(), Some(SourceContent::ReadLater(read)));
     }
     // port: SourceMapGeneratorV3#mergeMapSection(int,int,String)
     pub fn merge_map_section(
@@ -352,7 +373,10 @@ impl SourceMapGeneratorV3 {
                 out.write_char(',')?;
             }
             if let Some(content) = content {
-                Util::write_escaped_string(out, content)?;
+                match content {
+                    SourceContent::Text(content) => Util::write_escaped_string(out, content)?,
+                    SourceContent::ReadLater(read) => Util::write_escaped_string(out, &read())?,
+                }
             } else {
                 out.write_str("\"\"")?;
             }
@@ -943,6 +967,9 @@ impl SourceMapGenerator for SourceMapGeneratorV3 {
     // Rust trait dispatch to the single Java method body.
     fn add_sources_content(&mut self, source: JsString, content: Option<JsString>) {
         self.add_sources_content(source, content)
+    }
+    fn add_sources_content_read_later(&mut self, source: JsString, read: SourceContentReader) {
+        self.add_sources_content_read_later(source, read)
     }
     // Rust trait dispatch to the single Java method body.
     fn add_mapping(

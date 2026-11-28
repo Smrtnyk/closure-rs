@@ -423,3 +423,49 @@ fn writer_failure_preserves_only_names_reached_by_the_append() {
         assert!(out.contains(&format!(r#""names":{names}"#)));
     }
 }
+
+// Rust-only: a content read later is read only when the map names its source, and is written as
+// the same content given now would be; a later content of the source replaces it.
+#[test]
+fn content_read_later_is_read_only_for_named_sources() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    fn add(map: &mut SourceMapGeneratorV3, source: &str, start: i32) {
+        map.add_mapping(
+            Some(source.into()),
+            None,
+            FilePosition::new(0, 0),
+            FilePosition::new(0, start),
+            FilePosition::new(0, start + 3),
+        );
+    }
+    let reads = Arc::new(AtomicUsize::new(0));
+    let reader = |text: &'static str| {
+        let reads = reads.clone();
+        Arc::new(move || {
+            reads.fetch_add(1, Ordering::Relaxed);
+            JsString::from(text)
+        }) as closure_sourcemap::source_map_generator::SourceContentReader
+    };
+    let mut later = SourceMapGeneratorV3::new();
+    later.add_sources_content_read_later("a.js", reader("x = \"a\";\n"));
+    later.add_sources_content_read_later("unnamed.js", reader("never read"));
+    later.add_sources_content_read_later("b.js", reader("replaced"));
+    later.add_sources_content("b.js", Some("b".into()));
+    add(&mut later, "a.js", 0);
+    add(&mut later, "b.js", 3);
+    let mut now = SourceMapGeneratorV3::new();
+    now.add_sources_content("a.js", Some("x = \"a\";\n".into()));
+    now.add_sources_content("unnamed.js", Some("never read".into()));
+    now.add_sources_content("b.js", Some("b".into()));
+    add(&mut now, "a.js", 0);
+    add(&mut now, "b.js", 3);
+    let (mut written, mut expected) = (String::new(), String::new());
+    later.append_to(&mut written, None).unwrap();
+    now.append_to(&mut expected, None).unwrap();
+    assert_eq!(written, expected);
+    assert!(written.contains(r#""sourcesContent":["x = \"a\";\n","b"]"#));
+    assert_eq!(reads.load(Ordering::Relaxed), 1);
+}

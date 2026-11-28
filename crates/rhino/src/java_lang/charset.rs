@@ -188,9 +188,22 @@ impl Charset {
 /// conversion, wherever a Java `String` that may hold source text (excerpts, diagnostic
 /// arguments) becomes a Rust `String` bound for output; lengths in UTF-16 units are kept.
 pub fn utf8_encoded_text(units: &[u16]) -> String {
+    if let Some(text) = ascii_string(units) {
+        return text;
+    }
     char::decode_utf16(units.iter().copied())
         .map(|c| c.unwrap_or('?'))
         .collect()
+}
+/// Rust-only (performance divergence): the text of `units` when they are all ASCII (nearly all
+/// strings), which every UTF-16 to UTF-8 conversion gives: one byte per unit, tested and narrowed
+/// in passes the compiler vectorizes, in a string of the exact size (decoding char by char grows
+/// the string as it goes). `None` when a unit is not ASCII.
+pub fn ascii_string(units: &[u16]) -> Option<String> {
+    if units.iter().fold(0, |any, &unit| any | unit) >= 0x80 {
+        return None;
+    }
+    String::from_utf8(units.iter().map(|&unit| unit as u8).collect()).ok()
 }
 // port: UTF_8.Decoder#decodeBufferLoop
 fn decode_utf8(bytes: &[u8], i: usize) -> (Vec<u16>, usize, bool) {
@@ -348,6 +361,39 @@ mod decoder_tests {
                     "round {round} start {start}"
                 );
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod text_tests {
+    use super::{ascii_string, utf8_encoded_text};
+    use crate::js_string::JsString;
+
+    /// The conversions char by char, without the ASCII shortcut.
+    #[test]
+    fn ascii_shortcut_gives_the_text_of_the_units() {
+        let cases: [&[u16]; 7] = [
+            &[],
+            &[0x61],
+            &[0x7f, 0x00, 0x41],
+            &[0x61, 0x80, 0x62],
+            &[0x61, 0xd800, 0x62],
+            &[0xdc00],
+            &[0xd83d, 0xde00, 0x7a],
+        ];
+        for units in cases {
+            let ascii = units.iter().all(|&unit| unit < 0x80);
+            assert_eq!(ascii_string(units).is_some(), ascii, "{units:x?}");
+            let encoded: String = char::decode_utf16(units.iter().copied())
+                .map(|c| c.unwrap_or('?'))
+                .collect();
+            assert_eq!(utf8_encoded_text(units), encoded, "{units:x?}");
+            assert_eq!(
+                JsString::from_slice(units).to_string_lossy(),
+                String::from_utf16_lossy(units),
+                "{units:x?}"
+            );
         }
     }
 }

@@ -235,6 +235,33 @@ impl SourceFile {
         }
         Ok(code)
     }
+    /// Rust-only (performance divergence): whether this file's code (`get_code`) is known to be
+    /// `other`'s from their bytes alone, without decoding either: both are files on disk read with
+    /// the same charset, neither has code in memory, both can be read and their bytes are equal
+    /// (equal bytes decode to equal code). `false` says nothing: files whose bytes differ may still
+    /// decode alike.
+    pub(crate) fn has_code_of_by_bytes(&self, other: &SourceFile) -> bool {
+        let (
+            CodeLoader::OnDisk {
+                relative_path,
+                serializable_charset,
+            },
+            CodeLoader::OnDisk {
+                relative_path: other_path,
+                serializable_charset: other_charset,
+            },
+        ) = (&self.loader, &other.loader)
+        else {
+            return false;
+        };
+        if Charset::for_name(serializable_charset) != Charset::for_name(other_charset)
+            || self.has_source_in_memory()
+            || other.has_source_in_memory()
+        {
+            return false;
+        }
+        matches!((fs::read(relative_path), fs::read(other_path)), (Ok(a), Ok(b)) if a == b)
+    }
     // port: SourceFile#setCodeDeprecated
     pub fn set_code_deprecated(&self, code: impl Into<JsString>) {
         self.set_code_and_do_bookkeeping(Some(SourceCode::Text(code.into())));

@@ -447,6 +447,16 @@ impl DoubleToDecimal {
 mod character_data;
 // port: CharacterData#of
 fn character_flags(c: i32) -> u8 {
+    // Rust-only (performance divergence): an ASCII character's flags are read from a table made
+    // from the ranges when the crate is compiled (`ASCII_FLAGS`); the others are searched.
+    if let Some(&flags) = usize::try_from(c).ok().and_then(|c| ASCII_FLAGS.get(c)) {
+        return flags;
+    }
+    searched_character_flags(c)
+}
+/// The flags of `c` in `character_data::RANGES` (sorted by their last character): those of the
+/// first range that ends at or after `c`, if it starts at or before `c`.
+fn searched_character_flags(c: i32) -> u8 {
     let ranges = character_data::RANGES;
     let i = ranges.partition_point(|r| r.1 < c);
     if i < ranges.len() && ranges[i].0 <= c {
@@ -455,6 +465,24 @@ fn character_flags(c: i32) -> u8 {
         0
     }
 }
+/// Rust-only (performance divergence): `searched_character_flags` of every ASCII character,
+/// found by a scan of the ranges when the crate is compiled.
+static ASCII_FLAGS: [u8; 128] = {
+    let ranges = character_data::RANGES;
+    let mut flags = [0; 128];
+    let mut c = 0;
+    while c < 128 {
+        let mut i = 0;
+        while i < ranges.len() && ranges[i].1 < c as i32 {
+            i += 1;
+        }
+        if i < ranges.len() && ranges[i].0 <= c as i32 {
+            flags[c] = ranges[i].2;
+        }
+        c += 1;
+    }
+    flags
+};
 // port: Character#getType
 pub fn is_space_separator(c: i32) -> bool {
     character_flags(c) & 1 != 0
@@ -1059,3 +1087,23 @@ pub mod regex;
 
 pub mod unix_path;
 pub mod uri;
+
+#[cfg(test)]
+mod character_flags_tests {
+    #[test]
+    fn ascii_table_has_the_flags_the_search_finds() {
+        for c in 0..128 {
+            assert_eq!(
+                super::ASCII_FLAGS[c as usize],
+                super::searched_character_flags(c),
+                "{c}"
+            );
+        }
+        for c in [-1, 128, 0xa0, 0x2028, 0xfeff, 0xffff] {
+            assert_eq!(
+                super::character_flags(c),
+                super::searched_character_flags(c)
+            );
+        }
+    }
+}
