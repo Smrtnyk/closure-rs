@@ -2000,8 +2000,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `jscomp/compiler.rs` (`reserve_node_arena`, `estimated_program_nodes`): before parsing, the node
   arena's columns get room for the inputs' nodes (a bundled extern's count from its snapshot,
   `bundled_extern_node_counts.rs` made by `build.rs`; other files one node per six code units of
-  their length or file size) and a quarter more for the passes; a preparse arena gets its file's
-  estimate and a fifth more (`parallel_parse.rs`); the lazily grown per-node columns (types,
+  their length or file size) and a quarter more for the passes; a preparse arena of a large file
+  gets its file's estimate and a fifth more (`parallel_parse.rs`, `MIN_RESERVED_PREPARSE_NODES`:
+  room reserved and not used in hundreds of small arenas is resident with the allocator's default
+  settings); the lazily grown per-node columns (types,
   change times, side-effect flags, the scope cache's stamps and roots) take the arena's room at
   their first growth. `typed_scope_creator/typed_externs.rs` (`ProgramRest`) and
   `jstype/js_type_registry/snapshot.rs`: the typed externs restore reserves types, properties,
