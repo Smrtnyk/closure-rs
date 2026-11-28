@@ -136,6 +136,13 @@ impl CompilerPass for DisambiguateProperties {
             if compact {
                 find_refs.defer_extern_only_renames();
             }
+            // Rust-only (performance divergence): the property names of the externs and half as
+            // many more, about how many names the traversal finds (the externs have most of
+            // them).
+            let extern_names = compiler
+                .get_extern_properties()
+                .map_or(0, |names| names.len());
+            find_refs.reserve_property_names(extern_names + extern_names / 2);
             let externs_parent = externs.get_parent(compiler).unwrap();
             find_refs.traverse_ast(compiler, externs_parent);
             find_refs.get_property_index()

@@ -296,6 +296,10 @@ pub(crate) struct InlineVarsCleanCache {
     /// looked up a variable declared outside them, in `Mode::ALL` (`InliningBehavior::
     /// clean_subtree_cache`).
     pub(crate) clean_subtrees: KeptCleanSubtrees,
+    /// Rust-only (performance divergence): per mode, how many var experts the last run made,
+    /// which the next run of that mode reserves (only capacity depends on it; kept when the
+    /// cache is cleared).
+    expert_counts: [Option<usize>; 3],
 }
 
 impl InlineVarsCleanCache {
@@ -353,14 +357,15 @@ impl CompilerPass for InlineVariables {
     // port: InlineVariables#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
         let mode = self.mode;
+        let mode_tag = match mode {
+            Mode::CONSTANTS_ONLY => 0,
+            Mode::LOCALS_ONLY => 1,
+            Mode::ALL => 2,
+        };
         let use_cache = *INLINE_VARS_CACHE_ENABLED;
         if use_cache {
             let env = InlineVarsEnvKey {
-                mode_tag: match mode {
-                    Mode::CONSTANTS_ONLY => 0,
-                    Mode::LOCALS_ONLY => 1,
-                    Mode::ALL => 2,
-                },
+                mode_tag,
                 assume_getters_are_pure: compiler
                     .get_options_opt()
                     .is_some_and(|o| o.get_assume_getters_are_pure()),
@@ -376,7 +381,16 @@ impl CompilerPass for InlineVariables {
         let mut scope_creator = SyntacticScopeCreator::new();
         let mut callback = ReferenceCollector::new_with_filter(
             compiler,
-            InliningBehavior::new(mode, use_cache),
+            InliningBehavior::new(
+                mode,
+                use_cache,
+                // The first run of a mode: a little more than the first run on the benchmark
+                // bundles needed per node outside the externs.
+                // Otherwise an eighth more than the last run (a run that needs a few more would
+                // copy the full arena once).
+                compiler.inline_vars_clean_cache.expert_counts[mode_tag as usize]
+                    .map_or_else(|| compiler.estimated_program_nodes() / 24, |n| n + n / 8),
+            ),
             &mut scope_creator,
             Box::new(move |compiler: &AbstractCompiler, var: VarId| {
                 mode.var_predicate(compiler, var)
@@ -386,6 +400,8 @@ impl CompilerPass for InlineVariables {
         callback.reuse_reference_sites();
         callback.skip_externs_when_unread();
         CompilerPass::process(&mut callback, compiler, externs, root);
+        let experts = callback.into_behavior().experts.len();
+        compiler.inline_vars_clean_cache.expert_counts[mode_tag as usize] = Some(experts);
     }
 }
 
@@ -676,7 +692,7 @@ impl AliasInlineRetryHandler {
 }
 
 impl InliningBehavior {
-    fn new(mode: Mode, use_cache: bool) -> Self {
+    fn new(mode: Mode, use_cache: bool, experts: usize) -> Self {
         Self {
             mode,
             use_cache,
@@ -688,7 +704,7 @@ impl InliningBehavior {
             current_scope_handled_var_analyses_map: HandledVarAnalyses::default(),
             var_to_alias_retry_handlers_map: IndexMap::<_, _>::default(),
             scope_vars: Vec::new(),
-            experts: Vec::new(),
+            experts: Vec::with_capacity(experts),
             free_slots_scratch: Vec::new(),
             free_names_scratch: Vec::new(),
             prune_remap_scratch: Vec::new(),
@@ -855,6 +871,11 @@ impl InliningBehavior {
             self.vars_in_this_scope_may_be_modified_using_arguments(compiler, scope, reference_map);
         let mut vars = std::mem::take(&mut self.scope_vars);
         scope.collect_declared_vars(compiler, &mut vars);
+        // Rust-only (performance divergence): room for an analysis per var of the scope, so that
+        // the tables are not copied each time they double in a large (global) scope; only
+        // capacity changes.
+        self.current_scope_handled_var_analyses_map
+            .reserve(vars.len());
         for &v in &vars {
             let reference_info = reference_map.shared_references(v);
             if !nested_outer_dep
@@ -1635,6 +1656,21 @@ impl HandledVarAnalyses {
     fn clear(&mut self) {
         self.pending.clear();
         self.indexed.clear();
+    }
+
+    /// Room for `vars` more analyses. An empty table too small is made anew rather than grown
+    /// (growing copies the whole old block, though nothing in it is kept).
+    fn reserve(&mut self, vars: usize) {
+        if self.pending.is_empty() && self.pending.capacity() < vars {
+            self.pending = Vec::with_capacity(vars);
+        } else {
+            self.pending.reserve(vars);
+        }
+        if self.indexed.is_empty() && self.indexed.capacity() < vars {
+            self.indexed = IndexMap::with_capacity_and_hasher(vars, Default::default());
+        } else {
+            self.indexed.reserve(vars);
+        }
     }
 
     fn insert(&mut self, var: VarId, analysis: InlineVarAnalysis) {

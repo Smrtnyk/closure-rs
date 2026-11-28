@@ -97,6 +97,20 @@ impl<'a> MappedCodePrinter<'a> {
             line_index: 0,
         }
     }
+    /// Rust-only (performance divergence): room for the code and the mappings of a tree of
+    /// `nodes` nodes, made before anything is printed: the benchmark scripts print 2.3 to 4.2
+    /// characters and at most one mapping per node. A tree that prints more grows the buffers as
+    /// before; only capacity changes.
+    fn reserve_for_nodes(&mut self, nodes: usize) {
+        if self.code.is_empty() && self.code.capacity() < nodes * 5 {
+            self.code = Vec::with_capacity(nodes * 5);
+        }
+        if let Some(all_mappings) = &mut self.all_mappings
+            && all_mappings.is_empty()
+        {
+            all_mappings.reserve(nodes);
+        }
+    }
     /// Returns a list of sourcemap mappings that were generated while printing this code. Only
     /// useful if createSrcMap was true for this MappedCodePrinter.
     // port: CodePrinter.MappedCodePrinter#getSourceMappings
@@ -183,7 +197,8 @@ impl<'a> MappedCodePrinter<'a> {
     }
     // port: CodePrinter.MappedCodePrinter#getCode
     pub fn get_code(&self) -> JsString {
-        JsString::from_units(self.code.clone())
+        // Rust-only (performance divergence): one copy of the code, not a copy of a copy.
+        JsString::from_slice(&self.code)
     }
     // port: CodePrinter.MappedCodePrinter#getCurrentCharIndex
     pub fn get_current_char_index(&self) -> i32 {
@@ -953,16 +968,38 @@ impl<'a> Builder<'a> {
 }
 trait MappedConsumer<'a>: CodeConsumer {
     fn into_mapped(self: Box<Self>) -> MappedCodePrinter<'a>;
+    fn mapped_mut(&mut self) -> &mut MappedCodePrinter<'a>;
 }
 impl<'a> MappedConsumer<'a> for CompactCodePrinter<'a> {
     fn into_mapped(self: Box<Self>) -> MappedCodePrinter<'a> {
         self.mapped
+    }
+    fn mapped_mut(&mut self) -> &mut MappedCodePrinter<'a> {
+        &mut self.mapped
     }
 }
 impl<'a> MappedConsumer<'a> for PrettyCodePrinter<'a> {
     fn into_mapped(self: Box<Self>) -> MappedCodePrinter<'a> {
         self.mapped
     }
+    fn mapped_mut(&mut self) -> &mut MappedCodePrinter<'a> {
+        &mut self.mapped
+    }
+}
+
+/// Rust-only: the number of nodes in the tree at `root`.
+fn count_nodes(ast: &Ast, root: NodeId) -> usize {
+    let mut count = 0;
+    let mut stack = vec![root];
+    while let Some(n) = stack.pop() {
+        count += 1;
+        let mut child = n.get_first_child(ast);
+        while let Some(c) = child {
+            stack.push(c);
+            child = c.get_next(ast);
+        }
+    }
+    count
 }
 /// Converts a tree to JS code
 // port: CodePrinter#toSource
@@ -994,6 +1031,11 @@ fn to_source(
             license_tracker,
         ))
     };
+    // Rust-only (performance divergence): a whole script is printed into buffers sized from its
+    // node count (see `MappedCodePrinter::reserve_for_nodes`).
+    if root.is_script(ast) {
+        mcp.mapped_mut().reserve_for_nodes(count_nodes(ast, root));
+    }
     {
         let mut cg = code_generator_factory.get_code_generator(
             output_format,

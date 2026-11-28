@@ -1224,6 +1224,9 @@ impl Ast {
             *slot = value;
         } else if value.is_some() {
             assert!(index < self.nodes.len());
+            if self.types.capacity() == 0 {
+                Self::reserve_lazy_column(&mut self.types, self.nodes.capacity());
+            }
             self.types.resize_with(index + 1, || None);
             self.types[index] = value;
         }
@@ -1360,6 +1363,9 @@ impl Ast {
     pub(crate) fn set_inline_change_time(&mut self, slot: usize, value: i32) {
         if value != 0 {
             if slot >= self.change_times.len() {
+                if self.change_times.capacity() == 0 {
+                    Self::reserve_lazy_column(&mut self.change_times, self.nodes.capacity());
+                }
                 self.change_times.resize(slot + 1, 0);
             }
             self.change_times[slot] = value;
@@ -1371,6 +1377,9 @@ impl Ast {
     pub(crate) fn set_inline_side_effect_flags(&mut self, slot: usize, value: u8) {
         if value != 0 {
             if slot >= self.side_effect_flags.len() {
+                if self.side_effect_flags.capacity() == 0 {
+                    Self::reserve_lazy_column(&mut self.side_effect_flags, self.nodes.capacity());
+                }
                 self.side_effect_flags.resize(slot + 1, 0);
             }
             self.side_effect_flags[slot] = value;
@@ -1506,6 +1515,45 @@ impl Ast {
     /// Rust-only: the number of nodes in the arena.
     pub fn node_count(&self) -> u32 {
         u32::try_from(self.nodes.len()).unwrap()
+    }
+    /// Rust-only (performance divergence): makes room for `additional` more nodes in the columns
+    /// that every node has, so that an arena whose final size is known or estimated before it
+    /// fills does not grow them by doubling (each growth copies the whole column, and holds the
+    /// old and the new block at once). Memory reserved but never written is address space only:
+    /// nothing here writes it. The columns grown lazily (`types`, `change_times`,
+    /// `side_effect_flags`) take this capacity when they are first grown.
+    pub fn reserve_nodes(&mut self, additional: usize) {
+        self.nodes.reserve_exact(additional);
+        self.links.reserve_exact(additional);
+        self.cold.reserve_exact(additional);
+        self.prop_masks.reserve_exact(additional);
+        self.jsdocs.reserve_exact(additional);
+    }
+    /// Rust-only (performance divergence): about how many nodes parsing `units` code units of
+    /// JavaScript makes, for `reserve_nodes`: a sixth of the units (esbuild's output on the
+    /// benchmark bundles has one node per 8.6 units in all, from one per 5.2 to one per 10.1 in
+    /// single files; the bundled externs, which are mostly comments, have one per 16). Denser
+    /// (minified) code grows the arena once more; sparser code leaves reserved room unused.
+    pub fn estimated_parse_nodes(units: usize) -> usize {
+        units / 6
+    }
+    /// Rust-only (performance divergence): the room a lazily grown column (one entry per node up
+    /// to the highest node that has a value) takes when it first grows: the room reserved for
+    /// nodes (see `reserve_nodes`).
+    #[cold]
+    fn reserve_lazy_column<T>(column: &mut Vec<T>, nodes_capacity: usize) {
+        column.reserve_exact(nodes_capacity);
+    }
+    /// Rust-only (performance divergence): grows `column`, a table kept elsewhere with one entry
+    /// per node of this arena up to the highest node it has a value for, to cover arena index
+    /// `index`, filling new entries with `fill`. Its first growth takes the room reserved for
+    /// nodes (see `reserve_nodes`), so that a table that comes to cover most nodes is not copied
+    /// each time it doubles.
+    pub fn grow_node_column<T: Clone>(&self, column: &mut Vec<T>, index: usize, fill: T) {
+        if column.capacity() == 0 {
+            Self::reserve_lazy_column(column, self.nodes.capacity().max(index + 1));
+        }
+        column.resize(index + 1, fill);
     }
     /// Rust-only (performance divergence): whether a node of this arena has, or ever had, token
     /// `token` (see `PresenceSummary`; false means certainly never).

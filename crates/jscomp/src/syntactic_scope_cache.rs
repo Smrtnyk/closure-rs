@@ -600,7 +600,7 @@ impl SyntacticScopeCache {
                 while let Some(current) = node {
                     let index = current.arena_index();
                     if cache.stamps.len() <= index {
-                        cache.stamps.resize(index + 1, 0);
+                        compiler.ast.grow_node_column(&mut cache.stamps, index, 0);
                     }
                     if cache.stamps[index] == round {
                         break;
@@ -624,7 +624,7 @@ impl SyntacticScopeCache {
                     stamp_declaration_change(&compiler.ast, n, |root| {
                         let index = root.arena_index();
                         if stamps.len() <= index {
-                            stamps.resize(index + 1, 0);
+                            compiler.ast.grow_node_column(stamps, index, 0);
                         }
                         stamps[index] = round;
                     });
@@ -648,7 +648,9 @@ impl SyntacticScopeCache {
                 while let Some(current) = node {
                     let index = current.arena_index();
                     if cache.flag_stamps.len() <= index {
-                        cache.flag_stamps.resize(index + 1, 0);
+                        compiler
+                            .ast
+                            .grow_node_column(&mut cache.flag_stamps, index, 0);
                     }
                     if cache.flag_stamps[index] == round {
                         break;
@@ -1045,7 +1047,7 @@ impl SyntacticScopeCache {
         let cache = &mut compiler.syntactic_scope_cache;
         let index = root.arena_index();
         if cache.by_root.len() <= index {
-            cache.by_root.resize(index + 1, 0);
+            compiler.ast.grow_node_column(&mut cache.by_root, index, 0);
         }
         let previous = std::mem::replace(
             &mut cache.by_root[index],

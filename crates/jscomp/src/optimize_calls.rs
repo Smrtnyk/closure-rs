@@ -264,6 +264,9 @@ impl CompilerPass for OptimizeCalls {
         for pass in &mut self.passes {
             pass.process(compiler, externs, root, &mut references);
         }
+        // Rust-only (performance divergence): kept to size the next run's lists (see
+        // `UnitReferenceCache::previous`).
+        compiler.optimize_calls_unit_cache.previous = Some(references);
     }
 }
 
@@ -664,6 +667,29 @@ pub(crate) struct UnitReferenceCache {
     /// The extern-property set the props were filtered with (None: none was set).
     extern_props: Option<std::sync::Arc<IndexSet<JsString>>>,
     units: IndexMap<NodeId, std::sync::Arc<UnitReferences>>,
+    /// Rust-only (performance divergence): the reference map of the last run, whose list of a
+    /// name sizes that name's list in the next run (a list that grows by doubling copies itself
+    /// each time; most lists change little between runs). Only capacity depends on it.
+    previous: Option<ReferenceMap>,
+}
+
+/// `ReferenceMap::add_reference`, where a name's new list takes the size of its list in
+/// `previous` (see `UnitReferenceCache::previous`).
+fn add_reference_sized(
+    data: &mut IndexMap<JsString, Vec<NodeId>>,
+    previous: Option<&IndexMap<JsString, Vec<NodeId>>>,
+    name: &JsString,
+    n: NodeId,
+) {
+    match data.entry(name.clone()) {
+        indexmap::map::Entry::Occupied(refs) => refs.into_mut().push(n),
+        indexmap::map::Entry::Vacant(slot) => {
+            let size = previous.and_then(|p| p.get(name)).map_or(0, Vec::len);
+            let mut refs = Vec::with_capacity(size.max(4));
+            refs.push(n);
+            slot.insert(refs);
+        }
+    }
 }
 
 impl UnitReferences {
@@ -950,6 +976,22 @@ impl ReferenceMapBuilder<'_> {
         let stale: Vec<usize> = (0..units.len())
             .filter(|&i| verify || entries[i].is_none())
             .collect();
+        // Rust-only (performance divergence): the sizes of the unit's last recording, which its
+        // new recording reserves (a unit is walked again when it changed, which seldom changes
+        // its size much); only capacity changes.
+        let previous_sizes: Vec<[usize; 4]> = units
+            .iter()
+            .map(|(unit, _)| {
+                cache.units.get(unit).map_or([0; 4], |entry| {
+                    [
+                        entry.stamps.len(),
+                        entry.names.len(),
+                        entry.props.len(),
+                        entry.quoted.len(),
+                    ]
+                })
+            })
+            .collect();
 
         // Walks the stale units; a failure is reported at the first failing unit in order, which
         // is where one walk in order would fail (an unchanged unit did not fail before).
@@ -967,6 +1009,9 @@ impl ReferenceMapBuilder<'_> {
                          i: usize|
          -> Result<UnitReferences, WalkFailure> {
             let (unit, script) = units[i];
+            let [stamps, names, props, quoted] = previous_sizes[i];
+            let mut stamps = Vec::with_capacity(stamps.max(1));
+            stamps.push((unit, 0));
             let mut builder = ReferenceMapBuilder {
                 ast,
                 coding_convention,
@@ -980,8 +1025,10 @@ impl ReferenceMapBuilder<'_> {
                 props: IndexMap::default(),
                 recording: Some(UnitReferences {
                     script,
-                    stamps: vec![(unit, 0)],
-                    ..UnitReferences::default()
+                    stamps,
+                    names: Vec::with_capacity(names),
+                    props: Vec::with_capacity(props),
+                    quoted: Vec::with_capacity(quoted),
                 }),
             };
             match catch_unwind(AssertUnwindSafe(|| builder.walk_node(unit, true))) {
@@ -1075,19 +1122,21 @@ impl ReferenceMapBuilder<'_> {
 
         let mut names = std::mem::take(&mut references.names);
         let mut props = std::mem::take(&mut references.props);
+        let previous = cache.previous.take();
         for entry in entries.iter().flatten() {
             for (name, n) in &entry.names {
                 let h = name.hash_code() as usize;
                 if (global_name_bloom[(h >> 6) & 63] & (1u64 << (h & 63))) != 0
                     && global_names.contains(name)
                 {
-                    ReferenceMap::add_reference(&mut names, name.clone(), *n);
+                    add_reference_sized(&mut names, previous.as_ref().map(|p| &p.names), name, *n);
                 }
             }
             for (name, n) in &entry.props {
-                ReferenceMap::add_reference(&mut props, name.clone(), *n);
+                add_reference_sized(&mut props, previous.as_ref().map(|p| &p.props), name, *n);
             }
         }
+        drop(previous);
         references.names = names;
         references.props = props;
         compiler.optimize_calls_unit_cache = UnitReferenceCache {
@@ -1097,6 +1146,7 @@ impl ReferenceMapBuilder<'_> {
                 .zip(entries)
                 .filter_map(|(&(unit, _), entry)| Some((unit, entry?)))
                 .collect(),
+            previous: None,
         };
     }
 

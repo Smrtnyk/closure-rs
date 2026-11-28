@@ -129,6 +129,14 @@ impl Charset {
                 little = true;
             }
         }
+        // Rust-only (performance divergence): a text of one code unit per byte (ISO-8859-1, or
+        // ASCII in UTF-8 or US-ASCII: nearly all source) is made in place, without a buffer that
+        // is then copied (`JsString::from_latin1`); the result is the same.
+        if self == Self::ISO_8859_1
+            || (matches!(self, Self::UTF_8 | Self::US_ASCII) && bytes[i..].is_ascii())
+        {
+            return Ok(JsString::from_latin1(&bytes[i..]));
+        }
         // Rust-only (performance divergence): one output buffer, sized up front, and a fast path
         // for ASCII runs of UTF-8 (Java's decoder loops over a char buffer too; the result is the
         // same).

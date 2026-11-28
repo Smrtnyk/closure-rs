@@ -40,6 +40,49 @@ use std::collections::VecDeque;
 
 pub(crate) type LinearScripts = IndexMap<NodeId, Vec<NodeId>>;
 
+/// Rust-only (performance divergence): per CFG root, the sizes of the graph computed last for
+/// it, on any thread: its nodes, edges and recorded AST positions. The next graph of that root
+/// reserves them (the passes compute the graph of a function again in every round of the
+/// optimizer loop, and the tables of a large graph would otherwise be copied each time they
+/// double). Only capacity depends on it; a stale or foreign entry (another compilation in this
+/// process) only sizes the tables differently.
+struct LastGraphSizes;
+
+type GraphSizes = IndexMap<NodeId, (u32, u32, u32)>;
+
+static LAST_GRAPH_SIZES: std::sync::LazyLock<std::sync::Mutex<GraphSizes>> =
+    std::sync::LazyLock::new(Default::default);
+
+impl LastGraphSizes {
+    /// Entries kept before the table starts over (a long-lived process compiles many programs).
+    const MAX_ROOTS: usize = 1 << 16;
+
+    fn table() -> std::sync::MutexGuard<'static, GraphSizes> {
+        LAST_GRAPH_SIZES
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// The capacities for a graph of `root`: an eighth more than the last sizes (a graph that
+    /// grew a little would otherwise copy its full tables once), or room for a small function.
+    fn of(root: NodeId) -> (usize, usize, usize) {
+        let last = Self::table().get(&root).copied();
+        let more = |n: u32| n as usize + n as usize / 8;
+        last.map_or((16, 16, 0), |(nodes, edges, positions)| {
+            (more(nodes), more(edges), more(positions))
+        })
+    }
+
+    fn record(root: NodeId, nodes: usize, edges: usize, positions: usize) {
+        let narrow = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
+        let mut sizes = Self::table();
+        if sizes.len() >= Self::MAX_ROOTS && !sizes.contains_key(&root) {
+            sizes.clear();
+        }
+        sizes.insert(root, (narrow(nodes), narrow(edges), narrow(positions)));
+    }
+}
+
 pub struct ControlFlowAnalysis {
     cfg: ControlFlowGraph<NodeId>,
     /// Java's `astPosition` map (`LinkedIdentityHashMap<Node, Integer>`), as the log of its puts
@@ -121,11 +164,16 @@ impl ControlFlowAnalysis {
             "Unexpected control flow graph root %s",
             root.to_string(ast)
         );
-        let cfg =
-            ControlFlowGraph::new_ast(Self::compute_fall_through(ast, root), edge_annotations);
+        let (nodes, edges, positions) = LastGraphSizes::of(root);
+        let cfg = ControlFlowGraph::new_ast(
+            Self::compute_fall_through(ast, root),
+            edge_annotations,
+            nodes,
+            edges,
+        );
         Self {
             cfg,
-            ast_position: Vec::new(),
+            ast_position: Vec::with_capacity(positions),
             ast_position_counter: 0,
             priority_counter: 0,
             should_traverse_functions,
@@ -259,6 +307,7 @@ impl ControlFlowAnalysis {
         self.ast_position.clear();
         self.ast_position_counter = 0;
         self.traverse_ast(ast, root, None);
+        let recorded_positions = self.ast_position.len();
         self.ast_position_counter += 1;
         // astPosition.put(null, ++astPositionCounter)
         let positions = self.cfg_node_positions();
@@ -285,6 +334,12 @@ impl ControlFlowAnalysis {
         self.cfg
             .get_implicit_return()
             .set_priority(&mut self.cfg, self.priority_counter);
+        LastGraphSizes::record(
+            root,
+            self.cfg.graph.get_node_count(),
+            self.cfg.graph.edge_arena_len(),
+            recorded_positions,
+        );
     }
 
     /// Rust-only (performance divergence): the AST position of each CFG node's value, indexed by

@@ -61,6 +61,21 @@ impl JsString {
     pub fn from_slice(units: &[u16]) -> Self {
         Self(Repr::Shared(Self::java_hash(units), units.into()))
     }
+    /// Rust-only (performance divergence): the string with one code unit per byte of `bytes`
+    /// (ISO-8859-1, and ASCII text in any ASCII-compatible charset), made straight in an array of
+    /// the exact size: one allocation and no copy of a buffer (`from_units` copies its vector).
+    pub fn from_latin1(bytes: &[u8]) -> Self {
+        let units: Arc<[u16]> = bytes.iter().map(|&b| u16::from(b)).collect();
+        Self(Repr::Shared(Self::java_hash(&units), units))
+    }
+    /// Rust-only (performance divergence): the string of `len` code units that `fill` writes,
+    /// made in an array of the exact size (zeroed first: the array is not shared yet, so `fill`
+    /// gets it mutably without unsafe code).
+    fn filled(len: usize, fill: impl FnOnce(&mut [u16])) -> Self {
+        let mut units: Arc<[u16]> = std::iter::repeat_n(0, len).collect();
+        fill(Arc::get_mut(&mut units).expect("a new array has one owner"));
+        Self(Repr::Shared(Self::java_hash(&units), units))
+    }
     /// Rust-only: `String#hashCode` of `units`, `Σ units[i]·31^(n-1-i)` (mod 2^32).
     fn java_hash(units: &[u16]) -> u32 {
         // Rust-only (performance divergence): sixteen units per step (`h·31^16` plus the dot
@@ -246,9 +261,13 @@ impl JsString {
         if s.is_empty() {
             return self.clone();
         }
-        let mut units = self.as_units().to_vec();
-        units.extend_from_slice(s.as_units());
-        Self::from_units(units)
+        // Rust-only (performance divergence): the units of both strings are copied straight into
+        // an array of the exact size (no growing buffer, no copy of one).
+        let (a, b) = (self.as_units(), s.as_units());
+        Self::filled(a.len() + b.len(), |units| {
+            units[..a.len()].copy_from_slice(a);
+            units[a.len()..].copy_from_slice(b);
+        })
     }
     // port: String#replace(CharSequence,CharSequence)
     pub fn replace(&self, target: &Self, replacement: &Self) -> Self {

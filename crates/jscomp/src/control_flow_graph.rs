@@ -82,12 +82,32 @@ impl<N: Clone + Eq + Hash> ControlFlowGraph<N> {
         edge_annotations: bool,
         node_formatter: fn(Option<&AbstractCompiler>, &N) -> String,
     ) -> Self {
+        Self::with_capacity(
+            entry,
+            node_annotations,
+            edge_annotations,
+            node_formatter,
+            0,
+            0,
+        )
+    }
+    /// Rust-only (performance divergence): `new_with_node_formatter` with room for `nodes` nodes
+    /// and `edges` edges, reserved before the first two nodes are made; only capacity changes.
+    pub(crate) fn with_capacity(
+        entry: N,
+        node_annotations: bool,
+        edge_annotations: bool,
+        node_formatter: fn(Option<&AbstractCompiler>, &N) -> String,
+        nodes: usize,
+        edges: usize,
+    ) -> Self {
         let mut graph = LinkedDirectedGraph::new_with_value_to_strings(
             node_annotations,
             edge_annotations,
             |_| "null".into(),
             |branch: &Branch| branch.to_string(),
         );
+        graph.reserve(nodes, edges);
         let implicit_return = graph.create_node(None);
         let entry = graph.create_node(Some(entry));
         Self {
@@ -174,15 +194,23 @@ impl<N: Clone + Eq + Hash> ControlFlowGraph<N> {
 }
 impl ControlFlowGraph<NodeId> {
     // port: ControlFlowAnalysis.AstControlFlowGraph#AstControlFlowGraph
-    pub(crate) fn new_ast(entry: NodeId, edge_annotations: bool) -> Self {
-        let mut cfg =
-            Self::new_with_node_formatter(entry, true, edge_annotations, |compiler, n| {
-                n.to_string(compiler.expect("AST CFG formatting requires a compiler"))
-            });
+    /// Rust-only (performance divergence): with room for `nodes` nodes and `edges` edges, which
+    /// saves growing the tables from empty (only capacity changes).
+    pub(crate) fn new_ast(
+        entry: NodeId,
+        edge_annotations: bool,
+        nodes: usize,
+        edges: usize,
+    ) -> Self {
+        let mut cfg = Self::with_capacity(
+            entry,
+            true,
+            edge_annotations,
+            |compiler, n| n.to_string(compiler.expect("AST CFG formatting requires a compiler")),
+            nodes,
+            edges,
+        );
         cfg.ast_comparator = true;
-        // Rust-only (performance divergence): a function's graph has about 15 nodes and edges;
-        // room for them up front saves growing the tables from empty.
-        cfg.graph.reserve(16, 16);
         cfg
     }
     /// A traversal restricted to one CFG node prunes every child of these containers.
@@ -507,7 +535,7 @@ mod tests {
     fn ast_values_are_formatted_after_mutation() {
         let mut compiler = Compiler::new();
         let entry = compiler.new_string_with_token(Token::NAME, "before");
-        let mut cfg = ControlFlowGraph::new_ast(entry, false);
+        let mut cfg = ControlFlowGraph::new_ast(entry, false, 16, 16);
         cfg.connect(Some(entry), Branch::UNCOND, None);
         assert_eq!(
             cfg.with_compiler(&compiler).to_string(),

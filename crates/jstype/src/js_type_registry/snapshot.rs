@@ -2340,15 +2340,24 @@ impl JSTypeRegistry {
     }
 
     /// Replaces the state `snapshot_encode` writes with the state in `r`.
+    /// Rust-only (performance divergence): `headroom` is how many types and properties to make
+    /// room for beyond the restored ones, so that the tables are not copied when what follows
+    /// the restore adds to them; only capacity changes.
     pub fn snapshot_restore(
         &mut self,
         r: &mut Reader<'_>,
         env: &mut dyn SnapshotEnv,
         ast: &Ast,
         synthetic: Option<&SyntheticEntries>,
+        headroom: (usize, usize),
     ) {
         r.prop_shift = synthetic.map(|s| (s.props_start, s.properties.len() as u32));
-        self.snapshot_restore_fields(r, env, ast);
+        // The synthetic properties are put back into the restored table.
+        let headroom = (
+            headroom.0,
+            headroom.1 + synthetic.map_or(0, |s| s.properties.len()),
+        );
+        self.snapshot_restore_fields(r, env, ast, headroom);
         r.prop_shift = None;
         if let Some(synthetic) = synthetic {
             synthetic.put_back(self);
@@ -2360,17 +2369,18 @@ impl JSTypeRegistry {
         r: &mut Reader<'_>,
         env: &mut dyn SnapshotEnv,
         ast: &Ast,
+        headroom: (usize, usize),
     ) {
         self.empty_template_type_map = r.b().then(|| read_template_map(r));
         let len = r.u() as usize;
-        let mut types = Vec::with_capacity(len.max(self.types.capacity()));
+        let mut types = Vec::with_capacity((len + headroom.0).max(self.types.capacity()));
         for i in 0..len {
             r.type_base(i as u32);
             types.push(read_type(r, env, ast));
         }
         self.types = types;
         let len = r.u() as usize;
-        let mut properties = Vec::with_capacity(len.max(self.properties.capacity()));
+        let mut properties = Vec::with_capacity((len + headroom.1).max(self.properties.capacity()));
         for _ in 0..len {
             properties.push(read_property(r, env, ast));
         }

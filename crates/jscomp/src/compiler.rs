@@ -267,6 +267,9 @@ pub struct Compiler {
     typed_scope_arena: crate::typed_scope::TypedScopeArena,
     /// Rust-only: lock-free copies of immutable `typed_scope_arena` fields.
     pub(crate) typed_scope_mirror: Vec<crate::typed_scope::TypedScopeMeta>,
+    /// Rust-only (performance divergence): the arena's node count when the externs were parsed
+    /// (see `estimated_program_nodes`).
+    extern_node_count: u32,
     /// Rust-only (performance divergence): syntactic scopes kept for reuse by later passes.
     pub(crate) syntactic_scope_cache: crate::syntactic_scope_cache::SyntacticScopeCache,
     /// Rust-only (performance divergence): isolates `PresenceSummary` mutations from JSON inputs
@@ -409,6 +412,7 @@ impl Compiler {
             scope_lookups: Default::default(),
             typed_scope_arena: crate::typed_scope::TypedScopeArena::default(),
             typed_scope_mirror: Vec::new(),
+            extern_node_count: 0,
             syntactic_scope_cache: Default::default(),
             defer_json_presence: false,
             deferred_json_presences: IndexMap::<_, _>::default(),
@@ -1296,7 +1300,8 @@ impl CodeBuilder {
     }
     // port: Compiler.CodeBuilder#toString
     pub fn to_js_string(&self) -> closure_rhino::js_string::JsString {
-        closure_rhino::js_string::JsString::from_units(self.sb.clone())
+        // Rust-only (performance divergence): one copy of the code, not a copy of a copy.
+        closure_rhino::js_string::JsString::from_slice(&self.sb)
     }
     // port: Compiler.CodeBuilder#getLength
     pub fn get_length(&self) -> usize {
@@ -2654,6 +2659,9 @@ impl Compiler {
             let last_char = chars[length - 1];
             let second_last_char = if length >= 2 { chars[length - 2] } else { 0 };
             let has_semicolon = last_char == 59 || (last_char == 10 && second_last_char == 59);
+            // Rust-only (performance divergence): room for the code and the semicolon at once (a
+            // buffer that holds only the code would be copied for the semicolon).
+            cb.sb.reserve(length + 1);
             cb.append(code);
             if !has_semicolon {
                 cb.append(";");
@@ -2732,6 +2740,9 @@ impl Compiler {
             let last_char = chars[length - 1];
             let second_last_char = if length >= 2 { chars[length - 2] } else { 0 };
             let has_semicolon = last_char == 59 || (last_char == 10 && second_last_char == 59);
+            // Rust-only (performance divergence): room for the code and the semicolon at once (a
+            // buffer that holds only the code would be copied for the semicolon).
+            cb.sb.reserve(length + 1);
             cb.append(code);
             if !has_semicolon {
                 cb.append(";");
@@ -3511,12 +3522,33 @@ impl Compiler {
             .set_path_escaper(self.get_options().get_path_escaper())
             .build();
     }
+    /// Rust-only, not in Java (performance divergence): before the inputs are parsed, makes room
+    /// in the node arena for the nodes their parses make (`SourceFile::estimated_node_count`)
+    /// and a quarter more for the nodes the passes add (+25% on the benchmark bundles, +7% on a
+    /// compile of only the bundled externs), so that the arena's columns, about 88 bytes per node,
+    /// are not copied each time they double. Takes no decision: only capacity changes.
+    fn reserve_node_arena(&mut self) {
+        let parsed: usize = self
+            .externs
+            .iter()
+            .chain(&self.get_inputs_in_order())
+            .map(|input| input.get_source_file().estimated_node_count())
+            .sum();
+        self.ast.reserve_nodes(parsed.saturating_add(parsed / 4));
+    }
+    /// Rust-only (performance divergence): about how many nodes of the arena are not the
+    /// externs' (those that existed when the externs were parsed), for passes that size their
+    /// tables from the program's size before their first run. Only for capacities.
+    pub(crate) fn estimated_program_nodes(&self) -> usize {
+        self.ast.node_count().saturating_sub(self.extern_node_count) as usize
+    }
     // port: Compiler#parseInputs
     pub fn parse_inputs(&mut self) -> Option<NodeId> {
         let dev_mode = self.get_options().get_dev_mode() != crate::compiler_options::DevMode::OFF;
         self.externs_root.unwrap().detach_children(self);
         self.js_root.unwrap().detach_children(self);
         self.script_node_by_filename.lock().unwrap().clear();
+        self.reserve_node_arena();
         let tracer = self.new_tracer(crate::pass_names::PARSE_INPUTS);
         self.before_pass(crate::pass_names::PARSE_INPUTS);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -3545,6 +3577,7 @@ impl Compiler {
                     .insert(input.get_source_file().get_name().into(), n);
             }
             crate::parallel_parse::finish(self);
+            self.extern_node_count = self.ast.node_count();
             if self
                 .get_options()
                 .get_language_in()

@@ -178,6 +178,65 @@ pub(crate) struct RemoveUnusedCodeCache {
     guarded_polyfill_usages: crate::polyfill_usage_finder::GuardedPolyfillUsageCache,
     /// Rust-only (performance divergence): what the last run left when it changed nothing.
     clean_run: Option<CleanRun>,
+    /// Rust-only (performance divergence): the sizes the last run's arenas reached.
+    run_sizes: Option<RunSizes>,
+}
+
+/// Rust-only (performance divergence): how large the arenas of a run of the pass grew, so that
+/// the next run (the pass runs about ten times on the same program) reserves that room instead
+/// of growing them by doubling from empty, which copies each arena each time. Only capacity
+/// depends on it.
+#[derive(Clone, Copy)]
+struct RunSizes {
+    removables: usize,
+    var_infos: usize,
+    var_info_order: usize,
+    leaf_recorders: usize,
+    covered: usize,
+}
+
+impl RunSizes {
+    /// For the first run, from the size of the program: a little more than the first run on the
+    /// benchmark bundles needed per node outside the externs.
+    fn first_run(compiler: &AbstractCompiler) -> Self {
+        let nodes = compiler.estimated_program_nodes();
+        Self {
+            removables: nodes / 11,
+            var_infos: nodes / 18,
+            var_info_order: nodes / 18,
+            leaf_recorders: nodes / 56,
+            covered: 0,
+        }
+    }
+
+    fn of(pass: &RemoveUnusedCode) -> Self {
+        Self {
+            removables: pass.removables.len(),
+            var_infos: pass.var_infos.len(),
+            var_info_order: pass.var_info_map.order.len(),
+            leaf_recorders: pass.leaf_recorders.len(),
+            covered: pass.covered.len(),
+        }
+    }
+
+    fn reserve_in(self, pass: &mut RemoveUnusedCode) {
+        /// An eighth more than the last run (a run that needs a few more entries than the last
+        /// would otherwise copy the full arena once). An empty vector too small is made anew
+        /// rather than grown (growing copies the whole old block, though nothing in it is kept).
+        fn reserve<T>(v: &mut Vec<T>, len: usize) {
+            let len = len + len / 8;
+            if v.is_empty() && v.capacity() < len {
+                *v = Vec::with_capacity(len);
+            } else {
+                v.reserve_exact(len.saturating_sub(v.len()));
+            }
+        }
+        reserve(&mut pass.removables, self.removables);
+        reserve(&mut pass.var_infos, self.var_infos);
+        reserve(&mut pass.var_info_map.order, self.var_info_order);
+        reserve(&mut pass.leaf_recorders, self.leaf_recorders);
+        reserve(&mut pass.covered, self.covered);
+    }
 }
 
 /// Rust-only (performance divergence): what a run of the pass that changed nothing leaves for the
@@ -991,6 +1050,11 @@ impl RemoveUnusedCode {
         }
         self.active_leaf = NO_LEAF;
         self.leaf_recorders.clear();
+        let sizes = match compiler.remove_unused_code_cache.run_sizes {
+            Some(sizes) => sizes,
+            None => RunSizes::first_run(compiler),
+        };
+        sizes.reserve_in(self);
         self.current_polyfill_mask = 0;
         self.removable_polyfill_mask = 0;
         self.polyfill_mask_overflow = false;
@@ -1012,6 +1076,7 @@ impl RemoveUnusedCode {
         for index in 0..self.all_function_param_scopes.len() {
             self.remove_unreferenced_function_args(compiler, self.all_function_param_scopes[index]);
         }
+        compiler.remove_unused_code_cache.run_sizes = Some(RunSizes::of(self));
         if self.can_use_leaf_cache && !self.polyfill_mask_overflow {
             self.commit_leaf_summaries(compiler);
         }

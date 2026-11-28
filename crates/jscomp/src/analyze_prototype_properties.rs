@@ -35,6 +35,7 @@
 
 use crate::abstract_compiler::AbstractCompiler;
 use crate::compiler_pass::CompilerPass;
+use crate::graph::adjacency_graph::AdjacencyGraph;
 use crate::graph::fixed_point_graph_traversal::{EdgeCallback, FixedPointGraphTraversal};
 use crate::graph::graph::Graph;
 use crate::graph::linked_directed_graph::LinkedDirectedGraph;
@@ -245,6 +246,7 @@ impl CompilerPass for AnalyzePrototypeProperties {
     // port: AnalyzePrototypeProperties#process
     fn process(&mut self, compiler: &mut AbstractCompiler, extern_root: NodeId, root: NodeId) {
         check_state!(compiler.get_life_cycle_stage().is_normalized());
+        self.reserve_like_last_run(compiler);
         if !self.can_modify_externs {
             NodeTraversal::traverse(
                 compiler,
@@ -288,6 +290,59 @@ impl CompilerPass for AnalyzePrototypeProperties {
             name_infos: &mut self.name_infos,
         });
         t.compute_fixed_point_from_set(&mut self.symbol_graph, entry);
+        compiler.prototype_properties_cache.sizes = Some(AnalysisSizes {
+            name_infos: self.name_infos.len(),
+            property_names: self.property_name_info.len(),
+            var_names: self.var_name_info.len(),
+            edges: self.symbol_graph.edge_arena_len(),
+        });
+    }
+}
+
+/// Rust-only (performance divergence): how large the tables of a run of the analysis grew. The
+/// next run reserves that room (the first one room estimated from the externs' property names,
+/// which it gives a name info each, and the size of the program), instead of growing the tables
+/// by doubling, which copies each of them each time. Only capacity depends on it.
+#[derive(Clone, Copy)]
+struct AnalysisSizes {
+    name_infos: usize,
+    property_names: usize,
+    var_names: usize,
+    edges: usize,
+}
+
+impl AnalyzePrototypeProperties {
+    fn reserve_like_last_run(&mut self, compiler: &AbstractCompiler) {
+        let sizes = compiler
+            .prototype_properties_cache
+            .sizes
+            .unwrap_or_else(|| {
+                // The first run: the externs' property names and a little more than the benchmark
+                // bundles needed per node outside the externs.
+                let names = compiler
+                    .get_extern_properties()
+                    .map_or(0, |names| names.len());
+                let nodes = compiler.estimated_program_nodes();
+                AnalysisSizes {
+                    name_infos: names + nodes / 64,
+                    property_names: names + nodes / 96,
+                    var_names: nodes / 256,
+                    edges: names + names / 2 + nodes / 10,
+                }
+            });
+        // An eighth more than the last run: a run that needs a few more entries than the last
+        // would otherwise copy each full table once.
+        let more = |want: usize, have: usize| (want + want / 8).saturating_sub(have);
+        self.name_infos
+            .reserve(more(sizes.name_infos, self.name_infos.len()));
+        self.property_name_info
+            .reserve(more(sizes.property_names, self.property_name_info.len()));
+        self.var_name_info
+            .reserve(more(sizes.var_names, self.var_name_info.len()));
+        self.symbol_graph.reserve(
+            more(sizes.name_infos, self.symbol_graph.get_node_count()),
+            more(sizes.edges, self.symbol_graph.edge_arena_len()),
+        );
     }
 }
 
@@ -334,6 +389,8 @@ pub(crate) struct PrototypePropertiesCache {
     units: IndexMap<NodeId, Arc<UnitLog>>,
     /// The name and kind of every name info a log refers to, by index.
     names: IndexSet<(JsString, SymbolType)>,
+    /// Rust-only (performance divergence): the sizes of the last run's tables.
+    sizes: Option<AnalysisSizes>,
 }
 
 #[derive(Debug, PartialEq)]

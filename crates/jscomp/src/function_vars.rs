@@ -101,18 +101,23 @@ impl FunctionVars {
         }
         let collector = Collector::scan_function(ast, function)?;
         let has_nested_function = collector.has_nested_function;
+        // Rust-only (performance divergence): the tables are made at their final sizes, which
+        // the scan knows (only capacity changes).
+        let total: usize = collector.scope_vars.iter().map(IndexMap::len).sum();
         let mut vars = FunctionVars {
             scopes: collector.scopes,
             scope_var_counts: Vec::with_capacity(collector.scope_vars.len()),
-            ordered: Vec::new(),
-            all: IndexMap::default(),
+            ordered: Vec::with_capacity(total),
+            all: IndexMap::with_capacity_and_hasher(total, Default::default()),
             captured: Vec::new(),
         };
         // Per scope, the index into `ordered` of each of its variables.
-        let mut scope_indexes: Vec<IndexMap<JsString, usize>> = Vec::new();
+        let mut scope_indexes: Vec<IndexMap<JsString, usize>> =
+            Vec::with_capacity(collector.scope_vars.len());
         for scope_vars in collector.scope_vars {
             vars.scope_var_counts.push(scope_vars.len());
-            let mut indexes = IndexMap::default();
+            let mut indexes =
+                IndexMap::with_capacity_and_hasher(scope_vars.len(), Default::default());
             for var in scope_vars.into_values() {
                 // `NodeUtil.getAllVarsDeclaredInFunction`: `nameVarMap.put(v.getName(), v)`.
                 vars.all.insert(var.name.clone(), vars.ordered.len());

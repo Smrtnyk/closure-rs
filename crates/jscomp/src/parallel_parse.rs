@@ -627,6 +627,11 @@ pub(crate) fn finish(compiler: &mut AbstractCompiler) {
 fn parse(job: &Job, configs: &mut Vec<(Config, Config)>) -> Option<Preparsed> {
     let code = job.input.get_source_file().load_code_uncached().ok()?;
     let mut ast = Ast::new_for_preparse();
+    // Rust-only (performance divergence): room for the nodes this parse makes (see
+    // `Ast::estimated_parse_nodes`, and a fifth more: one file can be denser than the program);
+    // only capacity changes.
+    let nodes = Ast::estimated_parse_nodes(code.length());
+    ast.reserve_nodes(nodes + nodes / 5);
     let index = configs
         .iter()
         .position(|(config, _)| *config == job.config)

@@ -288,6 +288,34 @@ impl SourceFile {
     pub fn clear_cached_source(&self) {
         self.set_code_and_do_bookkeeping(None);
     }
+    /// Rust-only (performance divergence): about how many nodes parsing this file makes, without
+    /// reading it: the count of a bundled extern's parse, else an estimate from the length of the
+    /// code in memory or the size of the file on disk; zero when nothing is known. Only for
+    /// sizing the node arena (`Compiler::reserve_node_arena`); a stat of the file is not
+    /// observable, a read would be (its error is reported when the file is parsed).
+    pub(crate) fn estimated_node_count(&self) -> usize {
+        if let Some(count) = self.bundled_node_count() {
+            return count;
+        }
+        let units = match &self.state.lock().unwrap().code {
+            Some(SourceCode::Text(text)) => Some(text.length()),
+            Some(SourceCode::Bundled(resource)) => Some(resource.size().0 as usize),
+            None => None,
+        };
+        let units = units.or_else(|| match &self.loader {
+            CodeLoader::Preloaded {
+                preloaded_code: SourceCode::Text(text),
+            } => Some(text.length()),
+            CodeLoader::Preloaded {
+                preloaded_code: SourceCode::Bundled(resource),
+            } => Some(resource.size().0 as usize),
+            CodeLoader::OnDisk { relative_path, .. } => fs::metadata(relative_path)
+                .ok()
+                .and_then(|metadata| usize::try_from(metadata.len()).ok()),
+            CodeLoader::StubSourceFileCodeLoader | CodeLoader::AtZip { .. } => None,
+        });
+        units.map_or(0, closure_rhino::node::Ast::estimated_parse_nodes)
+    }
     // port: SourceFile#hasSourceInMemory
     pub fn has_source_in_memory(&self) -> bool {
         self.state.lock().unwrap().code.is_some()

@@ -1993,3 +1993,29 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/source_file/line_count.rs` (`num_lines`): the line terminators and the CRs of each block
   of 64 units are counted in bytes, without a branch (the same count as the filter it replaces,
   which the compiler did not vectorize; every input is counted when its parsed code is cleared).
+- Capacities sized before tables fill (no decision depends on them, so no switch): a `Vec` or
+  map that grows by doubling copies itself each time and holds the old and the new block at
+  once; reserved room that is never written is address space only. `rhino/node.rs`
+  (`Ast::reserve_nodes`, `estimated_parse_nodes`, `grow_node_column`) and
+  `jscomp/compiler.rs` (`reserve_node_arena`, `estimated_program_nodes`): before parsing, the node
+  arena's columns get room for the inputs' nodes (a bundled extern's count from its snapshot,
+  `bundled_extern_node_counts.rs` made by `build.rs`; other files one node per six code units of
+  their length or file size) and a quarter more for the passes; a preparse arena gets its file's
+  estimate and a fifth more (`parallel_parse.rs`); the lazily grown per-node columns (types,
+  change times, side-effect flags, the scope cache's stamps and roots) take the arena's room at
+  their first growth. `typed_scope_creator/typed_externs.rs` (`ProgramRest`) and
+  `jstype/js_type_registry/snapshot.rs`: the typed externs restore reserves types, properties,
+  typed scopes and vars for the program outside the externs. Sizes of the last run, an eighth
+  more: `RemoveUnusedCode` arenas (`RunSizes`; the first run from the program's size), the
+  `AnalyzePrototypeProperties` tables and graph (`AnalysisSizes`), `InlineVariables` experts per
+  mode, the CFG of each root (`control_flow_analysis.rs`, `LastGraphSizes`, shared by all threads),
+  an `OptimizeCalls` unit recording and each reference list (the previous run's map is kept),
+  an `InlineFunctions` unit scan. Sizes known when a table is made: per-scope `InlineVariables`
+  tables, `FunctionVars`, the `PureFunctionIdentifier` summaries (from the reference map), the
+  `CrossChunkCodeMotion` symbols (declaration statements), the disambiguation and
+  `InlineProperties` name tables (extern property names), a script's printer buffers (from its node
+  count, `code_printer.rs`). An empty table too small is made anew instead of grown (growing
+  copies the old block). Strings: ASCII sources are decoded straight into the string's array
+  (`JsString::from_latin1`, `charset.rs`), `JsString::concat` fills an array of the exact size, and
+  built code is copied once (`CodeBuilder::to_js_string`, `MappedCodePrinter::get_code`,
+  `StringBuilder::to_js_string`); `FunctionBodySites` collects sites in a kept thread-local buffer.
