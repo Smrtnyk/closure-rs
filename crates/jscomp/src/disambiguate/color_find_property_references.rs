@@ -104,6 +104,13 @@ impl<'a> ColorFindPropertyReferences<'a> {
         }
     }
 
+    /// Rust-only (performance divergence): room for `names` property names in the index and the
+    /// arena, so that they are not copied each time they double; only capacity changes.
+    pub(super) fn reserve_property_names(&mut self, names: usize) {
+        self.prop_index.as_mut().unwrap().reserve(names);
+        self.arena.props.reserve(names);
+    }
+
     /// The ordinary disambiguation pass only consumes renames visible in source. Defer
     /// collecting cluster members until every script has supplied its property uses.
     pub(super) fn defer_extern_only_renames(&mut self) {

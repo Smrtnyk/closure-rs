@@ -489,6 +489,18 @@ impl GlobalSymbolCollector {
         arena: &mut GlobalSymbolArena,
         reference_collector: &CrossChunkReferenceCollector<'_>,
     ) -> VecDeque<GlobalSymbolId> {
+        // Rust-only (performance divergence): room for a symbol and a group per declaration
+        // statement, about how many there are, so that the tables are not copied each time they
+        // double; only capacity changes.
+        let declarations = reference_collector
+            .get_top_level_statements()
+            .iter()
+            .filter(|statement| statement.is_declaration_statement())
+            .count();
+        arena.symbols.reserve(declarations);
+        arena.dsgs.reserve(declarations);
+        self.global_symbolfor_var.reserve(declarations);
+        self.symbol_stack.reserve(declarations);
         for (statement_id, statement) in reference_collector
             .get_top_level_statements()
             .iter()

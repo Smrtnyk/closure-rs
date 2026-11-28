@@ -643,7 +643,9 @@ impl PureFunctionIdentifier {
         // starts with ".", so the two key sets are disjoint and each key's list is the list of its
         // own map: the entries borrow those lists, and a property key is kept without the prefix,
         // with the hash code Java computes for the prefixed string (`prefixed_hash_code`).
-        let mut references_by_name: Vec<(ReferenceKey<'_>, &[NodeId])> = Vec::new();
+        let mut references_by_name: Vec<(ReferenceKey<'_>, &[NodeId])> = Vec::with_capacity(
+            reference_map.get_name_references().len() + reference_map.get_prop_references().len(),
+        );
         for (key, value) in reference_map.get_name_references() {
             if !value.is_empty() {
                 references_by_name.push((ReferenceKey::Name(key), value));
@@ -676,6 +678,18 @@ impl PureFunctionIdentifier {
                 .any(|(key, _)| matches!(key, ReferenceKey::Prop(name) if name.is_empty()))
         );
 
+        // Rust-only (performance divergence): room for a summary per name, and as many again
+        // for the summaries the traversal of the functions makes, so that the tables are not
+        // copied each time they double; only capacity changes.
+        let names = references_by_name.len();
+        let props = references_by_name
+            .iter()
+            .filter(|(key, _)| matches!(key, ReferenceKey::Prop(_)))
+            .count();
+        self.summaries.reserve(2 * names + 1);
+        self.reverse_call_graph.reserve(2 * names + 1, 0);
+        self.summaries_by_name.reserve(names - props);
+        self.summaries_by_prop_name.reserve(props);
         // Create and store a summary for all known names.
         let mut summaries_for_names = Vec::with_capacity(references_by_name.len());
         for (key, _) in &references_by_name {

@@ -125,6 +125,17 @@ impl SourceFile {
         include!(concat!(env!("OUT_DIR"), "/bundled_externs.rs"))
     }
 
+    /// Rust-only (performance divergence): how many nodes the parse of this bundled extern makes
+    /// (counted when its snapshot was made), for sizing the node arena before parsing
+    /// (`SourceFile::estimated_node_count`).
+    pub(crate) fn bundled_node_count(&self) -> Option<usize> {
+        if !self.bundled_browser_extern {
+            return None;
+        }
+        let name = self.get_name();
+        include!(concat!(env!("OUT_DIR"), "/bundled_extern_node_counts.rs"))
+    }
+
     /// Only consumed together with the watch registered when this exact embedded parse was loaded.
     pub(crate) fn bundled_script_summary(&self) -> Option<&'static bundled_script::BundledScript> {
         use bundled_script::BundledScript;

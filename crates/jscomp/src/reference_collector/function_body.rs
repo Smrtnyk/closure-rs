@@ -170,11 +170,29 @@ impl FunctionBodySites {
     }
 
     fn collect_in_mode(ast: &Ast, body: NodeId, delegate: bool) -> Option<Self> {
+        thread_local! {
+            /// Rust-only (performance divergence): the buffer the sites of a body are collected
+            /// in, kept between bodies so that it does not grow by doubling for each one; the
+            /// sites are copied out at their exact size.
+            static SITES: std::cell::Cell<Vec<Site>> = const { std::cell::Cell::new(Vec::new()) };
+        }
+        let mut sites = SITES.take();
+        sites.clear();
+        let collected = Self::collect_sites(ast, body, delegate, &mut sites);
+        SITES.set(sites);
+        collected
+    }
+
+    fn collect_sites(
+        ast: &Ast,
+        body: NodeId,
+        delegate: bool,
+        sites: &mut Vec<Site>,
+    ) -> Option<Self> {
         let mut names = IndexMap::default();
-        let mut sites = Vec::new();
         let mut child = body.get_first_child(ast);
         while let Some(n) = child {
-            if !Self::collect_node(ast, n, body, Nested::No, delegate, &mut names, &mut sites) {
+            if !Self::collect_node(ast, n, body, Nested::No, delegate, &mut names, sites) {
                 return None;
             }
             child = n.get_next(ast);
@@ -183,14 +201,14 @@ impl FunctionBodySites {
             .iter()
             .any(|site| matches!(site.decode(), SiteKind::EnterScope(_)));
         let nested_names_escape =
-            declares_in_nested_scopes && Self::nested_declaration_escapes(ast, &sites, names.len());
+            declares_in_nested_scopes && Self::nested_declaration_escapes(ast, sites, names.len());
         let has_delegates = delegate
             && sites
                 .iter()
                 .any(|site| matches!(site.decode(), SiteKind::Delegate(_)));
         Some(Self {
             first_names: names.into_values().collect(),
-            sites: sites.into_boxed_slice(),
+            sites: sites.as_slice().into(),
             declares_in_nested_scopes,
             nested_names_escape,
             has_delegates,

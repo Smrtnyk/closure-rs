@@ -190,6 +190,10 @@ impl<N: Clone + Eq + Hash, E: Clone + PartialEq> LinkedDirectedGraph<N, E> {
         self.node_arena.reserve(nodes);
         self.edge_arena.reserve(edges);
     }
+    /// Rust-only: the number of edges ever connected (the edge arena's length).
+    pub(crate) fn edge_arena_len(&self) -> usize {
+        self.edge_arena.len()
+    }
     // port: LinkedDirectedGraph#createWithoutAnnotations
     pub fn create_without_annotations() -> Self
     where

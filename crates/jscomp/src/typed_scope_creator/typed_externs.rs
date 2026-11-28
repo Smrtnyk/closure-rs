@@ -1131,7 +1131,8 @@ fn write_arena(w: &mut Writer, env: &mut Env<'_>, arena: &TypedScopeArena) -> Sn
 /// Replaces the arena's state with the state in `r`. The scopes are the same ones (the pre-state
 /// check compared them); the vars before the synthetic externs' are the same ones, the synthetic
 /// externs' stay, and the vars after them are new.
-fn read_arena(r: &mut Reader<'_>, env: &mut Env<'_>, arena: &mut TypedScopeArena) {
+/// `headroom`: how many vars to make room for beyond the restored ones (see `ProgramRest`).
+fn read_arena(r: &mut Reader<'_>, env: &mut Env<'_>, arena: &mut TypedScopeArena, headroom: usize) {
     // The restore rewrites vars wholesale: whatever watches them must look again.
     arena.watch.bump();
     let synthetic = env.synthetic;
@@ -1192,7 +1193,7 @@ fn read_arena(r: &mut Reader<'_>, env: &mut Env<'_>, arena: &mut TypedScopeArena
     let existing = arena.vars.len();
     assert_eq!(existing, start + k, "typed externs: var count");
     assert!(var_count >= start, "typed externs: var count");
-    arena.vars.reserve(var_count - start);
+    arena.vars.reserve(var_count - start + headroom);
     for number in 0..var_count {
         let flags = r.u();
         let name = r.js();
@@ -1971,6 +1972,44 @@ fn check(
 }
 
 /// Replaces the state before the segment with the state after it.
+/// Rust-only (performance divergence): the nodes of the program outside the restored bundled
+/// externs, which typing goes on to declare types, properties, scopes and vars for. The restore
+/// makes room for those in the registry's and the scope arena's tables (a little more than the
+/// benchmark bundles need per node: 0.105 types, 0.053 properties, 0.087 scopes and 0.131 vars),
+/// so that the tables, which hold the externs' entries already, are not copied each time they
+/// double. Only capacity depends on it.
+struct ProgramRest {
+    nodes: usize,
+}
+
+impl ProgramRest {
+    fn of(compiler: &AbstractCompiler, layout: &Layout) -> Self {
+        let restored: usize = layout.ranges().iter().map(|&(_, len)| len as usize).sum();
+        Self {
+            nodes: (compiler.ast.node_count() as usize).saturating_sub(restored),
+        }
+    }
+
+    fn types(&self) -> usize {
+        self.nodes / 8
+    }
+
+    fn properties(&self) -> usize {
+        self.nodes / 16
+    }
+
+    fn vars(&self) -> usize {
+        self.nodes / 6
+    }
+
+    /// Room in the scope arena and its mirror (which hold the externs' few scopes).
+    fn reserve_scopes(&self, compiler: &mut AbstractCompiler) {
+        let scopes = self.nodes / 10;
+        compiler.typed_scope_mirror.reserve(scopes);
+        compiler.typed_scope_arena_mut().scopes.reserve(scopes);
+    }
+}
+
 fn restore(
     builder: &mut AbstractScopeBuilder<'_>,
     compiler: &mut AbstractCompiler,
@@ -1996,11 +2035,24 @@ fn restore(
     env.report = Some(crate::function_type_builder::get_compiler_report_fn(
         compiler,
     ));
+    let rest = ProgramRest::of(compiler, layout);
     {
         let (registry, ast) = compiler.get_type_registry_and_ast();
-        registry.snapshot_restore(&mut r, &mut env, ast, Some(&synthetic.entries));
+        registry.snapshot_restore(
+            &mut r,
+            &mut env,
+            ast,
+            Some(&synthetic.entries),
+            (rest.types(), rest.properties()),
+        );
     }
-    read_arena(&mut r, &mut env, compiler.typed_scope_arena_mut());
+    read_arena(
+        &mut r,
+        &mut env,
+        compiler.typed_scope_arena_mut(),
+        rest.vars(),
+    );
+    rest.reserve_scopes(compiler);
     read_creator(&mut r, &mut env, builder.creator);
     read_builder(&mut r, &mut env, builder);
     read_node_types(&mut r, layout, compiler);

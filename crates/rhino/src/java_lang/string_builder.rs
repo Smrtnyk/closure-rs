@@ -68,7 +68,8 @@ impl StringBuilder {
     }
     // port: StringBuilder#toString
     pub(crate) fn to_js_string(&self) -> JsString {
-        JsString::from_units(self.value.clone())
+        // Rust-only (performance divergence): one copy of the text, not a copy of a copy.
+        JsString::from_slice(&self.value)
     }
 }
 impl fmt::Write for StringBuilder {

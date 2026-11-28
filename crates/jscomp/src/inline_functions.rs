@@ -1487,12 +1487,19 @@ impl InlineFunctions {
         UnitStamps::refresh(compiler, root);
         let mut cache = std::mem::take(&mut compiler.inline_functions_facts.reference_units);
         let verify = *UNIT_CACHE_MODE == UnitCacheMode::Verify;
+        // Rust-only (performance divergence): the number of visits a stale unit had when it was
+        // last scanned, which its new scan reserves (a changed unit's visits seldom change much
+        // in number); only capacity changes.
+        let mut previous_visits = vec![0; units.len()];
         let kept: Vec<Option<(UnitStamps, Box<[CandidateRefEvent]>)>> = units
             .iter()
-            .map(|unit| {
+            .zip(&mut previous_visits)
+            .map(|(unit, previous)| {
                 let node = unit.nodes[0];
                 let current = cache.get(compiler, node).is_some();
-                cache.take(node).filter(|_| current)
+                let entry = cache.take(node);
+                *previous = entry.as_ref().map_or(0, |(_, events)| events.len());
+                entry.filter(|_| current)
             })
             .collect();
         let stale: Vec<usize> = (0..units.len())
@@ -1508,12 +1515,13 @@ impl InlineFunctions {
         {
             let ast = &compiler.ast;
             let units = &units;
+            let previous_visits = &previous_visits;
             for batch in crate::parallel_parse::run_scoped_indexed(
                 "closure-inlinefn2",
                 threads,
                 &stale,
                 |_, &i| {
-                    let mut events = Vec::new();
+                    let mut events = Vec::with_capacity(previous_visits[i]);
                     let mut functions = Vec::new();
                     let ok = catch_unwind(AssertUnwindSafe(|| {
                         scan_reference_visits(ast, root, &units[i], &mut functions, &mut events);

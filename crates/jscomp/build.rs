@@ -224,6 +224,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build/bundled_script_summary.rs");
     let mut summaries = String::from("match name {\n");
     let mut sizes = String::from("match name {\n");
+    let mut node_counts = String::from("match name {\n");
     let mut all_template_names: closure_rhino::fast_hash::IndexSet<JsString> =
         closure_rhino::fast_hash::IndexSet::default();
     // The typed externs data (src/typed_scope_creator/typed_externs.bin) was made from these
@@ -259,7 +260,7 @@ fn main() {
             writeln!(dependencies, "{:?} => Some({flags:?}),", file.path).unwrap();
         }
         let declaration_file = format!("extern-{i}-declarations.bin");
-        if let Some((bytes, (records, candidate_stub_params, summary))) =
+        if let Some((bytes, (records, candidate_stub_params, summary, node_count))) =
             closure_parsing::extern_snapshot::generate_bundled_with_ast(
                 source,
                 code,
@@ -268,10 +269,11 @@ fn main() {
                         declaration_records(ast, root, &mut all_template_names);
                     let summary =
                         bundled_script_summary::generate(ast, root, &declaration_file, &records);
-                    (records, candidate_stub_params, summary)
+                    (records, candidate_stub_params, summary, ast.node_count())
                 },
             )
         {
+            writeln!(node_counts, "{:?} => Some({node_count}),", file.path).unwrap();
             if let Some(summary) = summary {
                 writeln!(summaries, "{:?} => Some(&{summary}),", file.path).unwrap();
             }
@@ -323,4 +325,6 @@ fn main() {
     fs::write(out.join("bundled_extern_declarations.rs"), declarations).unwrap();
     sizes.push_str("_ => None,\n}\n");
     fs::write(out.join("bundled_extern_sizes.rs"), sizes).unwrap();
+    node_counts.push_str("_ => None,\n}\n");
+    fs::write(out.join("bundled_extern_node_counts.rs"), node_counts).unwrap();
 }

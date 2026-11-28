@@ -65,7 +65,10 @@ impl InlineProperties {
     // port: InlineProperties#invalidateExternProperties
     fn invalidate_extern_properties(&mut self, compiler: &AbstractCompiler) {
         // Invalidate properties defined in externs.
-        for name in compiler.get_extern_properties().expect("") {
+        let names = compiler.get_extern_properties().expect("");
+        // Rust-only (performance divergence): room for them all at once (only capacity changes).
+        self.props.reserve(names.len());
+        for name in names {
             self.props.insert(JsString::from(name.as_str()), None);
         }
     }
